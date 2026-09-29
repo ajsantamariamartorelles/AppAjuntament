@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Shell xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+       xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+       xmlns:views="clr-namespace:AjuntamentSantaMariaMartorelles.Views"
+       x:Class="AjuntamentSantaMariaMartorelles.AppShell"
+       FlyoutBehavior="Disabled"
+       Title="Ajuntament de Santa Maria de Martorelles">
+
+    <!-- Arrels independents. Es commuta amb rutes absolutes
+         ("//loading" / "//login" / "//menu"), que reinicien la pila de
+         navegació: després d'identificar-se, la fletxa enrere ja no torna
+         al login. En obrir l'app s'arrenca a "loading", que decideix. -->
+    <FlyoutItem Route="loading">
+        <ShellContent ContentTemplate="{DataTemplate views:LoadingPage}" />
+    </FlyoutItem>
+
+    <FlyoutItem Route="login">
+        <ShellContent ContentTemplate="{DataTemplate views:LoginPage}" />
+    </FlyoutItem>
+
+    <FlyoutItem Route="accepta-termes">
+        <ShellContent ContentTemplate="{DataTemplate views:AcceptaTermesPage}" />
+    </FlyoutItem>
+
+    <FlyoutItem Route="menu">
+        <ShellContent ContentTemplate="{DataTemplate views:MenuPage}" />
+    </FlyoutItem>
+
+</Shell>

@@ -1,0 +1,509 @@
+@page "/patrimoni/gestio"
+@using AppAjuntament.Models
+@using AppAjuntament.Services
+@using Microsoft.Extensions.Options
+@inject IPatrimoniService PatrimoniService
+@inject ICatalogService CatalogService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@inject IOptions<AjuntamentSettings> AjuntamentOptions
+@inject ICachedMunicipiService CachedMunicipis
+@attribute [Authorize]
+
+<PageTitle>Gestió Patrimoni - Admin</PageTitle>
+
+<div class="screen-header">
+    <h3 class="screen-title">Gestió de Patrimoni</h3>
+    @if (!editing)
+    {
+        <button class="btn btn-primary" @onclick='() => Navigation.NavigateTo("/patrimoni/crear")'>
+            <i class="fas fa-plus me-1"></i> Crear Nou
+        </button>
+    }
+</div>
+
+@if (!string.IsNullOrEmpty(missatgeError))
+{
+    <div class="alert alert-danger mt-3">@missatgeError</div>
+}
+
+@if (!editing)
+{
+    @if (carregant)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Carregant...</span>
+            </div>
+            <p class="mt-3 text-muted">Carregant patrimoni...</p>
+        </div>
+    }
+    else if (patrimonis == null || !patrimonis.Any())
+    {
+        <div class="alert alert-info">
+            No hi ha elements de patrimoni registrats.
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm screen-filters-card">
+            <div class="card-header bg-light">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-6">
+                        <label class="form-label mb-1">Cerca</label>
+                        <input class="form-control" @bind="filtreText" @bind:event="oninput" placeholder="Codi, nom o tipus..." />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label mb-1">Estat</label>
+                        <InputSelect class="form-select" @bind-Value="filtreActiu">
+                            <option value="tots">Tots</option>
+                            <option value="actiu">Actius</option>
+                            <option value="inactiu">Inactius</option>
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-3 text-md-end">
+                        <small class="text-muted">@PatrimonisFiltrats.Count() resultats</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-body p-0">
+                @if (!PatrimonisFiltrats.Any())
+                {
+                    <div class="alert alert-light m-3 mb-0">No hi ha resultats amb els filtres actuals.</div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover mb-0">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Codi</th>
+                                    <th>Nom</th>
+                                    <th>Tipus</th>
+                                    <th>Estat</th>
+                                    <th>Actiu</th>
+                                    <th class="text-end">Accions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var p in PatrimonisFiltrats)
+                                {
+                                    <tr>
+                                        <td>@p.CodiInventari</td>
+                                        <td>@p.Nom</td>
+                                        <td>@p.TipusPatrimoni?.Nom</td>
+                                        <td>@p.EstatConservacio?.Nom</td>
+                                        <td>
+                                            @if (p.Actiu)
+                                            {
+                                                <span class="badge bg-success">Actiu</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-secondary">Inactiu</span>
+                                            }
+                                        </td>
+                                        <td class="text-end">
+                                            <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => IniciarEdicio(p)">
+                                                <i class="fas fa-edit"></i> Editar
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmarEliminacio(p.Id, p.Nom)">
+                                                <i class="fas fa-trash"></i> Eliminar
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+}
+else if (currentPatrimoni != null)
+{
+    <div class="card shadow-sm screen-filters-card">
+        <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="fas fa-edit me-2"></i>Editant: @currentPatrimoni.Nom</h5>
+            <button class="btn btn-sm btn-outline-dark" @onclick="Cancel">
+                <i class="fas fa-times"></i> Tancar
+            </button>
+        </div>
+        <div class="card-body">
+            <EditForm Model="currentPatrimoni" OnValidSubmit="Save">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+                <div class="screen-edit-grid">
+                    <div>
+                <div class="row">
+                    <div class="col-md-2 mb-3">
+                        <label>Id</label>
+                        <input type="text" class="form-control" value="@currentPatrimoni.Id" disabled />
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label>Codi Inventari</label>
+                        <InputText @bind-Value="currentPatrimoni.CodiInventari" class="form-control" />
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label>Nom</label>
+                        <InputText @bind-Value="currentPatrimoni.Nom" class="form-control" />
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label>Nom Alternatiu</label>
+                        <InputText @bind-Value="currentPatrimoni.NomAlternatiu" class="form-control" />
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label>Tipus Patrimoni</label>
+                        <InputSelect Value="currentPatrimoni.TipusPatrimoniId"
+                                     ValueChanged="@((int id) => OnTipusChanged(id))"
+                                     ValueExpression="@(() => currentPatrimoni.TipusPatrimoniId)"
+                                     class="form-control">
+                            <option value="0">Selecciona...</option>
+                            @if (tipusPatrimoni != null)
+                            {
+                                @foreach (var t in tipusPatrimoni)
+                                {
+                                    <option value="@t.Id">@t.Nom</option>
+                                }
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label>Subtipus</label>
+                        <InputSelect @bind-Value="currentPatrimoni.Subtipus" class="form-control"
+                                     @attributes="GetSubtipusAttributes()">
+                            <option value="">Selecciona...</option>
+                            @foreach (var st in subtipusDisponibles)
+                            {
+                                <option value="@st">@st</option>
+                            }
+                        </InputSelect>
+                    </div>
+                </div>
+                <hr />
+                <h5 class="mt-2 mb-3">Estat i Localització</h5>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label>Estat Conservació</label>
+                        <InputSelect @bind-Value="currentPatrimoni.EstatConservacioId" class="form-control">
+                            <option value="">Selecciona...</option>
+                            @if (estatsConservacio != null)
+                            {
+                                @foreach (var e in estatsConservacio)
+                                {
+                                    <option value="@e.Id">@e.Nom</option>
+                                }
+                            }
+                        </InputSelect>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-5 mb-3">
+                        <label>Adreça</label>
+                        <InputText @bind-Value="currentPatrimoni.AdrecaCompleta" class="form-control" />
+                    </div>
+                    <div class="col-md-1 mb-3">
+                        <label>Núm.</label>
+                        <InputText @bind-Value="currentPatrimoni.NumeroPolicia" class="form-control" />
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label>Municipi</label>
+                        <div class="form-control bg-light text-muted">@currentPatrimoni.Municipi</div>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label>Comarca</label>
+                        <div class="form-control bg-light text-muted">@currentPatrimoni.Comarca</div>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label>Província</label>
+                        <div class="form-control bg-light text-muted">@currentPatrimoni.Provincia</div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <label>Latitud</label>
+                        <InputNumber @bind-Value="currentPatrimoni.Latitud" class="form-control" />
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label>Longitud</label>
+                        <InputNumber @bind-Value="currentPatrimoni.Longitud" class="form-control" />
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label>UTM Est (X)</label>
+                        <InputNumber @bind-Value="currentPatrimoni.UtmX" class="form-control" />
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label>UTM Nord (Y)</label>
+                        <InputNumber @bind-Value="currentPatrimoni.UtmY" class="form-control" />
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label>Descripció Breu</label>
+                    <InputTextArea @bind-Value="currentPatrimoni.DescripcioBreu" class="form-control" rows="2" />
+                </div>
+                <div class="mb-3">
+                    <label>Descripció Detallada</label>
+                    <InputTextArea @bind-Value="currentPatrimoni.DescripcioDetallada" class="form-control" rows="4" />
+                </div>
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <label>Any Construcció</label>
+                        <InputNumber @bind-Value="currentPatrimoni.AnyConstruccio" class="form-control" />
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label>Període Històric</label>
+                        <InputText @bind-Value="currentPatrimoni.PeriodeHistoric" class="form-control" />
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label>Estil Arquitectònic</label>
+                        <InputText @bind-Value="currentPatrimoni.EstilArquitectonic" class="form-control" />
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label>Materials Principals</label>
+                        <InputText @bind-Value="currentPatrimoni.MaterialsPrincipals" class="form-control" />
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label>Observacions Estat</label>
+                    <InputTextArea @bind-Value="currentPatrimoni.ObservacionsEstat" class="form-control" rows="2" />
+                </div>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label>Protecció Legal</label>
+                        <InputSelect @bind-Value="currentPatrimoni.ProteccioLegal" class="form-control">
+                            <option value="Cap">Cap</option>
+                            <option value="Local">Local</option>
+                            <option value="Autonomica">Autonòmica</option>
+                            <option value="Nacional">Nacional</option>
+                            <option value="Internacional">Internacional</option>
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label>Numero Expedient</label>
+                        <InputText @bind-Value="currentPatrimoni.NumeroExpedient" class="form-control" />
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label>Organisme Protecció</label>
+                        <InputText @bind-Value="currentPatrimoni.OrganismeProteccio" class="form-control" />
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label>Ús Actual</label>
+                        <InputText @bind-Value="currentPatrimoni.UsActual" class="form-control" />
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label>Ús Original</label>
+                        <InputText @bind-Value="currentPatrimoni.UsOriginal" class="form-control" />
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label>Propietari Actual</label>
+                        <InputText @bind-Value="currentPatrimoni.PropietariActual" class="form-control" />
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label>Règim Propietat</label>
+                        <InputSelect @bind-Value="currentPatrimoni.RegimPropietat" class="form-control">
+                            <option value="Public">Públic</option>
+                            <option value="Privat">Privat</option>
+                            <option value="Mixte">Mixte</option>
+                            <option value="Desconegut">Desconegut</option>
+                        </InputSelect>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col mb-3">
+                        <label>Valor Històric <small class="text-muted">(1-5)</small></label>
+                        <InputNumber @bind-Value="currentPatrimoni.ValorHistoric" class="form-control" min="1" max="5" />
+                    </div>
+                    <div class="col mb-3">
+                        <label>Valor Artístic <small class="text-muted">(1-5)</small></label>
+                        <InputNumber @bind-Value="currentPatrimoni.ValorArtistic" class="form-control" min="1" max="5" />
+                    </div>
+                    <div class="col mb-3">
+                        <label>Valor Arquitectònic <small class="text-muted">(1-5)</small></label>
+                        <InputNumber @bind-Value="currentPatrimoni.ValorArquitectonic" class="form-control" min="1" max="5" />
+                    </div>
+                    <div class="col mb-3">
+                        <label>Valor Social <small class="text-muted">(1-5)</small></label>
+                        <InputNumber @bind-Value="currentPatrimoni.ValorSocial" class="form-control" min="1" max="5" />
+                    </div>
+                    <div class="col mb-3">
+                        <label>Valor Total</label>
+                        <InputNumber @bind-Value="currentPatrimoni.ValorTotal" class="form-control bg-light" />
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-auto mb-3 d-flex align-items-center gap-2">
+                        <label class="mb-0">Accessible al Públic</label>
+                        <InputCheckbox @bind-Value="currentPatrimoni.AccessiblePublic" class="form-check-input" />
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label>Horari Visites</label>
+                        <InputText @bind-Value="currentPatrimoni.HorariVisites" class="form-control" />
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label>Preu Entrada</label>
+                        <InputNumber @bind-Value="currentPatrimoni.PreuEntrada" class="form-control" />
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label>Notes Internes</label>
+                    <InputTextArea @bind-Value="currentPatrimoni.NotesInternes" class="form-control" rows="2" />
+                </div>
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-warning d-lg-none">
+                        <i class="fas fa-save me-1"></i> Guardar Canvis
+                    </button>
+                    <button type="button" @onclick="Cancel" class="btn btn-secondary ms-2 d-lg-none">
+                        <i class="fas fa-times me-1"></i> Cancel·lar
+                    </button>
+                </div>
+                    </div>
+
+                    <div class="screen-sidebar screen-sidebar-sticky">
+                            <div class="card border-0 bg-light mb-3">
+                                <div class="card-body">
+                                    <ArxiusPatrimoniPanel PatrimoniId="@currentPatrimoni.Id" />
+                                </div>
+                            </div>
+
+                            <div class="card border-0 bg-light">
+                                <div class="card-body d-grid gap-2">
+                                    <button type="submit" class="btn btn-warning">
+                                        <i class="fas fa-save me-1"></i> Guardar Canvis
+                                    </button>
+                                    <button type="button" @onclick="Cancel" class="btn btn-secondary">
+                                        <i class="fas fa-times me-1"></i> Cancel·lar
+                                    </button>
+                                </div>
+                            </div>
+                    </div>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Patrimoni>? patrimonis;
+    private List<TipusPatrimoni>? tipusPatrimoni;
+    private List<EstatConservacio>? estatsConservacio;
+    private List<string> subtipusDisponibles = new();
+    private Patrimoni? currentPatrimoni;
+    private bool editing = false;
+    private bool carregant = true;
+    private string? missatgeError;
+    private string filtreText = string.Empty;
+    private string filtreActiu = "tots";
+
+    private IEnumerable<Patrimoni> PatrimonisFiltrats => (patrimonis ?? Enumerable.Empty<Patrimoni>())
+        .Where(p =>
+            (string.IsNullOrWhiteSpace(filtreText)
+                || (p.CodiInventari?.Contains(filtreText, StringComparison.OrdinalIgnoreCase) ?? false)
+                || (p.Nom?.Contains(filtreText, StringComparison.OrdinalIgnoreCase) ?? false)
+                || (p.TipusPatrimoni?.Nom?.Contains(filtreText, StringComparison.OrdinalIgnoreCase) ?? false))
+            && (filtreActiu == "tots"
+                || (filtreActiu == "actiu" && p.Actiu)
+                || (filtreActiu == "inactiu" && !p.Actiu)));
+
+    protected override async Task OnInitializedAsync()
+    {
+        tipusPatrimoni = (await CatalogService.GetTipusPatrimoniAsync()).ToList();
+        estatsConservacio = (await CatalogService.GetEstatsConservacioAsync()).ToList();
+        await CarregarDades();
+    }
+
+    private async Task CarregarDades()
+    {
+        carregant = true;
+        missatgeError = null;
+        StateHasChanged();
+
+        try
+        {
+            var result = await PatrimoniService.GetAllAsync();
+            patrimonis = result?.ToList();
+        }
+        catch (Exception ex)
+        {
+            missatgeError = $"Error carregant dades: {ex.Message}";
+        }
+        finally
+        {
+            carregant = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task IniciarEdicio(Patrimoni p)
+    {
+        // Carreguem una còpia fresca des del servei per tenir totes les dades
+        currentPatrimoni = await PatrimoniService.GetByIdAsync(p.Id) ?? p;
+        await ActualitzaSubtipusAsync();
+        editing = true;
+        StateHasChanged();
+    }
+
+    private async Task ActualitzaSubtipusAsync()
+    {
+        subtipusDisponibles = new List<string>();
+        if (currentPatrimoni != null && currentPatrimoni.TipusPatrimoniId > 0)
+        {
+            var result = await CatalogService.GetSubtipusPatrimoniAsync(currentPatrimoni.TipusPatrimoniId);
+            subtipusDisponibles = result ?? new List<string>();
+        }
+        StateHasChanged();
+    }
+
+    private Dictionary<string, object> GetSubtipusAttributes()
+    {
+        var attrs = new Dictionary<string, object>();
+        if (currentPatrimoni == null || currentPatrimoni.TipusPatrimoniId <= 0 || subtipusDisponibles.Count == 0)
+            attrs["disabled"] = "disabled";
+        return attrs;
+    }
+
+    private async Task OnTipusChanged(int nouTipusId)
+    {
+        if (currentPatrimoni != null)
+        {
+            currentPatrimoni.TipusPatrimoniId = nouTipusId;
+            await ActualitzaSubtipusAsync();
+        }
+    }
+
+    private async Task Save()
+    {
+        if (currentPatrimoni == null)
+        {
+            return;
+        }
+
+        await PatrimoniService.UpdateAsync(currentPatrimoni.Id, currentPatrimoni);
+        editing = false;
+        currentPatrimoni = null;
+        await CarregarDades();
+    }
+
+    private void Cancel()
+    {
+        editing = false;
+        currentPatrimoni = null;
+    }
+
+    private async Task ConfirmarEliminacio(int id, string? nom)
+    {
+        var confirmat = await JSRuntime.InvokeAsync<bool>("confirm", $"Esteu segur que voleu eliminar '{nom}'?");
+        if (confirmat)
+        {
+            await PatrimoniService.DeleteAsync(id);
+            await CarregarDades();
+        }
+    }
+}

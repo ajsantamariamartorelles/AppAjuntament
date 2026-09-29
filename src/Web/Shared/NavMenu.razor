@@ -1,0 +1,368 @@
+@implements IDisposable
+@inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JSRuntime
+@inject AppAjuntament.Services.DatabaseLoggerService DbLogger
+
+<AuthorizeView>
+    <NotAuthorized>
+        <div class="nav-scrollable">
+            <div class="nav-body">
+                <nav class="flex-column">
+                    @HomeLink
+                    @ActivitatsLink
+
+                    @SectionHeader("municipi", "fa-city", "Dades del municipi")
+                    @if (openSection == "municipi")
+                    {
+                        <div class="nav-submenu">@MunicipiItems</div>
+                    }
+
+                    @SectionHeader("patrimoni", "fa-landmark", "Patrimoni")
+                    @if (openSection == "patrimoni")
+                    {
+                        <div class="nav-submenu">@PatrimoniPublicItems</div>
+                    }
+
+                    @if (GetSeuEletroApis().Any())
+                    {
+                        @SectionHeader("seu", "fa-network-wired", "SEU Electrònica")
+                        @if (openSection == "seu")
+                        {
+                            <div class="nav-submenu">@SeuItems</div>
+                        }
+                    }
+
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="/Auth/Login">
+                            <i class="fas fa-lock me-2"></i> <span class="nav-text">Privat</span>
+                        </NavLink>
+                    </div>
+                </nav>
+            </div>
+            <div class="nav-footer">
+                <div class="dropdown">
+                    <a class="user-chip dropdown-toggle" href="#" role="button" id="userMenu" data-bs-toggle="dropdown" aria-expanded="false" @onclick:stopPropagation="true">
+                        <i class="fas fa-user-circle"></i>
+                        <span class="name nav-text">Anònim</span>
+                        <span class="ms-auto small nav-text">Inicia sessió</span>
+                    </a>
+                    <ul class="dropdown-menu" aria-labelledby="userMenu">
+                        <li><a class="dropdown-item" href="terms-and-conditions"><i class="fas fa-file-contract me-2"></i>Termes i Condicions</a></li>
+                        <li><a class="dropdown-item" href="data-privacy"><i class="fas fa-shield-alt me-2"></i>Política de Privacitat</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="/Auth/Login"><i class="fas fa-lock me-2"></i>Inicia sessió</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </NotAuthorized>
+    <Authorized>
+        <div class="nav-scrollable" @onclick="ToggleNavMenu">
+            <div class="nav-body">
+                <nav class="flex-column">
+                    @HomeLink
+                    @ActivitatsLink
+
+                    @SectionHeader("subvencions", "fa-coins", "Subvencions i ajuts")
+                    @if (openSection == "subvencions")
+                    {
+                        <div class="nav-submenu">
+                            @Link("subvencions", "fa-euro-sign", "Subvencions")
+                            @Link("ingressos-externs", "fa-coins", "Ingressos d'altres ens")
+                        </div>
+                    }
+
+                    <AuthorizeView Policy="EditorOrAdmin" Context="cursetsCtx">
+                        @SectionHeader("cursos", "fa-graduation-cap", "Cursos i activitats")
+                        @if (openSection == "cursos")
+                        {
+                            <div class="nav-submenu">
+                                @Link("cursets", "fa-dumbbell", "Cursos", exact: true)
+                                @Link("cursets/alumnes", "fa-user-friends", "Alumnes")
+                                @Link("cursets/professores", "fa-chalkboard-teacher", "Professorat")
+                                @Link("cursets/regidors", "fa-user-tie", "Regidors")
+                                @Link("cursets/assistencies", "fa-clipboard-check", "Assistències")
+                                @Link("cursets/absencies", "fa-user-clock", "Absències")
+                                @Link("cursets/liquidacions", "fa-file-invoice-dollar", "Liquidacions")
+                            </div>
+                        }
+                    </AuthorizeView>
+
+                    @SectionHeader("patrimoni", "fa-landmark", "Patrimoni")
+                    @if (openSection == "patrimoni")
+                    {
+                        <div class="nav-submenu">
+                            @Link("patrimoni/gestio", "fa-cogs", "Gestió")
+                            @PatrimoniPublicItems
+                        </div>
+                    }
+
+                    @SectionHeader("persones", "fa-users", "Persones i entitats")
+                    @if (openSection == "persones")
+                    {
+                        <div class="nav-submenu">
+                            @Link("tercers", "fa-address-book", "Persones")
+                            @Link("voluntaris", "fa-users", "Voluntariat")
+                            @Link("armes", "fa-shield-alt", "Armes")
+                        </div>
+                    }
+
+                    @SectionHeader("municipi", "fa-city", "Dades del municipi")
+                    @if (openSection == "municipi")
+                    {
+                        <div class="nav-submenu">@MunicipiItems</div>
+                    }
+
+                    @if (GetSeuEletroApis().Any())
+                    {
+                        @SectionHeader("seu", "fa-network-wired", "SEU Electrònica")
+                        @if (openSection == "seu")
+                        {
+                            <div class="nav-submenu">@SeuItems</div>
+                        }
+                    }
+
+                    @SectionHeader("admin", "fa-database", "Administració")
+                    @if (openSection == "admin")
+                    {
+                        <div class="nav-submenu">
+                            @Link("taules-auxiliar/documents-tramits", "fa-file-signature", "Documents/Tràmits")
+                            @Link("taules-auxiliar/ambits", "fa-sitemap", "Àmbits/Subàmbit")
+                            @Link("taules-auxiliar/armes", "fa-shield-alt", "Armes (aux.)")
+
+                            @SubSectionHeader("admin-patrimoni", "fa-landmark", "Patrimoni")
+                            @if (openSubSection == "admin-patrimoni")
+                            {
+                                <div class="nav-submenu">
+                                    @SubLink("admin/patrimoni/tags", "fa-tags", "Tags")
+                                    @SubLink("admin/patrimoni/coleccions", "fa-photo-film", "Col·leccions")
+                                    @SubLink("admin/patrimoni/localitzacions", "fa-map-marker-alt", "Localitzacions")
+                                    @SubLink("admin/patrimoni/fotografies", "fa-camera", "Fotografies")
+                                </div>
+                            }
+
+                            @Link("arees", "fa-layer-group", "Àrees")
+                            @Link("comarques", "fa-map", "Comarques")
+                            @Link("anys", "fa-calendar-alt", "Anys")
+                            <AuthorizeView Policy="AdminOnly" Context="adminCtx">
+                                @Link("debug-auth", "fa-bug", "Debug Auth")
+                            </AuthorizeView>
+                        </div>
+                    }
+                </nav>
+            </div>
+            <div class="nav-footer">
+                <AuthorizeView>
+                    <Authorized Context="authCtx">
+                        <div class="dropdown">
+                            <a class="user-chip dropdown-toggle" href="#" role="button" id="userMenuAuth" data-bs-toggle="dropdown" aria-expanded="false" @onclick:stopPropagation="true">
+                                <i class="fas fa-user-circle"></i>
+                                <span class="name nav-text">@authCtx.User?.Identity?.Name</span>
+                            </a>
+                            <ul class="dropdown-menu" aria-labelledby="userMenuAuth">
+                                <li><a class="dropdown-item" href="terms-and-conditions"><i class="fas fa-file-contract me-2"></i>Termes i Condicions</a></li>
+                                <li><a class="dropdown-item" href="data-privacy"><i class="fas fa-shield-alt me-2"></i>Política de Privacitat</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item text-danger" href="#" @onclick="Logout" @onclick:preventDefault="true"><i class="fas fa-sign-out-alt me-2"></i>Desconnectar-se</a></li>
+                            </ul>
+                        </div>
+                    </Authorized>
+                </AuthorizeView>
+            </div>
+        </div>
+    </Authorized>
+</AuthorizeView>
+
+@code {
+    [Parameter]
+    public EventCallback OnToggle { get; set; }
+
+    [Parameter]
+    public bool IsCollapsed { get; set; }
+
+    /// <summary>Secció desplegada actualment (accordion: només una alhora). null = totes plegades.</summary>
+    private string? openSection;
+
+    /// <summary>Sub-grup desplegat dins la secció oberta (p. ex. "Patrimoni" dins "Administració").</summary>
+    private string? openSubSection;
+
+    private void Toggle(string id)
+    {
+        openSection = openSection == id ? null : id;
+        openSubSection = null;
+    }
+
+    private void ToggleSub(string id) => openSubSection = openSubSection == id ? null : id;
+
+    private async Task ToggleNavMenu()
+    {
+        await OnToggle.InvokeAsync();
+    }
+
+    protected override void OnInitialized()
+    {
+        AuthStateProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
+        NavigationManager.LocationChanged += OnLocationChanged;
+        var p = CurrentPath();
+        openSection = SectionForPath(p);
+        openSubSection = SubSectionForPath(p);
+    }
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        var p = CurrentPath();
+        var s = SectionForPath(p);
+        var sub = SubSectionForPath(p);
+        if ((s != null && s != openSection) || (sub != null && sub != openSubSection))
+        {
+            if (s != null) openSection = s;
+            if (sub != null) openSubSection = sub;
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private static string? SubSectionForPath(string p) =>
+        p.StartsWith("admin/patrimoni") ? "admin-patrimoni" : null;
+
+    private string CurrentPath() =>
+        NavigationManager.ToBaseRelativePath(NavigationManager.Uri).ToLowerInvariant().TrimStart('/');
+
+    /// <summary>Quina secció conté la pàgina actual (per obrir-la sola). null si no n'hi ha cap.</summary>
+    private static string? SectionForPath(string p)
+    {
+        if (p.StartsWith("cursets")) return "cursos";
+        if (p.StartsWith("subvencions") || p.StartsWith("ingressos-externs")) return "subvencions";
+        if (p.StartsWith("admin/patrimoni") || p.StartsWith("taules-auxiliar")
+            || p is "arees" or "comarques" or "anys" || p.StartsWith("debug-auth")) return "admin";
+        if (p.StartsWith("patrimoni") || p is "patrimoniindex" or "galeria" or "fotos" or "mapa" or "cerca") return "patrimoni";
+        if (p.StartsWith("tercers") || p.StartsWith("voluntaris") || p.StartsWith("armes")) return "persones";
+        if (p.StartsWith("resultats-electorals") || p.StartsWith("ordenances") || p.StartsWith("convenis")
+            || p.StartsWith("transparencia") || p.StartsWith("estadistiques-municipi")
+            || p.StartsWith("dades-municipals") || p.StartsWith("establiments")) return "municipi";
+        if (p.StartsWith("seu-e")) return "seu";
+        return null;
+    }
+
+    private async void OnAuthenticationStateChanged(Task<Microsoft.AspNetCore.Components.Authorization.AuthenticationState> authStateTask)
+    {
+        try
+        {
+            await authStateTask;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error carregant estat autenticació al menú", ex, "LoadAuthState");
+        }
+    }
+
+    private async Task Login()
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("window.location.assign", "/Auth/Login");
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogWarningAsync("Error redirigint a login amb JSRuntime, usant NavigationManager", "Login", $"ExceptionType={ex.GetType().Name}");
+            NavigationManager.NavigateTo("/Auth/Login", true);
+        }
+    }
+
+    private async Task Logout()
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("window.location.assign", "/Auth/Logout");
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogWarningAsync("Error redirigint a logout amb JSRuntime, usant NavigationManager", "Logout", $"ExceptionType={ex.GetType().Name}");
+            NavigationManager.NavigateTo("/Auth/Logout", true);
+        }
+    }
+
+    private List<AppAjuntament.Models.Api.SeuApiRecord> GetSeuEletroApis()
+    {
+        return AppAjuntament.Models.Api.SeuApiCatalog.GetUnusedApis();
+    }
+
+    public void Dispose()
+    {
+        AuthStateProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
+        NavigationManager.LocationChanged -= OnLocationChanged;
+    }
+
+    // ---------- Fragments reutilitzables ----------
+
+    private RenderFragment HomeLink => @<div class="nav-item px-3">
+        <NavLink class="nav-link" href="" Match="NavLinkMatch.All" @onclick:stopPropagation>
+            <i class="fas fa-home me-2"></i> <span class="nav-text">Inici</span>
+        </NavLink>
+    </div>;
+
+    private RenderFragment ActivitatsLink => @<div class="nav-item px-3">
+        <NavLink class="nav-link" href="cursos" Match="NavLinkMatch.All" @onclick:stopPropagation>
+            <i class="fas fa-person-running me-2"></i> <span class="nav-text">Activitats</span>
+        </NavLink>
+    </div>;
+
+    private RenderFragment SectionHeader(string id, string icon, string title) => @<div class="nav-item px-3">
+        <div class="nav-link" @onclick="() => Toggle(id)" @onclick:stopPropagation style="cursor: pointer;">
+            <i class="fas @icon me-2"></i> <span class="nav-text">@title</span>
+            <i class="fas fa-chevron-down ms-auto" style="@(openSection == id ? "transform: rotate(180deg);" : "")"></i>
+        </div>
+    </div>;
+
+    private RenderFragment Link(string href, string icon, string text, bool exact = false) => @<div class="nav-item px-3 ps-4">
+        <NavLink class="nav-link" href="@href" Match="@(exact ? NavLinkMatch.All : NavLinkMatch.Prefix)" @onclick:stopPropagation>
+            <i class="fas @icon me-2"></i> <span class="nav-text">@text</span>
+        </NavLink>
+    </div>;
+
+    private RenderFragment SubLink(string href, string icon, string text) => @<div class="nav-item px-3 ps-5">
+        <NavLink class="nav-link" href="@href" Match="NavLinkMatch.Prefix" @onclick:stopPropagation>
+            <i class="fas @icon me-2"></i> <span class="nav-text">@text</span>
+        </NavLink>
+    </div>;
+
+    private RenderFragment SubSectionHeader(string id, string icon, string title) => @<div class="nav-item px-3 ps-4">
+        <div class="nav-link" @onclick="() => ToggleSub(id)" @onclick:stopPropagation style="cursor: pointer;">
+            <i class="fas @icon me-2"></i> <span class="nav-text">@title</span>
+            <i class="fas fa-chevron-down ms-auto" style="@(openSubSection == id ? "transform: rotate(180deg);" : "")"></i>
+        </div>
+    </div>;
+
+    private RenderFragment MunicipiItems => __builder =>
+    {
+        @Link("resultats-electorals", "fa-vote-yea", "Resultats electorals")
+        @Link("ordenances", "fa-book-open", "Ordenances")
+        @Link("convenis", "fa-handshake", "Convenis")
+        @Link("transparencia", "fa-balance-scale", "Transparència")
+        @Link("estadistiques-municipi", "fa-chart-line", "Estadístiques")
+        @Link("dades-municipals/punts-aigua", "fa-water", "Punts d'aigua")
+        @Link("dades-municipals/fonts-naturals", "fa-faucet", "Fonts naturals")
+        @Link("dades-municipals/equipaments-esportius", "fa-futbol", "Equipaments esportius")
+        @Link("establiments", "fa-store", "Establiments")
+    };
+
+    private RenderFragment PatrimoniPublicItems => __builder =>
+    {
+        @Link("patrimoniindex", "fa-list", "Llista")
+        @Link("galeria", "fa-images", "Galeria")
+        @Link("fotos", "fa-camera", "Fotografies")
+        @Link("mapa", "fa-map-marked-alt", "Mapa")
+        @Link("cerca", "fa-search", "Cerca")
+    };
+
+    private RenderFragment SeuItems => __builder =>
+    {
+        @foreach (var api in GetSeuEletroApis())
+        {
+            @Link($"seu-e-api/{api.Id}", "fa-database", api.Nom)
+        }
+    };
+}
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />

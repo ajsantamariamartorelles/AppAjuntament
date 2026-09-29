@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ResourceDictionary xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+
+    <!-- Colors corporatius de l'Ajuntament de Santa Maria de Martorelles
+         (extrets de l'escut: verd i or) -->
+    <Color x:Key="Primary">#03904D</Color>
+    <Color x:Key="PrimaryDark">#02733D</Color>
+    <Color x:Key="PrimaryLight">#E3F1E9</Color>
+    <Color x:Key="Accent">#E9C00A</Color>
+    <Color x:Key="Secondary">#DDEAE1</Color>
+
+    <Color x:Key="TextPrimary">#1B2B22</Color>
+    <Color x:Key="TextSecondary">#5B6B62</Color>
+    <Color x:Key="Danger">#C0392B</Color>
+    <Color x:Key="Success">#03904D</Color>
+
+    <!-- Etiquetes d'estat (situació de pagament, inscripció) -->
+    <Color x:Key="DangerLight">#FBE7E4</Color>
+    <Color x:Key="Warning">#9A6B00</Color>
+    <Color x:Key="WarningLight">#FDF3CF</Color>
+    <Color x:Key="Neutral">#5B6B62</Color>
+    <Color x:Key="NeutralLight">#ECEFED</Color>
+
+    <Color x:Key="White">White</Color>
+    <Color x:Key="Black">Black</Color>
+    <Color x:Key="PageBackground">#F6F8F6</Color>
+    <Color x:Key="SurfaceBorder">#D5DED8</Color>
+    <Color x:Key="Gray100">#E1E1E1</Color>
+    <Color x:Key="Gray900">#212121</Color>
+
+</ResourceDictionary>

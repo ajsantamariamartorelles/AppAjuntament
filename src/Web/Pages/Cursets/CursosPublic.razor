@@ -1,0 +1,189 @@
+@page "/cursos"
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@using AppAjuntament.Models.Cursets.Dto
+@using AppAjuntament.Services.Cursets
+@inject ICursetsCatalogService CatalogService
+@inject AppAjuntament.Services.DatabaseLoggerService DbLogger
+
+<PageTitle>Cursos i activitats</PageTitle>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="screen-header">
+                <h1 class="h3 mb-0">
+                    <i class="fas fa-person-running me-2 text-primary"></i>
+                    Cursos i activitats
+                </h1>
+            </div>
+            <p class="text-muted">
+                Cursos que ofereix l'Ajuntament. El preu és per sessió; hi ha tarifa
+                reduïda per a les persones empadronades al municipi.
+            </p>
+
+            @if (carregant)
+            {
+                <div class="p-5 text-center text-muted">
+                    <span class="spinner-border spinner-border-sm me-2"></span>Carregant...
+                </div>
+            }
+            else if (!cursos.Any())
+            {
+                <div class="alert alert-info">Ara mateix no hi ha cap curs actiu.</div>
+            }
+            else
+            {
+                <div class="row g-3">
+                    @foreach (var c in Ordenats)
+                    {
+                        var tancada = c.EstatInscripcio == "Tancada";
+                        <div class="col-12 col-md-6 col-lg-4">
+                            <div class="card h-100 shadow-sm @(tancada ? "border-secondary" : "")"
+                                 style="@(tancada ? "opacity: .65;" : "")">
+                                <div class="card-header bg-light d-flex justify-content-between align-items-start">
+                                    <h5 class="card-title mb-0">@c.Titol</h5>
+                                    @switch (c.EstatInscripcio)
+                                    {
+                                        case "Oberta":
+                                            <span class="badge bg-success">Inscripció oberta</span>
+                                            break;
+                                        case "Properament":
+                                            <span class="badge bg-info text-dark">Properament</span>
+                                            break;
+                                        case "Tancada":
+                                            <span class="badge bg-secondary">Inscripció tancada</span>
+                                            break;
+                                    }
+                                </div>
+                                <div class="card-body">
+                                    <p class="mb-2">
+                                        <i class="fas fa-calendar-day text-muted me-2"></i>@Horari(c)
+                                    </p>
+                                    <p class="mb-1">
+                                        <i class="fas fa-tag text-muted me-2"></i>
+                                        Empadronats/des: <strong>@Eur(c.PreuPerSessioEmpadronat)</strong> / sessió
+                                    </p>
+                                    <p class="mb-2">
+                                        <i class="fas fa-tag text-muted me-2"></i>
+                                        No empadronats/des: <strong>@Eur(c.PreuPerSessioNoEmpadronat)</strong> / sessió
+                                    </p>
+
+                                    @if (!string.IsNullOrWhiteSpace(TerminiInscripcio(c)))
+                                    {
+                                        <p class="mb-0 small text-muted">
+                                            <i class="fas fa-clock text-muted me-2"></i>@TerminiInscripcio(c)
+                                        </p>
+                                    }
+                                </div>
+                                <div class="card-footer bg-white">
+                                    @{ var esExtern = !string.IsNullOrWhiteSpace(c.UrlInscripcio); }
+                                    @if (c.EstatInscripcio == "Oberta" && esExtern)
+                                    {
+                                        <a href="@c.UrlInscripcio" target="_blank" rel="noopener noreferrer"
+                                           class="btn btn-primary btn-sm w-100 mb-2">
+                                            <i class="fas fa-pen-to-square me-2"></i>Inscriu-t'hi
+                                        </a>
+                                        <p class="small text-muted mb-0">La inscripció d'aquest curs es gestiona en una web externa.</p>
+                                    }
+                                    else if (c.EstatInscripcio == "Oberta")
+                                    {
+                                        <a href="@($"/cursos/{c.Id}/inscripcio")" class="btn btn-primary btn-sm w-100 mb-2">
+                                            <i class="fas fa-pen-to-square me-2"></i>Inscriu-t'hi
+                                        </a>
+                                        <p class="small text-muted mb-0">
+                                            L'adjudicació de places es fa per sorteig quan hi ha més sol·licituds que places;
+                                            la resta queden en llista d'espera per si hi ha una baixa.
+                                        </p>
+                                    }
+                                    else if (c.EstatInscripcio == "Tancada")
+                                    {
+                                        <p class="fw-semibold text-secondary mb-0">
+                                            <i class="fas fa-lock me-2"></i>La inscripció d'aquest curs està tancada.
+                                        </p>
+                                    }
+                                    else if (c.EstatInscripcio == "Properament")
+                                    {
+                                        <p class="fw-semibold text-secondary mb-0">
+                                            <i class="fas fa-hourglass-half me-2"></i>La inscripció encara no s'ha obert.
+                                        </p>
+                                    }
+                                    else
+                                    {
+                                        <p class="small text-muted mb-0">Consulta amb l'Ajuntament per inscriure-t'hi.</p>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<CursetPublicDto> cursos = new();
+    private bool carregant = true;
+
+    /// <summary>Cursos amb inscripció oberta primer; els tancats, al final.</summary>
+    private IEnumerable<CursetPublicDto> Ordenats => cursos
+        .OrderBy(c => c.EstatInscripcio switch
+        {
+            "Oberta" => 0,
+            "Properament" => 1,
+            "SenseDates" => 2,
+            _ => 3
+        });
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            cursos = await CatalogService.GetCursetsPublicsAsync();
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error carregant cursos públics", ex, "CursosPublic.OnInit");
+        }
+        finally
+        {
+            carregant = false;
+        }
+    }
+
+    private static readonly string[] Dies =
+        { "Diumenge", "Dilluns", "Dimarts", "Dimecres", "Dijous", "Divendres", "Dissabte" };
+
+    private static string Horari(CursetPublicDto c)
+    {
+        var dia = c.DiaSetmana.HasValue ? Dies[(int)c.DiaSetmana.Value] : null;
+        string? hora = null;
+        if (c.HoraInici.HasValue && c.HoraFi.HasValue)
+            hora = $"{c.HoraInici.Value:hh\\:mm} – {c.HoraFi.Value:hh\\:mm}";
+        else if (c.HoraInici.HasValue)
+            hora = c.HoraInici.Value.ToString(@"hh\:mm");
+
+        var parts = new[] { dia, hora }.Where(s => !string.IsNullOrWhiteSpace(s));
+        var s = string.Join(", ", parts);
+        return string.IsNullOrWhiteSpace(s) ? "Horari per confirmar" : s;
+    }
+
+    /// <summary>Text del termini d'inscripció segons l'estat i les dates.</summary>
+    private static string TerminiInscripcio(CursetPublicDto c)
+    {
+        string D(DateTime d) => d.ToString("dd/MM/yyyy");
+        return c.EstatInscripcio switch
+        {
+            "Oberta" when c.InscripcioFi.HasValue => $"Pots inscriure't fins al {D(c.InscripcioFi.Value)}.",
+            "Properament" when c.InscripcioInici.HasValue && c.InscripcioFi.HasValue
+                => $"Inscripció del {D(c.InscripcioInici.Value)} al {D(c.InscripcioFi.Value)}.",
+            "Properament" when c.InscripcioInici.HasValue
+                => $"La inscripció s'obre el {D(c.InscripcioInici.Value)}.",
+            "Tancada" when c.InscripcioFi.HasValue => $"El termini d'inscripció va acabar el {D(c.InscripcioFi.Value)}.",
+            _ => string.Empty
+        };
+    }
+
+    private static string Eur(decimal v) =>
+        v.ToString("#,##0.00", System.Globalization.CultureInfo.GetCultureInfo("ca-ES")) + " €";
+}

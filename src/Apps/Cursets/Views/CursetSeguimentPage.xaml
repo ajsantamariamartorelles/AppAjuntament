@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:AjuntamentSantaMariaMartorelles.ViewModels"
+             xmlns:models="clr-namespace:AjuntamentSantaMariaMartorelles.Models"
+             x:Class="AjuntamentSantaMariaMartorelles.Views.CursetSeguimentPage"
+             x:DataType="vm:CursetSeguimentViewModel"
+             BackgroundColor="{StaticResource PageBackground}"
+             Title="{Binding Titol}">
+
+    <Grid RowDefinitions="Auto,*" Padding="16,14,16,0" RowSpacing="12">
+
+        <!-- Capçalera + pestanyes -->
+        <VerticalStackLayout Grid.Row="0" Spacing="10">
+            <VerticalStackLayout Spacing="6">
+                <Label Text="{Binding Titol}" Style="{StaticResource PageTitle}" />
+                <BoxView Style="{StaticResource GoldRule}" />
+                <Label Text="Només lectura" Style="{StaticResource Subtitle}" />
+            </VerticalStackLayout>
+
+            <Border Stroke="{StaticResource SurfaceBorder}" StrokeThickness="1"
+                    BackgroundColor="{StaticResource White}" Padding="3"
+                    StrokeShape="RoundRectangle 12">
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="3">
+                    <Border Grid.Column="0" StrokeThickness="0" Padding="8" StrokeShape="RoundRectangle 9"
+                            BackgroundColor="Transparent">
+                        <Border.Triggers>
+                            <DataTrigger TargetType="Border" Binding="{Binding PestanyaInscrites}" Value="True">
+                                <Setter Property="BackgroundColor" Value="{StaticResource Primary}" />
+                            </DataTrigger>
+                        </Border.Triggers>
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding SeleccionaPestanyaCommand}" CommandParameter="inscrites" />
+                        </Border.GestureRecognizers>
+                        <Label Text="Inscrites" HorizontalTextAlignment="Center" FontAttributes="Bold" FontSize="14"
+                               TextColor="{StaticResource TextSecondary}">
+                            <Label.Triggers>
+                                <DataTrigger TargetType="Label" Binding="{Binding PestanyaInscrites}" Value="True">
+                                    <Setter Property="TextColor" Value="{StaticResource White}" />
+                                </DataTrigger>
+                            </Label.Triggers>
+                        </Label>
+                    </Border>
+                    <Border Grid.Column="1" StrokeThickness="0" Padding="8" StrokeShape="RoundRectangle 9"
+                            BackgroundColor="Transparent">
+                        <Border.Triggers>
+                            <DataTrigger TargetType="Border" Binding="{Binding PestanyaSessions}" Value="True">
+                                <Setter Property="BackgroundColor" Value="{StaticResource Primary}" />
+                            </DataTrigger>
+                        </Border.Triggers>
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding SeleccionaPestanyaCommand}" CommandParameter="sessions" />
+                        </Border.GestureRecognizers>
+                        <Label Text="Sessions" HorizontalTextAlignment="Center" FontAttributes="Bold" FontSize="14"
+                               TextColor="{StaticResource TextSecondary}">
+                            <Label.Triggers>
+                                <DataTrigger TargetType="Label" Binding="{Binding PestanyaSessions}" Value="True">
+                                    <Setter Property="TextColor" Value="{StaticResource White}" />
+                                </DataTrigger>
+                            </Label.Triggers>
+                        </Label>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <Label Text="{Binding ErrorMessage}" Style="{StaticResource ErrorText}" IsVisible="{Binding HasError}" />
+        </VerticalStackLayout>
+
+        <!-- Pestanya Inscrites -->
+        <RefreshView Grid.Row="1" IsVisible="{Binding PestanyaInscrites}"
+                     IsRefreshing="{Binding IsRefreshing}" Command="{Binding RefrescaCommand}">
+            <CollectionView ItemsSource="{Binding Grups}" IsGrouped="True" SelectionMode="None">
+
+                <CollectionView.Header>
+                    <VerticalStackLayout Spacing="10" Padding="0,0,0,4">
+                        <Border Style="{StaticResource ListCard}" IsVisible="{Binding Resum, Converter={StaticResource IsNotNullConverter}}">
+                            <Grid ColumnDefinitions="*,*,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="2">
+                                <Label Grid.Column="0" Text="{Binding Resum.LiquidatText}" FontSize="17" FontAttributes="Bold"
+                                       TextColor="{StaticResource TextPrimary}" HorizontalTextAlignment="Center" />
+                                <Label Grid.Column="1" Text="{Binding Resum.CobratText}" FontSize="17" FontAttributes="Bold"
+                                       TextColor="{StaticResource Success}" HorizontalTextAlignment="Center" />
+                                <Label Grid.Column="2" Text="{Binding Resum.PendentText}" FontSize="17" FontAttributes="Bold"
+                                       TextColor="{StaticResource Danger}" HorizontalTextAlignment="Center" />
+                                <Label Grid.Row="1" Grid.Column="0" Text="LIQUIDAT" Style="{StaticResource GroupHeader}" HorizontalTextAlignment="Center" />
+                                <Label Grid.Row="1" Grid.Column="1" Text="COBRAT" Style="{StaticResource GroupHeader}" HorizontalTextAlignment="Center" />
+                                <Label Grid.Row="1" Grid.Column="2" Text="PENDENT" Style="{StaticResource GroupHeader}" HorizontalTextAlignment="Center" />
+                                <VerticalStackLayout Grid.Row="2" Grid.ColumnSpan="3" Margin="0,8,0,0" Spacing="2">
+                                    <Label Text="{Binding PlacesText}" Style="{StaticResource ItemMeta}" />
+                                    <Label Text="{Binding Resum.UltimaRemesaText}" Style="{StaticResource ItemMeta}" />
+                                </VerticalStackLayout>
+                            </Grid>
+                        </Border>
+
+                        <ScrollView Orientation="Horizontal" HorizontalScrollBarVisibility="Never">
+                            <HorizontalStackLayout Spacing="6" BindableLayout.ItemsSource="{Binding Filtres}">
+                                <BindableLayout.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:FiltreChip">
+                                        <Border Stroke="{StaticResource SurfaceBorder}" StrokeThickness="1"
+                                                BackgroundColor="{StaticResource White}" Padding="12,6"
+                                                StrokeShape="RoundRectangle 16">
+                                            <Border.Triggers>
+                                                <DataTrigger TargetType="Border" Binding="{Binding Seleccionat}" Value="True">
+                                                    <Setter Property="BackgroundColor" Value="{StaticResource PrimaryLight}" />
+                                                    <Setter Property="Stroke" Value="{StaticResource Primary}" />
+                                                </DataTrigger>
+                                            </Border.Triggers>
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer
+                                                    Command="{Binding Source={RelativeSource AncestorType={x:Type vm:CursetSeguimentViewModel}}, Path=FiltraCommand, x:DataType=vm:CursetSeguimentViewModel}"
+                                                    CommandParameter="{Binding .}" />
+                                            </Border.GestureRecognizers>
+                                            <Label Text="{Binding Etiqueta}" FontSize="13" TextColor="{StaticResource TextPrimary}">
+                                                <Label.Triggers>
+                                                    <DataTrigger TargetType="Label" Binding="{Binding Seleccionat}" Value="True">
+                                                        <Setter Property="TextColor" Value="{StaticResource PrimaryDark}" />
+                                                        <Setter Property="FontAttributes" Value="Bold" />
+                                                    </DataTrigger>
+                                                </Label.Triggers>
+                                            </Label>
+                                        </Border>
+                                    </DataTemplate>
+                                </BindableLayout.ItemTemplate>
+                            </HorizontalStackLayout>
+                        </ScrollView>
+
+                        <Label Text="{Binding MissatgeBuit}" Style="{StaticResource Subtitle}"
+                               IsVisible="{Binding MissatgeBuit, Converter={StaticResource StringNotEmptyConverter}}"
+                               HorizontalTextAlignment="Center" Margin="0,16" />
+                    </VerticalStackLayout>
+                </CollectionView.Header>
+
+                <CollectionView.GroupHeaderTemplate>
+                    <DataTemplate x:DataType="vm:GrupPersones">
+                        <Label Text="{Binding Titol}" Style="{StaticResource GroupHeader}" Margin="4,14,0,6" />
+                    </DataTemplate>
+                </CollectionView.GroupHeaderTemplate>
+
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="models:PersonaInscritaDto">
+                        <Border Style="{StaticResource ListCard}" Padding="14,11" Margin="0,3">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer
+                                    Command="{Binding Source={RelativeSource AncestorType={x:Type vm:CursetSeguimentViewModel}}, Path=ObrePersonaCommand, x:DataType=vm:CursetSeguimentViewModel}"
+                                    CommandParameter="{Binding .}" />
+                            </Border.GestureRecognizers>
+                            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                                <VerticalStackLayout Grid.Column="0" Spacing="2" VerticalOptions="Center">
+                                    <Label Text="{Binding NomComplet}" FontSize="15" TextColor="{StaticResource TextPrimary}" />
+                                    <Label Text="{Binding DetallText}" Style="{StaticResource ItemMeta}" FontSize="12" />
+                                </VerticalStackLayout>
+                                <Border Grid.Column="1" Style="{StaticResource Pill}" Margin="0"
+                                        BackgroundColor="{Binding Etiqueta.Fons}">
+                                    <Label Text="{Binding Etiqueta.Text}" TextColor="{Binding Etiqueta.TextColor}"
+                                           Style="{StaticResource PillText}" />
+                                </Border>
+                                <Label Grid.Column="2" Text="&#x203A;" FontSize="22"
+                                       TextColor="{StaticResource TextSecondary}" VerticalOptions="Center" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+
+                <CollectionView.Footer>
+                    <BoxView HeightRequest="16" Color="Transparent" />
+                </CollectionView.Footer>
+            </CollectionView>
+        </RefreshView>
+
+        <!-- Pestanya Sessions (històric d'assistència) -->
+        <RefreshView Grid.Row="1" IsVisible="{Binding PestanyaSessions}"
+                     IsRefreshing="{Binding IsRefreshing}" Command="{Binding RefrescaCommand}">
+            <CollectionView ItemsSource="{Binding Sessions}" SelectionMode="None">
+                <CollectionView.EmptyView>
+                    <Label Text="Aquest curset encara no té cap sessió registrada." Style="{StaticResource Subtitle}"
+                           HorizontalTextAlignment="Center" Margin="0,24" />
+                </CollectionView.EmptyView>
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="vm:HistoricSessioViewModel">
+                        <Border Style="{StaticResource ListCard}" Margin="0,5">
+                            <VerticalStackLayout Spacing="8">
+                                <Grid ColumnDefinitions="4,*,Auto" ColumnSpacing="14">
+                                    <Grid.GestureRecognizers>
+                                        <TapGestureRecognizer Command="{Binding ToggleCommand}" />
+                                    </Grid.GestureRecognizers>
+                                    <BoxView Grid.Column="0" CornerRadius="2" Color="{StaticResource Primary}" />
+                                    <VerticalStackLayout Grid.Column="1" Spacing="2">
+                                        <Label Text="{Binding DataText}" Style="{StaticResource ItemTitle}" />
+                                        <Label Text="{Binding ResumText}" Style="{StaticResource ItemMeta}" />
+                                    </VerticalStackLayout>
+                                    <Label Grid.Column="2" Text="&#x25BC;" FontSize="12"
+                                           TextColor="{StaticResource TextSecondary}" VerticalOptions="Center" />
+                                </Grid>
+
+                                <VerticalStackLayout BindableLayout.ItemsSource="{Binding Alumnes}"
+                                                     IsVisible="{Binding Expanded}" Spacing="4">
+                                    <BindableLayout.ItemTemplate>
+                                        <DataTemplate x:DataType="models:AssistenciaAlumneDto">
+                                            <Grid ColumnDefinitions="24,*" ColumnSpacing="8">
+                                                <Label Grid.Column="0" Text="&#x2713;" FontAttributes="Bold"
+                                                       TextColor="{StaticResource Success}" VerticalOptions="Center"
+                                                       IsVisible="{Binding Present}" />
+                                                <Label Grid.Column="0" Text="&#x2717;" FontAttributes="Bold"
+                                                       TextColor="{StaticResource Danger}" VerticalOptions="Center"
+                                                       IsVisible="{Binding Present, Converter={StaticResource InvertedBoolConverter}}" />
+                                                <VerticalStackLayout Grid.Column="1" Spacing="0">
+                                                    <Label Text="{Binding NomComplet}" FontSize="14"
+                                                           TextColor="{StaticResource TextPrimary}" />
+                                                    <Label Text="{Binding Nota}" FontSize="12"
+                                                           TextColor="{StaticResource TextSecondary}"
+                                                           IsVisible="{Binding Nota, Converter={StaticResource StringNotEmptyConverter}}" />
+                                                </VerticalStackLayout>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </BindableLayout.ItemTemplate>
+                                </VerticalStackLayout>
+                            </VerticalStackLayout>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </RefreshView>
+
+        <ActivityIndicator Grid.Row="1" IsRunning="{Binding MostraCarregant}" IsVisible="{Binding MostraCarregant}"
+                           Color="{StaticResource Primary}" HorizontalOptions="Center" VerticalOptions="Start"
+                           Margin="0,40,0,0" />
+    </Grid>
+
+</ContentPage>

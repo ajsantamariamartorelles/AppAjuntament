@@ -1,0 +1,551 @@
+﻿@page "/voluntaris"
+@using Microsoft.EntityFrameworkCore
+@using System.Threading
+@inject GestorSubvencionsContext Context
+@inject NavigationManager NavigationManager
+@implements IDisposable
+
+<style>
+    .estat-badge {
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.375rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: white;
+    }
+    
+    .coordinador-badge {
+        background-color: #dc3545;
+        color: white;
+    }
+    
+    .enllac-badge {
+        background-color: #198754;
+        color: white;
+    }
+    
+    .voluntari-taula {
+        table-layout: fixed;
+        width: 100%;
+    }
+    
+    .voluntari-taula th,
+    .voluntari-taula td {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    .col-nom { width: 200px; }
+    .col-tipologia { width: 150px; }
+    .col-estat { width: 120px; }
+    .col-ens { width: 150px; }
+    .col-telefon { width: 120px; }
+    .col-email { width: 180px; }
+    .col-accions { width: 200px; }
+</style>
+
+<div class="screen-header">
+    <h3 class="screen-title"><i class="fas fa-users me-2"></i>Gestió de Voluntaris</h3>
+    <div class="btn-group">
+        <button @onclick="NouVoluntari" class="btn btn-primary">
+            <i class="fas fa-user-plus me-2"></i>Nou Voluntari
+        </button>
+        <button @onclick="NavigateToAmbits" class="btn btn-outline-secondary">
+            <i class="fas fa-tags me-2"></i>Àmbits
+        </button>
+        <button @onclick="NavigateToActivitats" class="btn btn-outline-info">
+            <i class="fas fa-calendar-check me-2"></i>Activitats
+        </button>
+        <button @onclick="NavigateToFormacions" class="btn btn-outline-warning">
+            <i class="fas fa-graduation-cap me-2"></i>Formacions
+        </button>
+    </div>
+</div>
+
+<!-- Filtres -->
+<div class="card mb-3 screen-filters-card">
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">Àmbit</label>
+                <InputSelect class="form-select form-select-sm" @bind-Value="tipologiaSeleccionada">
+                    <option value="0">Tots els àmbits</option>
+                    @foreach (var tipologia in ambitsDisponibles)
+                    {
+                        <option value="@tipologia.Id">@tipologia.Nom</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Estat</label>
+                <InputSelect class="form-select form-select-sm" @bind-Value="estatSeleccionat">
+                    <option value="0">Tots els estats</option>
+                    @foreach (var estat in estatsDisponibles)
+                    {
+                        <option value="@estat.Id">@estat.Nom</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Ens</label>
+                <InputSelect class="form-select form-select-sm" @bind-Value="ensSeleccionat">
+                    <option value="0">Tots els ens</option>
+                    @foreach (var ens in ensDisponibles)
+                    {
+                        <option value="@ens.Id">@ens.Nom</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Cerca</label>
+                <div class="input-group input-group-sm">
+                    <input type="text" class="form-control" placeholder="Nom, DNI o email..." @bind="textoCerca" @onkeypress="OnKeyPress">
+                    <button class="btn btn-outline-secondary" type="button" @onclick="Cercar">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="row mt-2">
+            <div class="col-12">
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="checkbox" @bind="mostrarNomesActius" id="chkActius">
+                    <label class="form-check-label" for="chkActius">Mostrar nomós actius</label>
+                </div>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="checkbox" @bind="mostrarNomesCoordinadors" id="chkCoordinadors">
+                    <label class="form-check-label" for="chkCoordinadors">Nomós coordinadors</label>
+                </div>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="checkbox" @bind="mostrarNomesEnllacos" id="chkEnllacos">
+                    <label class="form-check-label" for="chkEnllacos">Nomós enllaóos amb ajuntament</label>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Resum -->
+<div class="row mb-3">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-primary">@totalVoluntaris</h5>
+                <p class="card-text small">Total Voluntaris</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-success">@voluntarisActius</h5>
+                <p class="card-text small">Voluntaris Actius</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-warning">@coordinadors</h5>
+                <p class="card-text small">Coordinadors</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title text-info">@enllacosAjuntament</h5>
+                <p class="card-text small">Enllaóos Ajuntament</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Taula de voluntaris -->
+<div class="table-responsive">
+    <table class="table table-striped table-hover voluntari-taula">
+        <thead class="table-dark">
+            <tr>
+                <th class="col-nom">Nom Complet</th>
+                <th class="col-tipologia">Tipologia</th>
+                <th class="col-estat">Estat</th>
+                <th class="col-ens">Ens</th>
+                <th class="col-telefon">Telèfon</th>
+                <th class="col-email">Email</th>
+                <th class="col-accions">Accions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (voluntaris?.Any() == true)
+            {
+                @foreach (var voluntari in voluntaris)
+                {
+                    <tr class="@(voluntari.Actiu ? "" : "table-secondary")">
+                        <td class="col-nom">
+                            <div class="d-flex align-items-center">
+                                <div>
+                                    <strong>@voluntari.NomComplet</strong>
+                                    <br />
+                                    <small class="text-muted">@voluntari.Tercer?.DNI</small>
+                                    @if (voluntari.EsCoordinador)
+                                    {
+                                        <span class="badge coordinador-badge ms-1">Coordinador</span>
+                                    }
+                                    @if (voluntari.EsEnllacAjuntament)
+                                    {
+                                        <span class="badge enllac-badge ms-1">Enllaó</span>
+                                    }
+                                </div>
+                            </div>
+                        </td>
+                        <td class="col-tipologia">
+                            @string.Join(", ", voluntari.VoluntarisAmbits.Select(va => va.AmbitVoluntari?.Nom))
+                        </td>
+                        <td class="col-estat">
+                            <span class="estat-badge" style="background-color: @(voluntari.EstatVoluntari?.Color ?? "#6c757d")">
+                                @voluntari.EstatVoluntari?.Nom
+                            </span>
+                        </td>
+                        <td class="col-ens">@voluntari.Ens?.Nom</td>
+                        <td class="col-telefon">@voluntari.Tercer?.Telefon</td>
+                        <td class="col-email">@voluntari.Tercer?.Email</td>
+                        <td class="col-accions">
+                            <div class="btn-group btn-group-sm">
+                                <button @onclick="() => EditarVoluntari(voluntari.Id)" class="btn btn-outline-primary" title="Editar">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button @onclick="() => VeureDetalls(voluntari.Id)" class="btn btn-outline-info" title="Veure detalls">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                @if (voluntari.Actiu)
+                                {
+                                    <button @onclick="() => DonarDeBaixa(voluntari.Id)" class="btn btn-outline-warning" title="Donar de baixa">
+                                        <i class="fas fa-user-times"></i>
+                                    </button>
+                                }
+                                else
+                                {
+                                    <button @onclick="() => Reactivar(voluntari.Id)" class="btn btn-outline-success" title="Reactivar">
+                                        <i class="fas fa-user-check"></i>
+                                    </button>
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                }
+            }
+            else
+            {
+                <tr>
+                    <td colspan="7" class="text-center py-4">
+                        <div class="text-muted">
+                            <i class="fas fa-users fa-3x mb-3"></i>
+                            <p>No s'han trobat voluntaris amb els criteris seleccionats</p>
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    private List<Voluntari> voluntaris = new();
+    private List<AmbitVoluntari> ambitsDisponibles = new();
+    private List<EstatVoluntari> estatsDisponibles = new();
+    private List<Ens> ensDisponibles = new();
+
+    private bool _disposedValue;
+    private CancellationTokenSource _cts = new CancellationTokenSource();
+
+    // Filtres
+    private int tipologiaSeleccionada
+    {
+        get => _tipologiaSeleccionada;
+        set
+        {
+            if (_tipologiaSeleccionada != value)
+            {
+                _tipologiaSeleccionada = value;
+                if (_inicialitzat) _ = CarregarVoluntaris();
+            }
+        }
+    }
+    private int _tipologiaSeleccionada = 0;
+
+    private int estatSeleccionat
+    {
+        get => _estatSeleccionat;
+        set
+        {
+            if (_estatSeleccionat != value)
+            {
+                _estatSeleccionat = value;
+                if (_inicialitzat) _ = CarregarVoluntaris();
+            }
+        }
+    }
+    private int _estatSeleccionat = 0;
+
+    private int ensSeleccionat
+    {
+        get => _ensSeleccionat;
+        set
+        {
+            if (_ensSeleccionat != value)
+            {
+                _ensSeleccionat = value;
+                if (_inicialitzat) _ = CarregarVoluntaris();
+            }
+        }
+    }
+    private int _ensSeleccionat = 0;
+
+    private string textoCerca = "";
+
+    private bool mostrarNomesActius
+    {
+        get => _mostrarNomesActius;
+        set
+        {
+            if (_mostrarNomesActius != value)
+            {
+                _mostrarNomesActius = value;
+                if (_inicialitzat) _ = CarregarVoluntaris();
+            }
+        }
+    }
+    private bool _mostrarNomesActius = true;
+
+    private bool mostrarNomesCoordinadors
+    {
+        get => _mostrarNomesCoordinadors;
+        set
+        {
+            if (_mostrarNomesCoordinadors != value)
+            {
+                _mostrarNomesCoordinadors = value;
+                if (_inicialitzat) _ = CarregarVoluntaris();
+            }
+        }
+    }
+    private bool _mostrarNomesCoordinadors = false;
+
+    private bool mostrarNomesEnllacos
+    {
+        get => _mostrarNomesEnllacos;
+        set
+        {
+            if (_mostrarNomesEnllacos != value)
+            {
+                _mostrarNomesEnllacos = value;
+                if (_inicialitzat) _ = CarregarVoluntaris();
+            }
+        }
+    }
+    private bool _mostrarNomesEnllacos = false;
+
+    // Estadóstiques
+    private int totalVoluntaris = 0;
+    private int voluntarisActius = 0;
+    private int coordinadors = 0;
+    private int enllacosAjuntament = 0;
+
+    private bool _inicialitzat = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Carregar dades de filtres
+            ambitsDisponibles = await Context.AmbitsVoluntaris
+                .Where(a => a.Actiu)
+                .OrderBy(a => a.Nom)
+                .ToListAsync(_cts.Token);
+
+            estatsDisponibles = await Context.EstatsVoluntaris
+                .Where(e => e.Actiu)
+                .OrderBy(e => e.Ordre)
+                .ThenBy(e => e.Nom)
+                .ToListAsync(_cts.Token);
+
+            ensDisponibles = await Context.Ens
+                .OrderBy(e => e.Nom)
+                .ToListAsync(_cts.Token);
+
+            await CarregarVoluntaris();
+            _inicialitzat = true;
+        }
+        catch (OperationCanceledException)
+        {
+            // Operació cancelólada
+        }
+    }
+
+    private async Task CarregarVoluntaris()
+    {
+        if (_disposedValue) return;
+
+        try
+        {
+            var query = Context.Voluntaris
+                .Include(v => v.VoluntarisAmbits).ThenInclude(va => va.AmbitVoluntari)
+                .Include(v => v.EstatVoluntari)
+                .Include(v => v.Ens)
+                .Include(v => v.Tercer)
+                .Include(v => v.VoluntarisEnllacats)
+                .Include(v => v.VoluntarisCoordinats)
+                .AsQueryable();
+
+            // Aplicar filtres
+            if (tipologiaSeleccionada != 0)
+                query = query.Where(v => v.VoluntarisAmbits.Any(va => va.AmbitVoluntariId == tipologiaSeleccionada));
+
+            if (estatSeleccionat != 0)
+                query = query.Where(v => v.EstatVoluntariId == estatSeleccionat);
+
+            if (ensSeleccionat != 0)
+                query = query.Where(v => v.EnsId == ensSeleccionat);
+
+            if (mostrarNomesActius)
+                query = query.Where(v => v.Actiu);
+
+            if (mostrarNomesCoordinadors)
+                query = query.Where(v => v.CoordinadorId == null && v.VoluntarisCoordinats.Any());
+
+            if (mostrarNomesEnllacos)
+                query = query.Where(v => v.EnllacAjuntamentId == null && v.VoluntarisEnllacats.Any());
+
+            if (!string.IsNullOrWhiteSpace(textoCerca))
+            {
+                var cerca = textoCerca.ToLower();
+                query = query.Where(v => 
+                    (v.Tercer != null && v.Tercer.Nom != null && v.Tercer.Nom.ToLower().Contains(cerca)) ||
+                    (v.Tercer != null && v.Tercer.Cognoms != null && v.Tercer.Cognoms.ToLower().Contains(cerca)) ||
+                    (v.Tercer != null && v.Tercer.DNI != null && v.Tercer.DNI.ToLower().Contains(cerca)) ||
+                    (v.Tercer != null && v.Tercer.Email != null && v.Tercer.Email.ToLower().Contains(cerca)));
+            }
+
+            voluntaris = await query
+                .OrderBy(v => v.Tercer != null ? v.Tercer.Nom : "")
+                .ThenBy(v => v.Tercer != null ? v.Tercer.Cognoms : "")
+                .ToListAsync(_cts.Token);
+
+            // Calcular estadóstiques
+            await CalcularEstadistiques();
+
+            if (!_disposedValue)
+                StateHasChanged();
+        }
+        catch (OperationCanceledException)
+        {
+            // Operació cancelólada
+        }
+    }
+
+    private async Task CalcularEstadistiques()
+    {
+        try
+        {
+            var totals = await Context.Voluntaris.ToListAsync(_cts.Token);
+            
+            totalVoluntaris = totals.Count;
+            voluntarisActius = totals.Count(v => v.Actiu);
+            coordinadors = totals.Count(v => v.CoordinadorId == null && totals.Any(x => x.CoordinadorId == v.Id));
+            enllacosAjuntament = totals.Count(v => v.EnllacAjuntamentId == null && totals.Any(x => x.EnllacAjuntamentId == v.Id));
+        }
+        catch (OperationCanceledException)
+        {
+            // Operació cancelólada
+        }
+    }
+
+    private async Task OnKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await Cercar();
+        }
+    }
+
+    private async Task Cercar()
+    {
+        await CarregarVoluntaris();
+    }
+
+    private void NouVoluntari()
+    {
+        NavigationManager.NavigateTo("/voluntaris/nou");
+    }
+
+    private void NavigateToAmbits()
+    {
+        NavigationManager.NavigateTo("/voluntaris/ambits");
+    }
+
+    private void NavigateToActivitats()
+    {
+        NavigationManager.NavigateTo("/voluntaris/activitats");
+    }
+
+    private void NavigateToFormacions()
+    {
+        NavigationManager.NavigateTo("/voluntaris/formacions");
+    }
+
+    private void EditarVoluntari(int id)
+    {
+        NavigationManager.NavigateTo($"/voluntaris/editar/{id}");
+    }
+
+    private void VeureDetalls(int id)
+    {
+        NavigationManager.NavigateTo($"/voluntaris/detalls/{id}");
+    }
+
+    private async Task DonarDeBaixa(int id)
+    {
+        // TODO: Implementar modal de confirmació i motiu de baixa
+        NavigationManager.NavigateTo($"/voluntaris/baixa/{id}");
+    }
+
+    private async Task Reactivar(int id)
+    {
+        try
+        {
+            var voluntari = await Context.Voluntaris.FindAsync(id);
+            if (voluntari != null)
+            {
+                voluntari.Actiu = true;
+                voluntari.DataBaixa = null;
+                voluntari.MotiuBaixa = null;
+                await Context.SaveChangesAsync(_cts.Token);
+                await CarregarVoluntaris();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Operació cancelólada
+        }
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!_disposedValue)
+        {
+            if (disposing)
+            {
+                _cts.Cancel();
+                _cts.Dispose();
+            }
+            _disposedValue = true;
+        }
+    }
+}

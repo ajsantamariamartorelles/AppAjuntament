@@ -1,0 +1,42 @@
+@using AppAjuntament.Services
+
+<div class="card h-100 shadow-sm border-0">
+    <div class="card-body">
+        <div class="d-flex align-items-start gap-3">
+            <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+                 style="width:44px;height:44px;background:var(--bs-@(Indicador.Color)-bg-subtle,rgba(var(--bs-@(Indicador.Color)-rgb),.15))">
+                <i class="@Indicador.Icona text-@Indicador.Color"></i>
+            </div>
+            <div class="flex-grow-1 min-w-0">
+                <div class="text-muted small mb-1">@Indicador.Titol</div>
+                <div class="fw-bold fs-5 text-@Indicador.Color">@Indicador.Valor</div>
+                @if (!string.IsNullOrEmpty(Indicador.Detall))
+                {
+                    <div class="text-muted small">@Indicador.Detall</div>
+                }
+            </div>
+        </div>
+    </div>
+    @if (!string.IsNullOrEmpty(Indicador.Font) || !string.IsNullOrEmpty(Indicador.EnllacUrl))
+    {
+        <div class="card-footer bg-transparent border-top-0 pt-0 d-flex justify-content-between align-items-center flex-wrap gap-1">
+            @if (!string.IsNullOrEmpty(Indicador.Font))
+            {
+                <small class="text-muted">
+                    <i class="fas fa-database me-1 opacity-50"></i>@Indicador.Font
+                </small>
+            }
+            @if (!string.IsNullOrEmpty(Indicador.EnllacUrl))
+            {
+                <a href="@Indicador.EnllacUrl" target="_blank" class="btn btn-outline-secondary btn-sm py-0 px-2" style="font-size:0.75rem;">
+                    <i class="fas fa-external-link-alt me-1"></i>@(Indicador.EnllacText ?? "Més info")
+                </a>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public IndicadorTransparencia Indicador { get; set; } = new();
+}

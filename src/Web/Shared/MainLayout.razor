@@ -1,0 +1,126 @@
+﻿@inherits LayoutComponentBase
+@using AppAjuntament.Resources
+@using AppAjuntament.Services
+@using System.Globalization
+@using Microsoft.Extensions.Localization
+@using Microsoft.AspNetCore.Localization
+@inject NavigationManager NavigationManager
+@inject IStringLocalizer<SharedResource> Localizer
+@inject IJSRuntime JS
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IAcceptacioTermesService AcceptacioTermesService
+
+<div class="page">
+    @if (collapseNavMenu && isMobile)
+    {
+        <button class="mobile-nav-toggler" @onclick="ToggleNavMenu">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+    }
+    @if (!collapseNavMenu && isMobile)
+    {
+        <div class="sidebar-backdrop" @onclick="ToggleNavMenu"></div>
+    }
+    <div class="sidebar @NavMenuCssClass">
+        <div class="sidebar-header">
+            <button class="navbar-toggler" @onclick="ToggleNavMenu">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <a class="navbar-brand" href="">Ajuntament</a>
+        </div>
+        <NavMenu OnToggle="ToggleNavMenu" IsCollapsed="collapseNavMenu" />
+    </div>
+
+    <main>
+        <div class="top-row px-4">
+            <select @bind="Culture">
+                <option value="ca-ES">Català</option>
+                <option value="es-ES">Castellà</option>
+            </select>
+        </div>
+
+        <article class="content px-4">
+            @Body
+        </article>
+    </main>
+</div>
+
+@code {
+    private bool collapseNavMenu = false;
+    private bool isMobile = false;
+    private string? NavMenuCssClass => collapseNavMenu ? "collapsed" : null;
+
+    /// <summary>Pàgines on no s'ha de comprovar l'acceptació (perquè hi porten,
+    /// o perquè són les pròpies pàgines legals).</summary>
+    private static readonly string[] RutesExemptes =
+        { "/accepta-termes", "/terms-and-conditions", "/data-privacy" };
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await ComprovaAcceptacioTermesAsync();
+    }
+
+    private async Task ComprovaAcceptacioTermesAsync()
+    {
+        var path = new Uri(NavigationManager.Uri).AbsolutePath;
+        if (RutesExemptes.Any(r => path.StartsWith(r, StringComparison.OrdinalIgnoreCase)))
+            return;
+
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user.Identity?.IsAuthenticated != true)
+            return;
+
+        var email = user.GetEmail();
+        if (string.IsNullOrWhiteSpace(email))
+            return;
+
+        if (!await AcceptacioTermesService.HaAcceptatVersioActualAsync(email))
+        {
+            var returnUrl = Uri.EscapeDataString(NavigationManager.ToBaseRelativePath(NavigationManager.Uri) is { Length: > 0 } relatiu
+                ? "/" + relatiu
+                : "/");
+            NavigationManager.NavigateTo($"/accepta-termes?ReturnUrl={returnUrl}");
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            isMobile = await JS.InvokeAsync<bool>("appAjuntament.isMobileViewport");
+            if (isMobile)
+            {
+                collapseNavMenu = true;
+                StateHasChanged();
+            }
+        }
+    }
+
+    private void ToggleNavMenu()
+    {
+        collapseNavMenu = !collapseNavMenu;
+    }
+
+    private string _culture = "ca-ES"; // Sempre començar amb català per defecte
+
+    private string Culture
+    {
+        get => _culture;
+        set
+        {
+            if (_culture != value)
+            {
+                _culture = value;
+                CanviarIdioma();
+            }
+        }
+    }
+
+    private void CanviarIdioma()
+    {
+        var uri = new Uri(NavigationManager.Uri).GetComponents(UriComponents.PathAndQuery, UriFormat.Unescaped);
+        var query = $"?culture={_culture}&ui-culture={_culture}&redirectUri={uri}";
+        NavigationManager.NavigateTo("Culture/SetCulture" + query, forceLoad: true);
+    }
+}

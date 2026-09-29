@@ -1,0 +1,54 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <data name="TitolComarques">
+    <value>Listado de Comarcas</value>
+  </data>
+  <data name="BotoNou">
+    <value>Nueva Comarca</value>
+  </data>
+  <data name="BotoEditar">
+    <value>Editar</value>
+  </data>
+  <data name="BotoEliminar">
+    <value>Eliminar</value>
+  </data>
+  <data name="TitolNovaComarca">
+    <value>Nueva Comarca</value>
+  </data>
+  <data name="LabelCodi">
+    <value>Código</value>
+  </data>
+  <data name="LabelNom">
+    <value>Nombre</value>
+  </data>
+  <data name="BotoGuardar">
+    <value>Guardar</value>
+  </data>
+  <data name="BotoCancelar">
+    <value>Cancelar</value>
+  </data>
+  <data name="TitolEditarComarca">
+    <value>Editar Comarca</value>
+  </data>
+  <data name="BotoActualitzar">
+    <value>Actualizar</value>
+  </data>
+</root>

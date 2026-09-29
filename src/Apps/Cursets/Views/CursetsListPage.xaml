@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:AjuntamentSantaMariaMartorelles.ViewModels"
+             xmlns:models="clr-namespace:AjuntamentSantaMariaMartorelles.Models"
+             x:Class="AjuntamentSantaMariaMartorelles.Views.CursetsListPage"
+             x:DataType="vm:CursetsListViewModel"
+             BackgroundColor="{StaticResource PageBackground}"
+             Title="Cursets">
+
+    <Grid RowDefinitions="Auto,*" Padding="16,14" RowSpacing="14">
+
+        <VerticalStackLayout Grid.Row="0" Spacing="6">
+            <Label Text="{Binding BenvingudaText}" Style="{StaticResource PageTitle}" />
+            <BoxView Style="{StaticResource GoldRule}" />
+            <Label Text="{Binding SubtitolText}" Style="{StaticResource Subtitle}" />
+            <Label Text="{Binding ErrorMessage}" Style="{StaticResource ErrorText}" IsVisible="{Binding HasError}" />
+        </VerticalStackLayout>
+
+        <RefreshView Grid.Row="1" IsRefreshing="{Binding IsRefreshing}" Command="{Binding RefrescaCommand}">
+            <CollectionView ItemsSource="{Binding Cursets}"
+                             SelectionMode="Single"
+                             SelectedItem="{Binding SelectedCurset}">
+                <CollectionView.EmptyView>
+                    <VerticalStackLayout Padding="24" Spacing="6" VerticalOptions="Center">
+                        <Label Text="Encara no tens cap curset assignat."
+                               Style="{StaticResource Subtitle}"
+                               HorizontalTextAlignment="Center" />
+                    </VerticalStackLayout>
+                </CollectionView.EmptyView>
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="models:CursetDto">
+                        <Border Style="{StaticResource ListCard}" Margin="0,6">
+                            <Grid ColumnDefinitions="4,*,Auto" ColumnSpacing="14">
+                                <BoxView Grid.Column="0" Color="{StaticResource Primary}"
+                                         CornerRadius="2" />
+                                <VerticalStackLayout Grid.Column="1" Spacing="3">
+                                    <Label Text="{Binding Titol}" Style="{StaticResource ItemTitle}" />
+                                    <Label Text="{Binding HorariText}" Style="{StaticResource ItemMeta}" />
+                                    <Label Style="{StaticResource ItemMeta}"
+                                           IsVisible="{Binding TeSeguiment, Converter={StaticResource InvertedBoolConverter}}">
+                                        <Label.FormattedText>
+                                            <FormattedString>
+                                                <Span Text="{Binding NumAlumnes}" />
+                                                <Span Text=" alumnes" />
+                                            </FormattedString>
+                                        </Label.FormattedText>
+                                    </Label>
+                                    <FlexLayout BindableLayout.ItemsSource="{Binding Etiquetes}"
+                                                BindableLayout.ItemTemplate="{StaticResource PillTemplate}"
+                                                IsVisible="{Binding TeSeguiment}"
+                                                Wrap="Wrap" Direction="Row" AlignItems="Center"
+                                                Margin="0,4,0,0" />
+                                </VerticalStackLayout>
+                                <Label Grid.Column="2" Text="&#x203A;" FontSize="24"
+                                       TextColor="{StaticResource TextSecondary}"
+                                       VerticalOptions="Center" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </RefreshView>
+
+        <ActivityIndicator Grid.Row="1"
+                           IsRunning="{Binding MostraCarregant}"
+                           IsVisible="{Binding MostraCarregant}"
+                           Color="{StaticResource Primary}"
+                           HorizontalOptions="Center"
+                           VerticalOptions="Start"
+                           Margin="0,40,0,0" />
+
+    </Grid>
+
+</ContentPage>

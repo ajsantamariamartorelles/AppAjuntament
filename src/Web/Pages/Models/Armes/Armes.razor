@@ -1,0 +1,282 @@
+@page "/armes"
+@using Microsoft.EntityFrameworkCore
+@using AppAjuntament.Models.Armes
+@inject GestorSubvencionsContext Context
+@inject NavigationManager NavigationManager
+
+<div class="screen-header">
+    <h3 class="screen-title"><i class="fas fa-shield-alt me-2"></i>Gestió d'Armes</h3>
+    <div>
+        <button @onclick="AnarTaulesAuxiliars" class="btn btn-outline-secondary me-2">
+            <i class="fas fa-table me-2"></i>Taules Auxiliar
+        </button>
+        <button @onclick="NovaArma" class="btn btn-primary">
+            <i class="fas fa-plus me-2"></i>Nova Arma
+        </button>
+    </div>
+</div>
+
+<div class="card mb-3 screen-filters-card">
+    <div class="card-body">
+        <div class="row g-2">
+            <div class="col-md-4">
+                <input class="form-control form-control-sm" placeholder="Cerca per núm. sèrie, marca, model..." @bind="textCerca" @bind:event="oninput" />
+            </div>
+            <div class="col-md-2">
+                <InputSelect class="form-select form-select-sm" @bind-Value="tipusArmaSeleccionat">
+                    <option value="0">Tots els tipus</option>
+                    @foreach (var t in tipusArmes)
+                    {
+                        <option value="@t.Id">@t.Nom</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="col-md-2">
+                <InputSelect class="form-select form-select-sm" @bind-Value="estatSeleccionat">
+                    <option value="0">Totes</option>
+                    <option value="1">Actives</option>
+                    <option value="2">De baixa</option>
+                </InputSelect>
+            </div>
+            <div class="col-md-2">
+                <InputSelect class="form-select form-select-sm" @bind-Value="estatLlicenciaSeleccionat">
+                    <option value="0">Llicència: totes</option>
+                    <option value="1">Vigent</option>
+                    <option value="4">Caduca aviat (30 dies)</option>
+                    <option value="2">Caducada</option>
+                    <option value="3">Sense data</option>
+                </InputSelect>
+            </div>
+            <div class="col-md-2 text-end">
+                <button class="btn btn-outline-secondary btn-sm" @onclick="CarregarDades">
+                    <i class="fas fa-sync-alt me-1"></i>Refrescar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-striped table-hover">
+        <thead class="table-dark">
+            <tr>
+                <th>Núm. sèrie</th>
+                <th>Tipus</th>
+                <th>Marca/Model</th>
+                <th>Titular</th>
+                <th>Ens</th>
+                <th>Llicència</th>
+                <th>Estat</th>
+                <th class="text-end">Accions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (armesFiltrades.Any())
+            {
+                @foreach (var a in armesFiltrades)
+                {
+                    <tr>
+                        <td>@a.NumSerie</td>
+                        <td>@a.TipusArma?.Nom</td>
+                        <td>@(string.Join(" / ", new[] { a.Marca, a.Model }.Where(x => !string.IsNullOrWhiteSpace(x))))</td>
+                        <td>@a.Tercer?.NomComplet</td>
+                        <td>@a.Ens?.Nom</td>
+                        <td>
+                            @{
+                                var status = GetLlicenciaStatus(a.Id);
+                                var diesRestants = GetDiesRestantsLlicencia(a.Id);
+                            }
+                            @if (status == "Vigent")
+                            {
+                                <span class="badge bg-success">Vigent (@diesRestants dies)</span>
+                            }
+                            else if (status == "CaducaAviat")
+                            {
+                                <span class="badge bg-warning text-dark">Caduca en @diesRestants dies</span>
+                            }
+                            else if (status == "Caducada")
+                            {
+                                <span class="badge bg-danger">Caducada</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">Sense data</span>
+                            }
+                        </td>
+                        <td>
+                            @if (a.Activa)
+                            {
+                                <span class="badge bg-success">Activa</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">Baixa</span>
+                            }
+                        </td>
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => EditarArma(a.Id)">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            @if (a.Activa)
+                            {
+                                <button class="btn btn-sm btn-outline-warning" @onclick="() => DonarBaixa(a)">
+                                    <i class="fas fa-user-slash"></i>
+                                </button>
+                            }
+                            else
+                            {
+                                <button class="btn btn-sm btn-outline-success" @onclick="() => Reactivar(a)">
+                                    <i class="fas fa-user-check"></i>
+                                </button>
+                            }
+                        </td>
+                    </tr>
+                }
+            }
+            else
+            {
+                <tr>
+                    <td colspan="8" class="text-center py-4 text-muted">No hi ha armes per mostrar.</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    private List<Arma> armes = new();
+    private List<AuxTipusArma> tipusArmes = new();
+    private Dictionary<int, DateTime?> llicenciesByArma = new();
+
+    private string textCerca = string.Empty;
+    private int tipusArmaSeleccionat = 0;
+    private int estatSeleccionat = 0;
+    private int estatLlicenciaSeleccionat = 0;
+
+    private IEnumerable<Arma> armesFiltrades => armes.Where(a =>
+        (string.IsNullOrWhiteSpace(textCerca)
+            || a.NumSerie.Contains(textCerca, StringComparison.OrdinalIgnoreCase)
+            || (a.Marca?.Contains(textCerca, StringComparison.OrdinalIgnoreCase) ?? false)
+            || (a.Model?.Contains(textCerca, StringComparison.OrdinalIgnoreCase) ?? false)
+            || (a.Tercer?.NomComplet?.Contains(textCerca, StringComparison.OrdinalIgnoreCase) ?? false)
+            || (a.Ens?.Nom?.Contains(textCerca, StringComparison.OrdinalIgnoreCase) ?? false))
+        && (tipusArmaSeleccionat == 0 || a.TipusArmaId == tipusArmaSeleccionat)
+        && (estatSeleccionat == 0 || (estatSeleccionat == 1 && a.Activa) || (estatSeleccionat == 2 && !a.Activa))
+        && MatchLlicenciaFilter(a.Id));
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarDades();
+    }
+
+    private async Task CarregarDades()
+    {
+        tipusArmes = await Context.AuxTipusArmes
+            .Where(t => t.Actiu)
+            .OrderBy(t => t.Nom)
+            .ToListAsync();
+
+        armes = await Context.Armes
+            .Include(a => a.TipusArma)
+            .Include(a => a.Tercer)
+            .Include(a => a.Ens)
+            .OrderByDescending(a => a.Id)
+            .ToListAsync();
+
+        var armaIds = armes.Select(x => x.Id).ToList();
+        if (armaIds.Count == 0)
+        {
+            llicenciesByArma = new Dictionary<int, DateTime?>();
+            return;
+        }
+
+        var llicencies = await Context.ArmesLlicencies
+            .AsNoTracking()
+            .Where(l => armaIds.Contains(l.ArmaId))
+            .Select(l => new { l.ArmaId, l.DataCaducitat })
+            .ToListAsync();
+
+        llicenciesByArma = llicencies
+            .GroupBy(x => x.ArmaId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.OrderByDescending(x => x.DataCaducitat ?? DateTime.MinValue)
+                    .Select(x => x.DataCaducitat)
+                    .FirstOrDefault());
+    }
+
+    private void NovaArma() => NavigationManager.NavigateTo("/armes/nou");
+
+    private void AnarTaulesAuxiliars() => NavigationManager.NavigateTo("/taules-auxiliar/armes");
+
+    private void EditarArma(int id) => NavigationManager.NavigateTo($"/armes/editar/{id}");
+
+    private bool MatchLlicenciaFilter(int armaId)
+    {
+        var status = GetLlicenciaStatus(armaId);
+        return estatLlicenciaSeleccionat switch
+        {
+            1 => status == "Vigent",
+            4 => status == "CaducaAviat",
+            2 => status == "Caducada",
+            3 => status == "Sense",
+            _ => true
+        };
+    }
+
+    private string GetLlicenciaStatus(int armaId)
+    {
+        if (!llicenciesByArma.TryGetValue(armaId, out var dataCaducitat) || !dataCaducitat.HasValue)
+        {
+            return "Sense";
+        }
+
+        var diesRestants = (dataCaducitat.Value.Date - DateTime.Today).Days;
+        if (diesRestants < 0)
+        {
+            return "Caducada";
+        }
+
+        if (diesRestants <= 30)
+        {
+            return "CaducaAviat";
+        }
+
+        return "Vigent";
+    }
+
+    private int GetDiesRestantsLlicencia(int armaId)
+    {
+        if (!llicenciesByArma.TryGetValue(armaId, out var dataCaducitat) || !dataCaducitat.HasValue)
+        {
+            return 0;
+        }
+
+        var dies = (dataCaducitat.Value.Date - DateTime.Today).Days;
+        return Math.Max(dies, 0);
+    }
+
+    private async Task DonarBaixa(Arma arma)
+    {
+        var entity = await Context.Armes.FindAsync(arma.Id);
+        if (entity != null)
+        {
+            entity.DataBaixa = DateTime.Today;
+            entity.MotiuBaixa ??= "Baixa manual";
+            await Context.SaveChangesAsync();
+            await CarregarDades();
+        }
+    }
+
+    private async Task Reactivar(Arma arma)
+    {
+        var entity = await Context.Armes.FindAsync(arma.Id);
+        if (entity != null)
+        {
+            entity.DataBaixa = null;
+            entity.MotiuBaixa = null;
+            await Context.SaveChangesAsync();
+            await CarregarDades();
+        }
+    }
+}

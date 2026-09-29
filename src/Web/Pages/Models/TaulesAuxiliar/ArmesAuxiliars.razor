@@ -1,0 +1,486 @@
+@page "/taules-auxiliar/armes"
+@using Microsoft.EntityFrameworkCore
+@using AppAjuntament.Models.Armes
+@inject IDbContextFactory<GestorSubvencionsContext> DbContextFactory
+
+<PageTitle>Taules Auxiliar d'Armes</PageTitle>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/taules-auxiliar">Taules Auxiliar</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Armes</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-12 d-flex justify-content-between align-items-center">
+            <h1 class="h3 mb-0">Manteniment Taules Auxiliar d'Armes</h1>
+            <button class="btn btn-outline-secondary" @onclick="LoadData">
+                <i class="fas fa-sync-alt me-2"></i>Refrescar
+            </button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(errorMsg))
+    {
+        <div class="alert alert-danger">@errorMsg</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(successMsg))
+    {
+        <div class="alert alert-success">@successMsg</div>
+    }
+
+    @if (loading)
+    {
+        <div class="text-center py-5"><div class="spinner-border" role="status"></div></div>
+    }
+    else
+    {
+        <div class="row g-3">
+            <div class="col-lg-6">
+                @RenderPanelTipusArma()
+            </div>
+            <div class="col-lg-6">
+                @RenderPanelTipusLicencia()
+            </div>
+            <div class="col-lg-6">
+                @RenderPanelEstatLicencia()
+            </div>
+            <div class="col-lg-6">
+                @RenderPanelResultatInspeccio()
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool loading = true;
+    private string? errorMsg;
+    private string? successMsg;
+
+    private List<AuxTipusArma> tipusArmes = new();
+    private List<AuxTipusLicencia> tipusLicencies = new();
+    private List<AuxEstatLicencia> estatsLicencia = new();
+    private List<AuxResultatInspeccio> resultatsInspeccio = new();
+
+    private AuxTipusArma tipusArmaForm = new() { Actiu = true };
+    private AuxTipusLicencia tipusLicenciaForm = new() { Actiu = true };
+    private AuxEstatLicencia estatLicenciaForm = new() { Actiu = true };
+    private AuxResultatInspeccio resultatForm = new() { Actiu = true };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        loading = true;
+        errorMsg = null;
+        try
+        {
+            await using var db = await DbContextFactory.CreateDbContextAsync();
+            tipusArmes = await db.AuxTipusArmes.OrderBy(x => x.Nom).ToListAsync();
+            tipusLicencies = await db.AuxTipusLicencies.OrderBy(x => x.Nom).ToListAsync();
+            estatsLicencia = await db.AuxEstatLicencies.OrderBy(x => x.Nom).ToListAsync();
+            resultatsInspeccio = await db.AuxResultatsInspeccio.OrderBy(x => x.Nom).ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMsg = ex.Message;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private RenderFragment RenderPanelTipusArma() => @<div class="card h-100">
+        <div class="card-header screen-header">
+            <h6 class="mb-0"><i class="fas fa-crosshairs me-2"></i>Aux_TipusArma</h6>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="() => tipusArmaForm = new AuxTipusArma { Actiu = true }">Netejar</button>
+        </div>
+        <div class="card-body">
+            @RenderSimpleFormTipusArma()
+            @RenderTableTipusArma()
+        </div>
+    </div>;
+
+    private RenderFragment RenderPanelTipusLicencia() => @<div class="card h-100">
+        <div class="card-header screen-header">
+            <h6 class="mb-0"><i class="fas fa-id-card me-2"></i>Aux_TipusLicencia</h6>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="() => tipusLicenciaForm = new AuxTipusLicencia { Actiu = true }">Netejar</button>
+        </div>
+        <div class="card-body">
+            @RenderSimpleFormTipusLicencia()
+            @RenderTableTipusLicencia()
+        </div>
+    </div>;
+
+    private RenderFragment RenderPanelEstatLicencia() => @<div class="card h-100">
+        <div class="card-header screen-header">
+            <h6 class="mb-0"><i class="fas fa-traffic-light me-2"></i>Aux_EstatLicencia</h6>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="() => estatLicenciaForm = new AuxEstatLicencia { Actiu = true }">Netejar</button>
+        </div>
+        <div class="card-body">
+            @RenderSimpleFormEstatLicencia()
+            @RenderTableEstatLicencia()
+        </div>
+    </div>;
+
+    private RenderFragment RenderPanelResultatInspeccio() => @<div class="card h-100">
+        <div class="card-header screen-header">
+            <h6 class="mb-0"><i class="fas fa-clipboard-check me-2"></i>Aux_ResultatInspeccio</h6>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="() => resultatForm = new AuxResultatInspeccio { Actiu = true }">Netejar</button>
+        </div>
+        <div class="card-body">
+            @RenderSimpleFormResultat()
+            @RenderTableResultat()
+        </div>
+    </div>;
+
+    private RenderFragment RenderSimpleFormTipusArma() => @<div class="row g-2 mb-2">
+        <div class="col-md-4"><InputText @bind-Value="tipusArmaForm.Nom" class="form-control form-control-sm" placeholder="Nom" /></div>
+        <div class="col-md-5"><InputText @bind-Value="tipusArmaForm.Descripcio" class="form-control form-control-sm" placeholder="Descripció" /></div>
+        <div class="col-md-1 form-check ms-2"><InputCheckbox @bind-Value="tipusArmaForm.Actiu" class="form-check-input" /></div>
+        <div class="col-md-2 text-end"><button class="btn btn-sm btn-primary" @onclick="SaveTipusArma">Guardar</button></div>
+    </div>;
+
+    private RenderFragment RenderSimpleFormTipusLicencia() => @<div class="row g-2 mb-2">
+        <div class="col-md-4"><InputText @bind-Value="tipusLicenciaForm.Nom" class="form-control form-control-sm" placeholder="Nom" /></div>
+        <div class="col-md-5"><InputText @bind-Value="tipusLicenciaForm.Descripcio" class="form-control form-control-sm" placeholder="Descripció" /></div>
+        <div class="col-md-1 form-check ms-2"><InputCheckbox @bind-Value="tipusLicenciaForm.Actiu" class="form-check-input" /></div>
+        <div class="col-md-2 text-end"><button class="btn btn-sm btn-primary" @onclick="SaveTipusLicencia">Guardar</button></div>
+    </div>;
+
+    private RenderFragment RenderSimpleFormEstatLicencia() => @<div class="row g-2 mb-2">
+        <div class="col-md-8"><InputText @bind-Value="estatLicenciaForm.Nom" class="form-control form-control-sm" placeholder="Nom" /></div>
+        <div class="col-md-2 form-check ms-2"><InputCheckbox @bind-Value="estatLicenciaForm.Actiu" class="form-check-input" /></div>
+        <div class="col-md-2 text-end"><button class="btn btn-sm btn-primary" @onclick="SaveEstatLicencia">Guardar</button></div>
+    </div>;
+
+    private RenderFragment RenderSimpleFormResultat() => @<div class="row g-2 mb-2">
+        <div class="col-md-8"><InputText @bind-Value="resultatForm.Nom" class="form-control form-control-sm" placeholder="Nom" /></div>
+        <div class="col-md-2 form-check ms-2"><InputCheckbox @bind-Value="resultatForm.Actiu" class="form-check-input" /></div>
+        <div class="col-md-2 text-end"><button class="btn btn-sm btn-primary" @onclick="SaveResultat">Guardar</button></div>
+    </div>;
+
+    private RenderFragment RenderTableTipusArma() => @<div class="table-responsive"><table class="table table-sm mb-0"><tbody>
+        @foreach (var x in tipusArmes)
+        {
+            <tr><td>@x.Nom</td><td>@x.Descripcio</td><td>@(x.Actiu ? "Sí" : "No")</td><td class="text-end"><button class="btn btn-sm btn-outline-primary me-1" @onclick="() => tipusArmaForm = CloneTipusArma(x)">Editar</button><button class="btn btn-sm btn-outline-warning" @onclick="() => ToggleTipusArma(x.Id)">Toggle</button></td></tr>
+        }
+    </tbody></table></div>;
+
+    private RenderFragment RenderTableTipusLicencia() => @<div class="table-responsive"><table class="table table-sm mb-0"><tbody>
+        @foreach (var x in tipusLicencies)
+        {
+            <tr><td>@x.Nom</td><td>@x.Descripcio</td><td>@(x.Actiu ? "Sí" : "No")</td><td class="text-end"><button class="btn btn-sm btn-outline-primary me-1" @onclick="() => tipusLicenciaForm = CloneTipusLicencia(x)">Editar</button><button class="btn btn-sm btn-outline-warning" @onclick="() => ToggleTipusLicencia(x.Id)">Toggle</button></td></tr>
+        }
+    </tbody></table></div>;
+
+    private RenderFragment RenderTableEstatLicencia() => @<div class="table-responsive"><table class="table table-sm mb-0"><tbody>
+        @foreach (var x in estatsLicencia)
+        {
+            <tr><td>@x.Nom</td><td>@(x.Actiu ? "Sí" : "No")</td><td class="text-end"><button class="btn btn-sm btn-outline-primary me-1" @onclick="() => estatLicenciaForm = CloneEstatLicencia(x)">Editar</button><button class="btn btn-sm btn-outline-warning" @onclick="() => ToggleEstatLicencia(x.Id)">Toggle</button></td></tr>
+        }
+    </tbody></table></div>;
+
+    private RenderFragment RenderTableResultat() => @<div class="table-responsive"><table class="table table-sm mb-0"><tbody>
+        @foreach (var x in resultatsInspeccio)
+        {
+            <tr><td>@x.Nom</td><td>@(x.Actiu ? "Sí" : "No")</td><td class="text-end"><button class="btn btn-sm btn-outline-primary me-1" @onclick="() => resultatForm = CloneResultat(x)">Editar</button><button class="btn btn-sm btn-outline-warning" @onclick="() => ToggleResultat(x.Id)">Toggle</button></td></tr>
+        }
+    </tbody></table></div>;
+
+    private async Task SaveTipusArma()
+    {
+        errorMsg = null;
+        successMsg = null;
+
+        var nom = NormalizeText(tipusArmaForm.Nom);
+        if (string.IsNullOrWhiteSpace(nom))
+        {
+            errorMsg = "El camp Nom de tipus d'arma és obligatori.";
+            return;
+        }
+
+        try
+        {
+            await using var db = await DbContextFactory.CreateDbContextAsync();
+            var nomsExistents = await db.AuxTipusArmes
+                .AsNoTracking()
+                .Where(x => x.Id != tipusArmaForm.Id)
+                .Select(x => x.Nom)
+                .ToListAsync();
+
+            if (nomsExistents.Any(x => NormalizeText(x) == nom))
+            {
+                errorMsg = "Ja existeix un tipus d'arma amb aquest nom.";
+                return;
+            }
+
+            tipusArmaForm.Nom = nom;
+            tipusArmaForm.Descripcio = NormalizeNullableText(tipusArmaForm.Descripcio);
+
+            if (tipusArmaForm.Id == 0)
+            {
+                db.AuxTipusArmes.Add(tipusArmaForm);
+                successMsg = "Tipus d'arma creat correctament.";
+            }
+            else
+            {
+                var e = await db.AuxTipusArmes.FindAsync(tipusArmaForm.Id);
+                if (e != null)
+                {
+                    e.Nom = tipusArmaForm.Nom;
+                    e.Descripcio = tipusArmaForm.Descripcio;
+                    e.Actiu = tipusArmaForm.Actiu;
+                    successMsg = "Tipus d'arma actualitzat correctament.";
+                }
+            }
+
+            await db.SaveChangesAsync();
+            tipusArmaForm = new AuxTipusArma { Actiu = true };
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error guardant tipus d'arma: {ex.Message}";
+        }
+    }
+
+    private async Task SaveTipusLicencia()
+    {
+        errorMsg = null;
+        successMsg = null;
+
+        var nom = NormalizeText(tipusLicenciaForm.Nom);
+        if (string.IsNullOrWhiteSpace(nom))
+        {
+            errorMsg = "El camp Nom de tipus de llicència és obligatori.";
+            return;
+        }
+
+        try
+        {
+            await using var db = await DbContextFactory.CreateDbContextAsync();
+            var nomsExistents = await db.AuxTipusLicencies
+                .AsNoTracking()
+                .Where(x => x.Id != tipusLicenciaForm.Id)
+                .Select(x => x.Nom)
+                .ToListAsync();
+
+            if (nomsExistents.Any(x => NormalizeText(x) == nom))
+            {
+                errorMsg = "Ja existeix un tipus de llicència amb aquest nom.";
+                return;
+            }
+
+            tipusLicenciaForm.Nom = nom;
+            tipusLicenciaForm.Descripcio = NormalizeNullableText(tipusLicenciaForm.Descripcio);
+
+            if (tipusLicenciaForm.Id == 0)
+            {
+                db.AuxTipusLicencies.Add(tipusLicenciaForm);
+                successMsg = "Tipus de llicència creat correctament.";
+            }
+            else
+            {
+                var e = await db.AuxTipusLicencies.FindAsync(tipusLicenciaForm.Id);
+                if (e != null)
+                {
+                    e.Nom = tipusLicenciaForm.Nom;
+                    e.Descripcio = tipusLicenciaForm.Descripcio;
+                    e.Actiu = tipusLicenciaForm.Actiu;
+                    successMsg = "Tipus de llicència actualitzat correctament.";
+                }
+            }
+
+            await db.SaveChangesAsync();
+            tipusLicenciaForm = new AuxTipusLicencia { Actiu = true };
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error guardant tipus de llicència: {ex.Message}";
+        }
+    }
+
+    private async Task SaveEstatLicencia()
+    {
+        errorMsg = null;
+        successMsg = null;
+
+        var nom = NormalizeText(estatLicenciaForm.Nom);
+        if (string.IsNullOrWhiteSpace(nom))
+        {
+            errorMsg = "El camp Nom d'estat de llicència és obligatori.";
+            return;
+        }
+
+        try
+        {
+            await using var db = await DbContextFactory.CreateDbContextAsync();
+            var nomsExistents = await db.AuxEstatLicencies
+                .AsNoTracking()
+                .Where(x => x.Id != estatLicenciaForm.Id)
+                .Select(x => x.Nom)
+                .ToListAsync();
+
+            if (nomsExistents.Any(x => NormalizeText(x) == nom))
+            {
+                errorMsg = "Ja existeix un estat de llicència amb aquest nom.";
+                return;
+            }
+
+            estatLicenciaForm.Nom = nom;
+
+            if (estatLicenciaForm.Id == 0)
+            {
+                db.AuxEstatLicencies.Add(estatLicenciaForm);
+                successMsg = "Estat de llicència creat correctament.";
+            }
+            else
+            {
+                var e = await db.AuxEstatLicencies.FindAsync(estatLicenciaForm.Id);
+                if (e != null)
+                {
+                    e.Nom = estatLicenciaForm.Nom;
+                    e.Actiu = estatLicenciaForm.Actiu;
+                    successMsg = "Estat de llicència actualitzat correctament.";
+                }
+            }
+
+            await db.SaveChangesAsync();
+            estatLicenciaForm = new AuxEstatLicencia { Actiu = true };
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error guardant estat de llicència: {ex.Message}";
+        }
+    }
+
+    private async Task SaveResultat()
+    {
+        errorMsg = null;
+        successMsg = null;
+
+        var nom = NormalizeText(resultatForm.Nom);
+        if (string.IsNullOrWhiteSpace(nom))
+        {
+            errorMsg = "El camp Nom de resultat d'inspecció és obligatori.";
+            return;
+        }
+
+        try
+        {
+            await using var db = await DbContextFactory.CreateDbContextAsync();
+            var nomsExistents = await db.AuxResultatsInspeccio
+                .AsNoTracking()
+                .Where(x => x.Id != resultatForm.Id)
+                .Select(x => x.Nom)
+                .ToListAsync();
+
+            if (nomsExistents.Any(x => NormalizeText(x) == nom))
+            {
+                errorMsg = "Ja existeix un resultat d'inspecció amb aquest nom.";
+                return;
+            }
+
+            resultatForm.Nom = nom;
+
+            if (resultatForm.Id == 0)
+            {
+                db.AuxResultatsInspeccio.Add(resultatForm);
+                successMsg = "Resultat d'inspecció creat correctament.";
+            }
+            else
+            {
+                var e = await db.AuxResultatsInspeccio.FindAsync(resultatForm.Id);
+                if (e != null)
+                {
+                    e.Nom = resultatForm.Nom;
+                    e.Actiu = resultatForm.Actiu;
+                    successMsg = "Resultat d'inspecció actualitzat correctament.";
+                }
+            }
+
+            await db.SaveChangesAsync();
+            resultatForm = new AuxResultatInspeccio { Actiu = true };
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"Error guardant resultat d'inspecció: {ex.Message}";
+        }
+    }
+
+    private async Task ToggleTipusArma(int id) => await Toggle(async db => await db.AuxTipusArmes.FindAsync(id), (e, v) => e.Actiu = v);
+    private async Task ToggleTipusLicencia(int id) => await Toggle(async db => await db.AuxTipusLicencies.FindAsync(id), (e, v) => e.Actiu = v);
+    private async Task ToggleEstatLicencia(int id) => await Toggle(async db => await db.AuxEstatLicencies.FindAsync(id), (e, v) => e.Actiu = v);
+    private async Task ToggleResultat(int id) => await Toggle(async db => await db.AuxResultatsInspeccio.FindAsync(id), (e, v) => e.Actiu = v);
+
+    private async Task Toggle<T>(Func<GestorSubvencionsContext, Task<T?>> loader, Action<T, bool> setter) where T : class
+    {
+        errorMsg = null;
+        successMsg = null;
+
+        await using var db = await DbContextFactory.CreateDbContextAsync();
+        var entity = await loader(db);
+        if (entity != null)
+        {
+            var prop = entity.GetType().GetProperty("Actiu");
+            var current = (bool?)prop?.GetValue(entity) ?? false;
+            setter(entity, !current);
+            await db.SaveChangesAsync();
+            successMsg = "Estat actualitzat correctament.";
+            await LoadData();
+        }
+    }
+
+    private static string NormalizeText(string? value) => (value ?? string.Empty).Trim();
+
+    private static string? NormalizeNullableText(string? value)
+    {
+        var normalized = (value ?? string.Empty).Trim();
+        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
+    }
+
+    private static AuxTipusArma CloneTipusArma(AuxTipusArma x) => new()
+    {
+        Id = x.Id,
+        Nom = x.Nom,
+        Descripcio = x.Descripcio,
+        Actiu = x.Actiu
+    };
+
+    private static AuxTipusLicencia CloneTipusLicencia(AuxTipusLicencia x) => new()
+    {
+        Id = x.Id,
+        Nom = x.Nom,
+        Descripcio = x.Descripcio,
+        Actiu = x.Actiu
+    };
+
+    private static AuxEstatLicencia CloneEstatLicencia(AuxEstatLicencia x) => new()
+    {
+        Id = x.Id,
+        Nom = x.Nom,
+        Actiu = x.Actiu
+    };
+
+    private static AuxResultatInspeccio CloneResultat(AuxResultatInspeccio x) => new()
+    {
+        Id = x.Id,
+        Nom = x.Nom,
+        Actiu = x.Actiu
+    };
+}

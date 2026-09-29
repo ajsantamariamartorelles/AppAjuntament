@@ -1,0 +1,21 @@
+name: Detecció de secrets (gitleaks)
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clona el repositori (amb tot l'historial)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Escaneja secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

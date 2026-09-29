@@ -1,0 +1,916 @@
+@page "/seu-e-apis"
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@using AppAjuntament.Models.Api
+@using AppAjuntament.Models
+@using AppAjuntament.Services
+@using Microsoft.Extensions.Options
+@using System.Globalization
+@using System.Text.Json
+@inject CkanApiService CkanService
+@inject ILogger<SeuEApis> Logger
+@inject IOptions<AjuntamentSettings> AjuntamentOptions
+
+<PageTitle>APIs SEU-e Disponibles</PageTitle>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="screen-header">
+                <h1 class="h3 mb-0">
+                    <i class="fas fa-cube me-2 text-primary"></i>
+                    APIs SEU-e Disponibles
+                </h1>
+                <div>
+                    <span class="badge bg-success me-2">
+                        <i class="fas fa-check-circle me-1"></i>@usedCount Utilizades
+                    </span>
+                    <span class="badge bg-info">
+                        <i class="fas fa-cube me-1"></i>@unusedCount Disponibles
+                    </span>
+                </div>
+            </div>
+
+            <!-- Filtres -->
+            <div class="screen-filters-card mb-4">
+                <div class="row g-3">
+                    <div class="col-12 col-md-6">
+                        <label for="categorySelect" class="form-label">Filtra per categoria:</label>
+                        <select class="form-select" id="categorySelect" @onchange="OnCategoryChanged">
+                            <option value="">-- Totes les categories --</option>
+                            @foreach (var cat in categories)
+                            {
+                                <option value="@cat">@cat</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label for="statusSelect" class="form-label">Filtra per estat:</label>
+                        <select class="form-select" id="statusSelect" @onchange="OnStatusChanged">
+                            <option value="">-- Tots --</option>
+                            <option value="utilized">Utilitzades</option>
+                            <option value="unused">No utilitzades</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            @if (filteredApis.Any())
+            {
+                <div class="row">
+                    @foreach (var api in filteredApis)
+                    {
+                        <div class="col-12 mb-4">
+                            <div class="card shadow-sm">
+                                <div class="card-header @(api.IsUtilizada ? "bg-success" : "bg-light")">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <h5 class="card-title mb-1">@api.Nom</h5>
+                                            <small class="@(api.IsUtilizada ? "text-white" : "text-muted")">
+                                                <i class="fas fa-tag me-1"></i>@api.Categoria
+                                            </small>
+                                        </div>
+                                        @if (api.IsUtilizada)
+                                        {
+                                            <span class="badge bg-white text-success">
+                                                <i class="fas fa-check-circle me-1"></i>Activa
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary">
+                                                <i class="fas fa-cube me-1"></i>Disponible
+                                            </span>
+                                        }
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <p class="card-text mb-3">@api.Descripcio</p>
+
+                                    @if (!string.IsNullOrEmpty(api.Observacions))
+                                    {
+                                        <div class="mb-3">
+                                            <small class="text-muted">
+                                                <i class="fas fa-info-circle me-1"></i>@api.Observacions
+                                            </small>
+                                        </div>
+                                    }
+
+                                    <!-- Taula de resultats -->
+                                    @if (apiResults.ContainsKey(api.Id))
+                                    {
+                                        var result = apiResults[api.Id];
+                                        if (result.IsLoading)
+                                        {
+                                            <div class="text-center py-3">
+                                                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                                    <span class="visually-hidden">Carregant...</span>
+                                                </div>
+                                            </div>
+                                        }
+                                        else if (result.Error != null)
+                                        {
+                                            <div class="alert alert-warning mb-0">
+                                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                                No s'han pogut carregar les dades: @result.Error
+                                            </div>
+                                        }
+                                        else if (result.Data?.Records.Any() == true)
+                                        {
+                                            var visibleFields = result.Data.Fields.Where(f => !IsHiddenField(f.Id)).ToList();
+                                            <div class="mb-3">
+                                                <strong class="text-muted">
+                                                    <i class="fas fa-database me-1"></i>@result.Data.Total registres totals
+                                                </strong>
+                                            </div>
+                                            <div class="table-responsive">
+                                                <table class="table table-sm table-hover mb-0">
+                                                    <thead class="table-light">
+                                                        <tr>
+                                                            @foreach (var field in visibleFields.Take(5))
+                                                            {
+                                                                <th>@GetFriendlyFieldName(field.Id)</th>
+                                                            }
+                                                            @if (visibleFields.Count > 5)
+                                                            {
+                                                                <th class="text-muted">...</th>
+                                                            }
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        @foreach (var record in result.Data.Records.Take(5))
+                                                        {
+                                                            <tr>
+                                                                @foreach (var field in visibleFields.Take(5))
+                                                                {
+                                                                    <td>
+                                                                        @{
+                                                                            record.TryGetValue(field.Id, out var value);
+                                                                            var formatted = FormatCellValue(field.Id, value, 50);
+                                                                        }
+                                                                        @if (formatted.IsLink)
+                                                                        {
+                                                                            <a href="@formatted.LinkUrl" target="_blank" rel="noopener noreferrer" class="small">
+                                                                                @formatted.Text
+                                                                            </a>
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            <small>@formatted.Text</small>
+                                                                        }
+                                                                    </td>
+                                                                }
+                                                                @if (visibleFields.Count > 5)
+                                                                {
+                                                                    <td class="text-muted"><small>...</small></td>
+                                                                }
+                                                            </tr>
+                                                        }
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                            <small class="text-muted d-block mt-2">
+                                                Mostrant 5 de @result.Data.Records.Count registres
+                                            </small>
+                                        }
+                                        else
+                                        {
+                                            <div class="alert alert-info mb-0">
+                                                <i class="fas fa-info-circle me-2"></i>
+                                                No hi ha dades disponibles per a aquesta API
+                                            </div>
+                                        }
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="alert alert-info" role="alert">
+                    <i class="fas fa-info-circle me-2"></i>
+                    No s'han trobat APIs amb els filtres seleccionats.
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<SeuApiRecord> allApis = new();
+    private List<SeuApiRecord> filteredApis = new();
+    private List<string> categories = new();
+    private int usedCount = 0;
+    private int unusedCount = 0;
+    private string selectedCategory = "";
+    private string selectedStatus = "";
+    private string municipiNom = string.Empty;
+    private string? codiEns;
+
+    // Diccionari per guardar resultats de cada API
+    private Dictionary<int, ApiResultData> apiResults = new();
+
+    private class ApiResultData
+    {
+        public bool IsLoading { get; set; } = true;
+        public string? Error { get; set; }
+        public CkanSearchResult? Data { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        municipiNom = AjuntamentOptions.Value.NomMunicipi?.Trim() ?? string.Empty;
+        codiEns = GetCodiEnsFromSettings(AjuntamentOptions.Value.CodiINE6);
+
+        allApis = SeuApiCatalog.GetAllApis();
+        categories = SeuApiCatalog.GetCategories();
+        usedCount = SeuApiCatalog.GetUsedApis().Count;
+        unusedCount = SeuApiCatalog.GetUnusedApis().Count;
+        ApplyFilters();
+
+        // Carregar dades de totes les APIs
+        foreach (var api in allApis)
+        {
+            apiResults[api.Id] = new ApiResultData { IsLoading = true };
+        }
+
+        // Executar les crides en paralel (màxim 5 simultànies)
+        var tasks = allApis
+            .Select(api => LoadApiData(api))
+            .ToList();
+
+        await Task.WhenAll(tasks);
+    }
+
+    private async Task LoadApiData(SeuApiRecord api)
+    {
+        try
+        {
+            var result = await LoadFilteredApiData(api.ResourceId);
+            if (result != null)
+            {
+                apiResults[api.Id] = new ApiResultData
+                {
+                    IsLoading = false,
+                    Data = result,
+                    Error = null
+                };
+            }
+            else
+            {
+                apiResults[api.Id] = new ApiResultData
+                {
+                    IsLoading = false,
+                    Error = "Error al carregar les dades",
+                    Data = null
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, $"Error loading data for API {api.Id}");
+            apiResults[api.Id] = new ApiResultData
+            {
+                IsLoading = false,
+                Error = ex.Message,
+                Data = null
+            };
+        }
+    }
+
+    private async Task<CkanSearchResult?> LoadFilteredApiData(string resourceId)
+    {
+        var filterCandidates = BuildFilterCandidates();
+        foreach (var filter in filterCandidates)
+        {
+            var filteredResult = await CkanService.GetDatastoreSearch(resourceId, limit: 5, offset: 0, filters: filter);
+            if (filteredResult?.Records.Any() == true)
+            {
+                filteredResult.Records = FilterLocalRecords(filteredResult.Records);
+                return filteredResult;
+            }
+        }
+
+        var fallback = await CkanService.GetDatastoreSearch(resourceId, limit: 5, offset: 0);
+        if (fallback != null)
+        {
+            fallback.Records = FilterLocalRecords(fallback.Records);
+        }
+
+        return fallback;
+    }
+
+    private List<Dictionary<string, object>> FilterLocalRecords(List<Dictionary<string, object>> records)
+    {
+        if (records.Count == 0)
+        {
+            return records;
+        }
+
+        var hasMunicipiIndicators = records.Any(HasMunicipiIndicators);
+        var filtered = records.Where(IsRecordFromMunicipi).ToList();
+        if (filtered.Count > 0)
+        {
+            return filtered;
+        }
+
+        return hasMunicipiIndicators ? new List<Dictionary<string, object>>() : records;
+    }
+
+    private bool HasMunicipiIndicators(Dictionary<string, object> record)
+    {
+        var indicatorKeys = new[]
+        {
+            "CODI_ENS", "CODI_ENS_ACTIVITAT", "CODI_ENS_PARE", "ID_ORGANISME_CONTRACTANT", "CODIINE", "CODI_INE10"
+        };
+
+        foreach (var key in indicatorKeys)
+        {
+            if (TryGetRecordValue(record, key, out _))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool IsRecordFromMunicipi(Dictionary<string, object> record)
+    {
+        if (string.IsNullOrWhiteSpace(codiEns))
+        {
+            return false;
+        }
+
+        var codiEnsKeys = new[] { "CODI_ENS", "CODI_ENS_ACTIVITAT", "CODI_ENS_PARE", "ID_ORGANISME_CONTRACTANT", "CODIINE", "CODI_INE10" };
+        foreach (var key in codiEnsKeys)
+        {
+            if (TryGetRecordValue(record, key, out var value) && string.Equals(value, codiEns, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryGetRecordValue(Dictionary<string, object> record, string key, out string value)
+    {
+        value = string.Empty;
+        if (!record.TryGetValue(key, out var raw) || raw == null)
+        {
+            return false;
+        }
+
+        if (raw is JsonElement jsonElement)
+        {
+            value = jsonElement.ValueKind switch
+            {
+                JsonValueKind.String => jsonElement.GetString() ?? string.Empty,
+                JsonValueKind.Number => jsonElement.ToString(),
+                JsonValueKind.True => bool.TrueString,
+                JsonValueKind.False => bool.FalseString,
+                _ => string.Empty
+            };
+        }
+        else
+        {
+            value = raw.ToString() ?? string.Empty;
+        }
+
+        value = value.Trim();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        if (value.All(char.IsDigit) && long.TryParse(value, out var numeric))
+        {
+            value = numeric.ToString(CultureInfo.InvariantCulture);
+        }
+
+        return true;
+    }
+
+    private List<Dictionary<string, object>> BuildFilterCandidates()
+    {
+        var filters = new List<Dictionary<string, object>>();
+        if (string.IsNullOrWhiteSpace(codiEns))
+        {
+            return filters;
+        }
+
+        // Sempre afegim variants text (camps CODI_INE10, CODIINE són text a l'API)
+        filters.Add(new Dictionary<string, object> { ["CODI_INE10"] = codiEns });
+        filters.Add(new Dictionary<string, object> { ["CODIINE"] = codiEns });
+        filters.Add(new Dictionary<string, object> { ["CODI_ENS"] = codiEns });
+        filters.Add(new Dictionary<string, object> { ["CODI_ENS_ACTIVITAT"] = codiEns });
+        filters.Add(new Dictionary<string, object> { ["CODI_ENS_PARE"] = codiEns });
+        filters.Add(new Dictionary<string, object> { ["ID_ORGANISME_CONTRACTANT"] = codiEns });
+
+        // Afegim també variants numèriques per als camps que poden ser numeric a l'API
+        if (long.TryParse(codiEns, out var codiEnsNumeric))
+        {
+            filters.Add(new Dictionary<string, object> { ["CODI_ENS"] = codiEnsNumeric });
+            filters.Add(new Dictionary<string, object> { ["CODI_ENS_ACTIVITAT"] = codiEnsNumeric });
+            filters.Add(new Dictionary<string, object> { ["CODI_ENS_PARE"] = codiEnsNumeric });
+            filters.Add(new Dictionary<string, object> { ["ID_ORGANISME_CONTRACTANT"] = codiEnsNumeric });
+        }
+
+        return filters;
+    }
+
+    private static string? GetCodiEnsFromSettings(string? codiIne6)
+    {
+        if (string.IsNullOrWhiteSpace(codiIne6))
+        {
+            return null;
+        }
+
+        var digits = new string(codiIne6.Where(char.IsDigit).ToArray());
+        if (string.IsNullOrWhiteSpace(digits))
+        {
+            return null;
+        }
+
+        if (!int.TryParse(digits, out var numericIne))
+        {
+            return null;
+        }
+
+        return $"{numericIne}0005";
+    }
+
+    private static readonly Dictionary<string, string> FriendlyFieldNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["_id"] = "Id",
+        ["CODI_ENS"] = "Codi ens",
+        ["CODI_ENS_ACTIVITAT"] = "Codi ens activitat",
+        ["CODI_ENS_PARE"] = "Codi ens pare",
+        ["CODI_INE10"] = "Codi INE10",
+        ["CODIINE"] = "Codi INE",
+        ["ID_ORGANISME_CONTRACTANT"] = "Organisme contractant",
+        ["NOM_ENS"] = "Nom ens",
+        ["NOM_REGIDOR"] = "Nom regidor",
+        ["CARREC"] = "Càrrec",
+        ["PARTIT"] = "Partit",
+        ["AREA"] = "Àrea",
+        ["MUNICIPI_REPRESENTA"] = "Municipi que representa",
+        ["DATA_NOMENAMENT"] = "Data nomenament",
+        ["E_MAIL"] = "Correu electrònic",
+        ["SEXE"] = "Sexe",
+        ["ORDRE"] = "Ordre"
+    };
+
+    private static string GetFriendlyFieldName(string fieldId)
+    {
+        if (FriendlyFieldNames.TryGetValue(fieldId, out var friendlyName))
+        {
+            return friendlyName;
+        }
+
+        var normalized = NormalizeFieldIdForDisplay(fieldId);
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return "Camp";
+        }
+
+        return normalized;
+    }
+
+    private static string NormalizeFieldIdForDisplay(string fieldId)
+    {
+        var trimmed = fieldId.Trim();
+        if (string.IsNullOrWhiteSpace(trimmed))
+        {
+            return "Camp";
+        }
+
+        if (trimmed.All(char.IsDigit))
+        {
+            return $"Camp {trimmed}";
+        }
+
+        var tokenMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["ID"] = "Identificador",
+            ["NOM"] = "Nom",
+            ["DESC"] = "Descripcio",
+            ["DESCRIPCIO"] = "Descripcio",
+            ["DATA"] = "Data",
+            ["ANY"] = "Any",
+            ["MES"] = "Mes",
+            ["DIA"] = "Dia",
+            ["CODI"] = "Codi",
+            ["ENS"] = "Ens",
+            ["MUNICIPI"] = "Municipi",
+            ["PROVINCIA"] = "Provincia",
+            ["COMARCA"] = "Comarca",
+            ["ADRECA"] = "Adreca",
+            ["TEL"] = "Telefon",
+            ["TELEFON"] = "Telefon",
+            ["EMAIL"] = "Correu electronic",
+            ["MAIL"] = "Correu electronic",
+            ["WEB"] = "Web",
+            ["URL"] = "Enllac",
+            ["IMPORT"] = "Import",
+            ["EURO"] = "Import en euros",
+            ["ESTAT"] = "Estat",
+            ["TIPUS"] = "Tipus",
+            ["OBS"] = "Observacions",
+            ["OBSERVACIONS"] = "Observacions",
+            ["E"] = "Correu electronic"
+        };
+
+        var normalizedInput = trimmed.Replace("-", "_").Replace(".", "_");
+        var tokens = normalizedInput.Split('_', StringSplitOptions.RemoveEmptyEntries);
+        if (tokens.Length > 0)
+        {
+            var translatedTokens = tokens
+                .Select(token => tokenMap.TryGetValue(token, out var translated)
+                    ? translated
+                    : ToTitleCaseSafe(token))
+                .ToList();
+
+            var combined = string.Join(" ", translatedTokens).Trim();
+            if (!string.IsNullOrWhiteSpace(combined) && !LooksLikeRawCode(combined))
+            {
+                return combined;
+            }
+        }
+
+        var fallback = ToTitleCaseSafe(normalizedInput.Replace("_", " "));
+        if (LooksLikeRawCode(fallback))
+        {
+            return $"Camp {trimmed}";
+        }
+
+        return fallback;
+    }
+
+    private static bool LooksLikeRawCode(string value)
+    {
+        var compact = value.Replace(" ", string.Empty);
+        return compact.Length <= 2 || compact.All(ch => char.IsLetterOrDigit(ch) && char.IsUpper(ch));
+    }
+
+    private static string ToTitleCaseSafe(string value)
+    {
+        var cleaned = value.Trim();
+        if (string.IsNullOrWhiteSpace(cleaned))
+        {
+            return string.Empty;
+        }
+
+        return CultureInfo.GetCultureInfo("ca-ES").TextInfo.ToTitleCase(cleaned.ToLowerInvariant());
+    }
+
+    private sealed class FormattedCellValue
+    {
+        public string Text { get; init; } = "-";
+        public bool IsLink { get; init; }
+        public string? LinkUrl { get; init; }
+    }
+
+    private static readonly string[] LinkFieldHints = { "URL", "ENLLAC", "LINK", "WEB" };
+    private static readonly string[] CurrencyFieldHints = { "IMPORT", "EURO", "QUANTIA", "PREU", "COST", "AMOUNT", "PAGAT", "AUTORITZAT", "COMPROMIS", "RECONEGUT", "EXECUTAT" };
+    private static readonly string[] YearFieldHints = { "ANY", "YEAR", "ANYO" };
+    private static readonly HashSet<string> HiddenFields = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "CODI_ENS", "CODI_ENS_ACTIVITAT", "CODI_ENS_PARE",
+        "NOM_ENS", "NOM_ENS_PARE", "NOM_COMPLET", "NOM_COMPLET_ENS",
+        "NOM_MUNICIPI", "MUNICIPI", "NOM_ENS_LOCAL",
+        "ID_ORGANISME_CONTRACTANT", "CODIINE", "CODI_INE10", "CODI_INE",
+        "_id",
+        "CODI_DOCUMENT", "CODI_ESTRUCTURA"
+    };
+
+    private static bool IsHiddenField(string fieldId)
+    {
+        return HiddenFields.Contains(fieldId);
+    }
+
+    private static bool LooksLikeYearField(string fieldId)
+    {
+        return YearFieldHints.Any(hint => fieldId.Contains(hint, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool LooksLikeYear(decimal value)
+    {
+        return value == Math.Floor(value) && value >= 1800 && value <= 2100;
+    }
+
+    private static FormattedCellValue FormatCellValue(string fieldId, object? rawValue, int maxLength)
+    {
+        var text = GetValueAsString(rawValue);
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return new FormattedCellValue();
+        }
+
+        text = text.Trim();
+        if (TryBuildLink(fieldId, text, out var href))
+        {
+            return new FormattedCellValue
+            {
+                IsLink = true,
+                LinkUrl = href,
+                Text = TruncateText(text, maxLength)
+            };
+        }
+
+        if (TryTranslateCodedValue(fieldId, text, out var translated))
+        {
+            return new FormattedCellValue { Text = translated };
+        }
+
+        if ((LooksLikeCurrencyField(fieldId) || text.Contains("€", StringComparison.Ordinal) || text.Contains("EUR", StringComparison.OrdinalIgnoreCase))
+            && !LooksLikeYearField(fieldId)
+            && TryParseAmount(text, out var amount)
+            && !LooksLikeYear(amount))
+        {
+            return new FormattedCellValue { Text = amount.ToString("C2", CultureInfo.GetCultureInfo("ca-ES")) };
+        }
+
+        return new FormattedCellValue { Text = TruncateText(text, maxLength) };
+    }
+
+    private static string GetValueAsString(object? rawValue)
+    {
+        if (rawValue is null)
+        {
+            return string.Empty;
+        }
+
+        if (rawValue is JsonElement jsonElement)
+        {
+            return jsonElement.ValueKind switch
+            {
+                JsonValueKind.String => jsonElement.GetString() ?? string.Empty,
+                JsonValueKind.Number => jsonElement.ToString(),
+                JsonValueKind.True => bool.TrueString,
+                JsonValueKind.False => bool.FalseString,
+                _ => jsonElement.ToString()
+            };
+        }
+
+        return rawValue.ToString() ?? string.Empty;
+    }
+
+    private static bool TryBuildLink(string fieldId, string text, out string? href)
+    {
+        href = null;
+        if (!LooksLikeLinkField(fieldId) && !LooksLikeAbsoluteUrl(text))
+        {
+            return false;
+        }
+
+        var candidate = text;
+        if (candidate.StartsWith("www.", StringComparison.OrdinalIgnoreCase))
+        {
+            candidate = $"https://{candidate}";
+        }
+
+        if (Uri.TryCreate(candidate, UriKind.Absolute, out var uri)
+            && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+        {
+            href = uri.ToString();
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool LooksLikeAbsoluteUrl(string text)
+    {
+        return text.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+            || text.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+            || text.StartsWith("www.", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool LooksLikeLinkField(string fieldId)
+    {
+        return LinkFieldHints.Any(hint => fieldId.Contains(hint, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool LooksLikeCurrencyField(string fieldId)
+    {
+        return CurrencyFieldHints.Any(hint => fieldId.Contains(hint, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool TryTranslateCodedValue(string fieldId, string text, out string translated)
+    {
+        translated = string.Empty;
+
+        var normalized = text.Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return false;
+        }
+
+        if (TryTranslateBudgetCode(fieldId, normalized, out translated))
+        {
+            return true;
+        }
+
+        if (!IsStatusLikeField(fieldId))
+        {
+            return false;
+        }
+
+        if (normalized == "1")
+        {
+            translated = "Actiu";
+            return true;
+        }
+
+        if (normalized == "0")
+        {
+            translated = "Inactiu";
+            return true;
+        }
+
+        if (normalized.Equals("S", StringComparison.OrdinalIgnoreCase)
+            || normalized.Equals("SI", StringComparison.OrdinalIgnoreCase)
+            || normalized.Equals("Y", StringComparison.OrdinalIgnoreCase)
+            || normalized.Equals("YES", StringComparison.OrdinalIgnoreCase)
+            || normalized.Equals("TRUE", StringComparison.OrdinalIgnoreCase))
+        {
+            translated = "Actiu";
+            return true;
+        }
+
+        if (normalized.Equals("N", StringComparison.OrdinalIgnoreCase)
+            || normalized.Equals("NO", StringComparison.OrdinalIgnoreCase)
+            || normalized.Equals("FALSE", StringComparison.OrdinalIgnoreCase))
+        {
+            translated = "Inactiu";
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryTranslateBudgetCode(string fieldId, string value, out string translated)
+    {
+        translated = string.Empty;
+        var key = NormalizeFieldKey(fieldId);
+
+        if (key == "TIPUSPARTIDA")
+        {
+            if (value.Equals("I", StringComparison.OrdinalIgnoreCase))
+            {
+                translated = "Ingressos";
+                return true;
+            }
+
+            if (value.Equals("D", StringComparison.OrdinalIgnoreCase))
+            {
+                translated = "Despeses";
+                return true;
+            }
+        }
+
+        if (key == "TIPUSCLASSIF")
+        {
+            if (value.Equals("E", StringComparison.OrdinalIgnoreCase))
+            {
+                translated = "Economica";
+                return true;
+            }
+
+            if (value.Equals("P", StringComparison.OrdinalIgnoreCase))
+            {
+                translated = "Per programes";
+                return true;
+            }
+        }
+
+        if (key == "CODIPANTALLA")
+        {
+            if (value == "1")
+            {
+                translated = "Ingressos";
+                return true;
+            }
+
+            if (value == "2")
+            {
+                translated = "Despeses";
+                return true;
+            }
+        }
+
+        if (key == "NIVELL" && int.TryParse(value, out var level))
+        {
+            translated = level switch
+            {
+                1 => "Capítol",
+                2 => "Article",
+                3 => "Concepte",
+                4 => "Subconcepte",
+                5 => "Partida",
+                _ => $"Nivell {level}"
+            };
+            return true;
+        }
+
+        if (key == "CODITIPUSRELACIO" || key == "TIPUSRELACIO" || key == "NOMTIPUSRELACIO")
+        {
+            translated = value.ToUpperInvariant() switch
+            {
+                "M"  => "Membre",
+                "F"  => "Fundador",
+                "P"  => "Participant",
+                "C"  => "Consorci",
+                "A"  => "Adscrit",
+                "V"  => "Vinculat",
+                "D"  => "Dependent",
+                "E"  => "Entitat vinculada",
+                "1"  => "Membre fundador",
+                "2"  => "Membre",
+                "3"  => "Participant",
+                "4"  => "Adscrit",
+                "5"  => "Vinculat",
+                "MF" => "Membre fundador",
+                "ME" => "Membre",
+                "PA" => "Participant",
+                _    => value
+            };
+            return translated != value;
+        }
+
+        return false;
+    }
+
+    private static string NormalizeFieldKey(string fieldId)
+    {
+        return new string(fieldId.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
+    }
+
+    private static bool IsStatusLikeField(string fieldId)
+    {
+        var statusFieldHints = new[]
+        {
+            "ACTIU", "ACTIVA", "ACTIVO", "ACTIVA", "ESTAT", "STATUS", "VIGENT", "VALID",
+            "ENABLED", "HABILITAT", "PUBLICAT", "VISIBLE", "FLAG", "IS_", "_IS"
+        };
+
+        return statusFieldHints.Any(hint => fieldId.Contains(hint, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool TryParseAmount(string text, out decimal amount)
+    {
+        amount = 0;
+
+        var normalized = text.Replace("€", string.Empty, StringComparison.Ordinal)
+            .Replace("EUR", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Trim();
+
+        // L'API retorna números en format invariant (punt decimal). Cal provar-ho primer.
+        if (decimal.TryParse(normalized, NumberStyles.Number, CultureInfo.InvariantCulture, out amount))
+        {
+            return true;
+        }
+
+        if (decimal.TryParse(normalized, NumberStyles.Number, CultureInfo.GetCultureInfo("ca-ES"), out amount))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static string TruncateText(string text, int maxLength)
+    {
+        return text.Length > maxLength ? text[..maxLength] + "..." : text;
+    }
+
+    private void OnCategoryChanged(ChangeEventArgs e)
+    {
+        selectedCategory = e.Value?.ToString() ?? "";
+        ApplyFilters();
+    }
+
+    private void OnStatusChanged(ChangeEventArgs e)
+    {
+        selectedStatus = e.Value?.ToString() ?? "";
+        ApplyFilters();
+    }
+
+    private void ApplyFilters()
+    {
+        filteredApis = allApis.Where(api =>
+        {
+            bool categoryMatch = string.IsNullOrEmpty(selectedCategory) || api.Categoria == selectedCategory;
+            bool statusMatch = selectedStatus switch
+            {
+                "utilized" => api.IsUtilizada,
+                "unused" => !api.IsUtilizada,
+                _ => true
+            };
+            return categoryMatch && statusMatch;
+        }).ToList();
+    }
+}

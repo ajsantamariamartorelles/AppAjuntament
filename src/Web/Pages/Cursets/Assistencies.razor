@@ -1,0 +1,436 @@
+@page "/cursets/assistencies"
+@using AppAjuntament.Models.Cursets.Dto
+@using AppAjuntament.Services.Cursets
+@attribute [Authorize(Policy = "EditorOrAdmin")]
+@inject ICursetsCatalogService CatalogService
+@inject ICursetsSessionsService SessionsService
+@inject IJSRuntime JSRuntime
+@inject AppAjuntament.Services.DatabaseLoggerService DbLogger
+
+<PageTitle>Assistències</PageTitle>
+
+<div class="screen-header mb-3">
+    <h3 class="screen-title"><i class="fas fa-clipboard-check me-2"></i>Assistències</h3>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Consulta per</label>
+                <select class="form-select" @bind="mode" @bind:after="OnModeChanged">
+                    <option value="curset">Classe (curset)</option>
+                    <option value="alumne">Alumne</option>
+                </select>
+            </div>
+            <div class="col-md-6">
+                @if (mode == "curset")
+                {
+                    <label class="form-label">Curset</label>
+                    <select class="form-select" @bind="cursetId" @bind:after="CarregarPerCurset">
+                        <option value="0">— Tria un curset —</option>
+                        @foreach (var c in cursets)
+                        {
+                            <option value="@c.Id">@c.TipusCursetNom - @c.Nom (@c.ProfessoraNom)</option>
+                        }
+                    </select>
+                }
+                else
+                {
+                    <label class="form-label">Alumne</label>
+                    <select class="form-select" @bind="alumneId" @bind:after="CarregarPerAlumne">
+                        <option value="0">— Tria un alumne —</option>
+                        @foreach (var a in alumnes)
+                        {
+                            <option value="@a.Id">@a.NomComplet</option>
+                        }
+                    </select>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (carregant)
+{
+    <div class="text-center py-4 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Carregant...</div>
+}
+else if (mode == "curset" && cursetId > 0)
+{
+    @if (missatge is not null)
+    {
+        <div class="alert alert-@missatgeTipus alert-dismissible">
+            @missatge
+            <button type="button" class="btn-close" @onclick="() => missatge = null"></button>
+        </div>
+    }
+
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <div class="text-muted small">@sessionsCurset.Count sessions</div>
+        @if (!mostraNova)
+        {
+            <button class="btn btn-sm btn-primary" @onclick="ObreNovaLlista">
+                <i class="fas fa-plus me-1"></i>Nova llista d'assistència
+            </button>
+        }
+    </div>
+
+    @if (mostraNova)
+    {
+        <div class="card mb-3 border-primary">
+            <div class="card-header"><strong>Nova llista d'assistència</strong></div>
+            <div class="card-body">
+                <div class="row g-3 mb-3">
+                    <div class="col-md-3">
+                        <label class="form-label">Data de la classe</label>
+                        <input type="date" class="form-control" max="@DateTime.Today.ToString("yyyy-MM-dd")"
+                               value="@novaData.ToString("yyyy-MM-dd")" @onchange="OnNovaDataChanged" />
+                    </div>
+                    <div class="col-md-9">
+                        <label class="form-label">Nota de la sessió (opcional)</label>
+                        <input class="form-control" @bind="novaNota" />
+                    </div>
+                </div>
+
+                @if (novaAlumnes.Count == 0)
+                {
+                    <div class="alert alert-secondary mb-3">
+                        Cap alumne consta apuntat a aquest curset en aquesta data.
+                    </div>
+                }
+                else
+                {
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="small text-muted">Marca qui ha assistit (@novaAlumnes.Count(a => a.Present) de @novaAlumnes.Count)</span>
+                        <span>
+                            <button class="btn btn-link btn-sm p-0 me-2" @onclick="() => MarcaTots(true)">Tots presents</button>
+                            <button class="btn btn-link btn-sm p-0" @onclick="() => MarcaTots(false)">Tots absents</button>
+                        </span>
+                    </div>
+                    <table class="table table-sm align-middle mb-3">
+                        <tbody>
+                            @foreach (var a in novaAlumnes)
+                            {
+                                <tr>
+                                    <td style="width: 2rem;">
+                                        <input type="checkbox" class="form-check-input" @bind="a.Present" />
+                                    </td>
+                                    <td>@a.NomComplet</td>
+                                    <td>
+                                        <input class="form-control form-control-sm" placeholder="Nota (opcional)" @bind="a.Nota" />
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+
+                <button class="btn btn-primary" disabled="@ocupat" @onclick="DesaNovaLlista">
+                    @if (ocupat) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                    <i class="fas fa-save me-1"></i>Desa la llista
+                </button>
+                <button class="btn btn-outline-secondary ms-2" disabled="@ocupat" @onclick="() => mostraNova = false">Cancel·la</button>
+            </div>
+        </div>
+    }
+
+    @if (!sessionsCurset.Any())
+    {
+        <div class="alert alert-info">Aquest curset encara no té cap sessió registrada.</div>
+    }
+    else
+    {
+        @foreach (var s in sessionsCurset)
+        {
+            <div class="card mb-2">
+                <div class="card-header d-flex justify-content-between align-items-center" role="button"
+                     @onclick="() => Toggle(s.SessioId)">
+                    <div>
+                        <strong>@s.Data.ToString("dd/MM/yyyy")</strong>
+                        <span class="badge bg-@(s.Estat == "Tancada" ? "secondary" : "warning") ms-2">@s.Estat</span>
+                        @if (s.Liquidada)
+                        {
+                            <span class="badge bg-info text-dark ms-1"><i class="fas fa-lock me-1"></i>Liquidada</span>
+                        }
+                    </div>
+                    <div>
+                        <span class="badge bg-success">@s.NumPresents / @s.NumTotal presents</span>
+                        <button class="btn btn-sm btn-outline-danger ms-2" disabled="@(s.Liquidada || ocupat)"
+                                title="@(s.Liquidada ? "Sessió liquidada: anul·la primer la liquidació" : "Elimina la sessió")"
+                                @onclick="() => EliminaSessio(s)" @onclick:stopPropagation="true">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                        <i class="fas fa-chevron-@(expandides.Contains(s.SessioId) ? "up" : "down") ms-2"></i>
+                    </div>
+                </div>
+                @if (expandides.Contains(s.SessioId))
+                {
+                    <div class="card-body">
+                        @if (!string.IsNullOrWhiteSpace(s.NotaSessio))
+                        {
+                            <p class="small text-muted"><i class="fas fa-sticky-note me-1"></i>@s.NotaSessio</p>
+                        }
+                        <table class="table table-sm mb-0">
+                            <tbody>
+                                @foreach (var al in s.Alumnes)
+                                {
+                                    <tr>
+                                        <td style="width: 2rem;">
+                                            @if (al.Present)
+                                            {
+                                                <i class="fas fa-check text-success"></i>
+                                            }
+                                            else
+                                            {
+                                                <i class="fas fa-times text-danger"></i>
+                                            }
+                                        </td>
+                                        <td>@al.NomComplet</td>
+                                        <td class="text-muted small">@al.Nota</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        }
+    }
+}
+else if (mode == "alumne" && alumneId > 0 && resumAlumne is not null)
+{
+    <div class="card mb-3">
+        <div class="card-body d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">@resumAlumne.NomComplet</h5>
+            <span class="badge bg-primary fs-6">
+                @resumAlumne.TotalPresents / @resumAlumne.TotalSessions sessions assistides
+            </span>
+        </div>
+    </div>
+
+    @if (!resumAlumne.Sessions.Any())
+    {
+        <div class="alert alert-info">Aquest alumne encara no té cap assistència registrada.</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Curset</th>
+                        <th class="text-center">Assistència</th>
+                        <th class="text-center">Estat sessió</th>
+                        <th>Nota</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var s in resumAlumne.Sessions)
+                    {
+                        <tr>
+                            <td>@s.Data.ToString("dd/MM/yyyy")</td>
+                            <td>@s.CursetNom</td>
+                            <td class="text-center">
+                                @if (s.Present)
+                                {
+                                    <span class="badge bg-success">Present</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger">Absent</span>
+                                }
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-@(s.Estat == "Tancada" ? "secondary" : "warning")">@s.Estat</span>
+                            </td>
+                            <td class="text-muted small">@s.Nota</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+else
+{
+    <div class="alert alert-secondary">Tria @(mode == "curset" ? "un curset" : "un alumne") per veure les assistències.</div>
+}
+
+@code {
+    private string mode = "curset";
+    private int cursetId;
+    private int alumneId;
+
+    private List<CursetDto> cursets = new();
+    private List<AlumneAdminDto> alumnes = new();
+    private List<SessioAssistenciaDto> sessionsCurset = new();
+    private ResumAssistenciaAlumneDto? resumAlumne;
+    private readonly HashSet<int> expandides = new();
+    private bool carregant;
+    private bool ocupat;
+    private string? missatge;
+    private string missatgeTipus = "success";
+
+    // Nova llista
+    private bool mostraNova;
+    private DateTime novaData = DateTime.Today;
+    private string? novaNota;
+    private List<AssistenciaAlumneDto> novaAlumnes = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            cursets = await CatalogService.GetCursetsAdminAsync();
+            alumnes = await CatalogService.GetAlumnesAsync();
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error carregant selectors d'assistències", ex, "Assistencies.Init");
+        }
+    }
+
+    private async Task ObreNovaLlista()
+    {
+        novaData = DateTime.Today;
+        novaNota = null;
+        mostraNova = true;
+        await CarregaRoster();
+    }
+
+    private async Task OnNovaDataChanged(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var d))
+            novaData = d.Date;
+        await CarregaRoster();
+    }
+
+    private async Task CarregaRoster()
+    {
+        try
+        {
+            novaAlumnes = await SessionsService.GetAlumnesPerLlistaAsync(cursetId, novaData);
+        }
+        catch (Exception ex)
+        {
+            novaAlumnes = new();
+            await DbLogger.LogErrorAsync("Error carregant alumnes de la llista", ex, "Assistencies.Roster");
+        }
+    }
+
+    private void MarcaTots(bool present)
+    {
+        foreach (var a in novaAlumnes)
+            a.Present = present;
+    }
+
+    private async Task DesaNovaLlista()
+    {
+        if (ocupat) return;
+        ocupat = true;
+        try
+        {
+            await SessionsService.CrearLlistaWebAsync(cursetId, novaData, novaNota, novaAlumnes);
+            mostraNova = false;
+            missatge = $"Llista del {novaData:dd/MM/yyyy} desada.";
+            missatgeTipus = "success";
+            await CarregarPerCurset();
+        }
+        catch (ArgumentException ex)
+        {
+            missatge = ex.Message;
+            missatgeTipus = "danger";
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error creant llista d'assistència", ex, "Assistencies.Crear");
+            missatge = "No s'ha pogut desar la llista.";
+            missatgeTipus = "danger";
+        }
+        finally { ocupat = false; }
+    }
+
+    private async Task EliminaSessio(SessioAssistenciaDto s)
+    {
+        if (ocupat || s.Liquidada) return;
+        if (!await JSRuntime.InvokeAsync<bool>("confirm",
+            $"Segur que vols eliminar la llista del {s.Data:dd/MM/yyyy}? S'esborrarà també l'assistència registrada."))
+            return;
+
+        ocupat = true;
+        try
+        {
+            await SessionsService.EliminarSessioAsync(s.SessioId);
+            missatge = $"Llista del {s.Data:dd/MM/yyyy} eliminada.";
+            missatgeTipus = "success";
+            await CarregarPerCurset();
+        }
+        catch (ArgumentException ex)
+        {
+            missatge = ex.Message;
+            missatgeTipus = "danger";
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error eliminant sessió", ex, "Assistencies.Eliminar");
+            missatge = "No s'ha pogut eliminar la llista.";
+            missatgeTipus = "danger";
+        }
+        finally { ocupat = false; }
+    }
+
+    private void OnModeChanged()
+    {
+        mostraNova = false;
+        missatge = null;
+        cursetId = 0;
+        alumneId = 0;
+        sessionsCurset = new();
+        resumAlumne = null;
+        expandides.Clear();
+    }
+
+    private void Toggle(int sessioId)
+    {
+        if (!expandides.Add(sessioId))
+            expandides.Remove(sessioId);
+    }
+
+    private async Task CarregarPerCurset()
+    {
+        expandides.Clear();
+        if (cursetId <= 0) { sessionsCurset = new(); return; }
+        carregant = true;
+        try
+        {
+            sessionsCurset = await SessionsService.GetAssistenciesPerCursetAsync(cursetId);
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error carregant assistències per curset", ex, "Assistencies.PerCurset");
+        }
+        finally
+        {
+            carregant = false;
+        }
+    }
+
+    private async Task CarregarPerAlumne()
+    {
+        if (alumneId <= 0) { resumAlumne = null; return; }
+        carregant = true;
+        try
+        {
+            resumAlumne = await SessionsService.GetAssistenciesPerAlumneAsync(alumneId);
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error carregant assistències per alumne", ex, "Assistencies.PerAlumne");
+        }
+        finally
+        {
+            carregant = false;
+        }
+    }
+}

@@ -1,0 +1,262 @@
+@page "/formacions/crear"
+@page "/formacions/editar/{id:int}"
+@using Microsoft.EntityFrameworkCore
+@inject GestorSubvencionsContext Context
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+@inject AppAjuntament.Services.DatabaseLoggerService DbLogger
+
+<div class="container-fluid">
+    <div class="screen-header">
+        <h3 class="screen-title">
+            <i class="fas fa-graduation-cap me-2"></i>@(Id.HasValue ? "Editar Formació" : "Nova Formació")
+        </h3>
+        <button type="button" class="btn btn-outline-secondary" @onclick="Tornar">
+            <i class="fas fa-arrow-left me-1"></i>Tornar
+        </button>
+    </div>
+
+    <EditForm Model="formacio" OnValidSubmit="GuardarFormacio">
+        <DataAnnotationsValidator />
+        
+        <div class="screen-edit-grid">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Dades de la Formació</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="mb-3">
+                                <label class="form-label">Nom de la formació *</label>
+                                <InputText @bind-Value="formacio.Nom" class="form-control" placeholder="Introdueix el nom de la formació" />
+                                <ValidationMessage For="@(() => formacio.Nom)" class="text-danger" />
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Activa</label>
+                                <div class="form-check form-switch">
+                                    <InputCheckbox @bind-Value="formacio.Activa" class="form-check-input" />
+                                    <label class="form-check-label">Formació activa</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Descripció</label>
+                        <InputTextArea @bind-Value="formacio.Descripcio" class="form-control" rows="4" placeholder="Descripció detallada de la formació..." />
+                        <ValidationMessage For="@(() => formacio.Descripcio)" class="text-danger" />
+                    </div>
+
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Data d'inici *</label>
+                                    <InputDate @bind-Value="formacio.DataInici" class="form-control" />
+                                    <ValidationMessage For="@(() => formacio.DataInici)" class="text-danger" />
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Data de fi</label>
+                                    <InputDate @bind-Value="formacio.DataFi" class="form-control" />
+                                    <ValidationMessage For="@(() => formacio.DataFi)" class="text-danger" />
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Durada (hores)</label>
+                                    <InputNumber @bind-Value="formacio.DuradaHores" class="form-control" placeholder="Hores de durada" />
+                                    <ValidationMessage For="@(() => formacio.DuradaHores)" class="text-danger" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Formador/a</label>
+                                    <InputText @bind-Value="formacio.Formador" class="form-control" placeholder="Nom del formador/a" />
+                                    <ValidationMessage For="@(() => formacio.Formador)" class="text-danger" />
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Ens *</label>
+                                    <InputSelect @bind-Value="formacio.EnsId" class="form-select">
+                                        <option value="">Selecciona un ens...</option>
+                                        @foreach (var ens in ensList)
+                                        {
+                                            <option value="@ens.Id">@ens.Nom</option>
+                                        }
+                                    </InputSelect>
+                                    <ValidationMessage For="@(() => formacio.EnsId)" class="text-danger" />
+                                </div>
+                            </div>
+                        </div>
+
+                    <div class="mb-0">
+                        <label class="form-label">Ubicació</label>
+                        <InputText @bind-Value="formacio.Ubicacio" class="form-control" placeholder="Lloc on es realitzarà la formació" />
+                        <ValidationMessage For="@(() => formacio.Ubicacio)" class="text-danger" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="screen-sidebar screen-sidebar-sticky">
+                @if (Id.HasValue)
+                {
+                    <div class="card bg-light border-0 shadow-sm mb-3">
+                        <div class="card-body">
+                            <h6 class="card-title">Informació de participants</h6>
+                            <p class="card-text mb-2">
+                                <strong>Total participants:</strong> @formacio.Voluntaris.Count<br />
+                                <strong>Participants que han superat:</strong> @formacio.Voluntaris.Count(fv => fv.Superat)<br />
+                                <strong>Data de creació:</strong> @formacio.DataCreacio.ToString("dd/MM/yyyy HH:mm")
+                            </p>
+                            <button type="button" class="btn btn-info btn-sm w-100" @onclick="GestionarParticipants">
+                                <i class="fas fa-users me-1"></i>Gestionar Participants
+                            </button>
+                        </div>
+                    </div>
+                }
+
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-light">
+                        <strong>Accions</strong>
+                    </div>
+                    <div class="card-body d-grid gap-2">
+                        <button type="submit" class="btn btn-primary" disabled="@guardant">
+                            @if (guardant)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                            }
+                            <i class="fas fa-save me-1"></i>@(Id.HasValue ? "Actualitzar" : "Crear") Formació
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" @onclick="Tornar">Cancel·lar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </EditForm>
+</div>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+
+    private Formacio formacio = new() { Nom = "" };
+    private List<Ens> ensList = new();
+    private bool guardant = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarEns();
+        
+        if (Id.HasValue)
+        {
+            await CarregarFormacio();
+        }
+        else
+        {
+            // Valors per defecte per a nova formació
+            formacio.DataInici = DateTime.Today;
+            formacio.Activa = true;
+            formacio.DataCreacio = DateTime.Now;
+        }
+    }
+
+    private async Task CarregarEns()
+    {
+        try
+        {
+            ensList = await Context.Ens
+                .OrderBy(e => e.Nom)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error carregant llista d'ens per formació", ex, "CarregarEns");
+            await JSRuntime.InvokeVoidAsync("console.error", "Error carregant ens: " + ex.Message);
+        }
+    }
+
+    private async Task CarregarFormacio()
+    {
+        try
+        {
+            formacio = (await Context.Formacions
+                .Include(f => f.Ens)
+                .Include(f => f.Voluntaris)
+                .FirstOrDefaultAsync(f => f.Id == Id!.Value))!;
+
+            if (formacio == null)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "Formació no trobada.");
+                NavigationManager.NavigateTo("/formacions");
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync($"Error carregant formació per editar ID={Id}", ex, "CarregarFormacio", $"FormacioId={Id}");
+            await JSRuntime.InvokeVoidAsync("alert", "Error carregant la formació: " + ex.Message);
+            NavigationManager.NavigateTo("/formacions");
+        }
+    }
+
+    private async Task GuardarFormacio()
+    {
+        guardant = true;
+        try
+        {
+            // Validacions addicionals
+            if (formacio.DataFi.HasValue && formacio.DataFi < formacio.DataInici)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "La data de fi no pot ser anterior a la data d'inici.");
+                guardant = false;
+                return;
+            }
+
+            if (Id.HasValue)
+            {
+                // Actualitzar formació existent
+                Context.Formacions.Update(formacio);
+            }
+            else
+            {
+                // Crear nova formació
+                formacio.DataCreacio = DateTime.Now;
+                Context.Formacions.Add(formacio);
+            }
+
+            await Context.SaveChangesAsync();
+            
+            await JSRuntime.InvokeVoidAsync("alert", Id.HasValue ? "Formació actualitzada correctament." : "Formació creada correctament.");
+            NavigationManager.NavigateTo("/formacions");
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync($"Error guardant formació {(Id.HasValue ? $"ID={Id.Value}" : "NOVA")}", ex, "GuardarFormacio", $"FormacioId={Id?.ToString() ?? "NULL"}");
+            await JSRuntime.InvokeVoidAsync("alert", "Error guardant la formació: " + ex.Message);
+        }
+        finally
+        {
+            guardant = false;
+        }
+    }
+
+    private void GestionarParticipants()
+    {
+        if (Id.HasValue)
+        {
+            NavigationManager.NavigateTo($"/formacions/{Id.Value}/participants");
+        }
+    }
+
+    private void Tornar()
+    {
+        NavigationManager.NavigateTo("/formacions");
+    }
+}

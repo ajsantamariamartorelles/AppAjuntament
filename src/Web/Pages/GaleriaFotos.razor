@@ -1,0 +1,455 @@
+@page "/fotos"
+@using Microsoft.EntityFrameworkCore
+@using AppAjuntament.Services
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@inject IDbContextFactory<GestorSubvencionsContext> DbContextFactory
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+
+<PageTitle>Galeria de Fotografies</PageTitle>
+
+<style>
+    .fotos-header {
+        background: linear-gradient(135deg, #1a3a5c, #2E6DA4);
+        color: white;
+        padding: 40px 0 30px;
+        margin-bottom: 30px;
+    }
+    .fotos-header h1 { font-size: 2rem; font-weight: bold; }
+    .filtres-card {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        margin-bottom: 25px;
+    }
+    .foto-card {
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 3px 12px rgba(0,0,0,0.1);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        cursor: pointer;
+        background: white;
+    }
+    .foto-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+    }
+    .foto-img {
+        width: 100%;
+        height: 200px;
+        object-fit: cover;
+    }
+    .foto-info { padding: 12px; }
+    .foto-titol { font-weight: 600; font-size: 0.95rem; margin-bottom: 4px; }
+    .foto-meta { font-size: 0.8rem; color: #6c757d; }
+    .tag-badge {
+        font-size: 0.7rem;
+        padding: 2px 8px;
+        border-radius: 10px;
+        color: white;
+        display: inline-block;
+    }
+    /* Modal lightbox */
+    .lightbox-overlay {
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.85);
+        z-index: 9999;
+        display: flex; align-items: center; justify-content: center;
+        padding: 20px;
+    }
+    .lightbox-content {
+        max-width: 90vw; max-height: 90vh;
+        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+        display: flex; flex-direction: column;
+    }
+    .lightbox-img-wrap {
+        position: relative;
+        overflow: hidden;
+        background: #111;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: zoom-in;
+        max-height: 70vh;
+    }
+    .lightbox-img-wrap.zoomed {
+        cursor: grab;
+    }
+    .lightbox-img-wrap.zoomed:active {
+        cursor: grabbing;
+    }
+    .lightbox-img {
+        display: block;
+        max-height: 70vh;
+        max-width: 100%;
+        object-fit: contain;
+        pointer-events: none;
+        user-select: none;
+    }
+    .lightbox-img-wrap.zoomed .lightbox-img {
+        max-height: none;
+        max-width: none;
+        pointer-events: none;
+    }
+    .lightbox-zoom-badge {
+        position: absolute;
+        bottom: 8px; right: 8px;
+        background: rgba(0,0,0,0.55);
+        color: white;
+        border-radius: 6px;
+        padding: 3px 8px;
+        font-size: 0.75rem;
+        pointer-events: none;
+        user-select: none;
+    }
+    .lightbox-zoom-controls {
+        position: absolute;
+        top: 8px; left: 8px;
+        display: flex;
+        gap: 4px;
+        z-index: 10;
+    }
+    .lightbox-info { padding: 16px; }
+</style>
+
+<div class="fotos-header">
+    <div class="container">
+        <h1><i class="bi bi-images me-2"></i>Galeria de Fotografies</h1>
+        <p class="mb-0 opacity-75">Fons fotogràfic del patrimoni municipal</p>
+    </div>
+</div>
+
+<div class="container">
+
+    <!-- Filtres -->
+    <div class="filtres-card">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label small fw-semibold mb-1">Cerca</label>
+                <input type="text" class="form-control form-control-sm"
+                       placeholder="Títol, descripció o autor..."
+                       @bind="_filtreCerca" @bind:event="oninput" @onkeyup="AplicarFiltres" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-semibold mb-1">Col·lecció</label>
+                <select class="form-select form-select-sm" @bind="_filtreColleccio" @bind:after="AplicarFiltres">
+                    <option value="0">Totes</option>
+                    @foreach (var c in _coleccions)
+                    {
+                        <option value="@c.Id">@c.Nom</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-semibold mb-1">Localització</label>
+                <select class="form-select form-select-sm" @bind="_filtreLocalitzacio" @bind:after="AplicarFiltres">
+                    <option value="0">Totes</option>
+                    @foreach (var l in _localitzacions)
+                    {
+                        <option value="@l.Id">@l.Nom</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-semibold mb-1">Tag</label>
+                <select class="form-select form-select-sm" @bind="_filtreTag" @bind:after="AplicarFiltres">
+                    <option value="0">Tots</option>
+                    @foreach (var t in _tags)
+                    {
+                        <option value="@t.Id">@t.Nom</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-semibold mb-1">Autor</label>
+                <input type="text" class="form-control form-control-sm"
+                       placeholder="Autor..."
+                       @bind="_filtreAutor" @bind:event="oninput" @onkeyup="AplicarFiltres" />
+            </div>
+        </div>
+        @if (TenimFiltresActius())
+        {
+            <div class="mt-2">
+                <button class="btn btn-sm btn-outline-secondary" @onclick="EsborrarFiltres">
+                    <i class="bi bi-x-circle me-1"></i>Esborrar filtres
+                </button>
+                <span class="text-muted small ms-2">@_fotografiesFiltrades.Count foto@(_fotografiesFiltrades.Count == 1 ? "" : "grafies")</span>
+            </div>
+        }
+    </div>
+
+    <!-- Graella -->
+    @if (_carregant)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status" style="width:3rem;height:3rem;"></div>
+            <p class="mt-3 text-muted">Carregant fotografies...</p>
+        </div>
+    }
+    else if (!_fotografiesFiltrades.Any())
+    {
+        <div class="text-center py-5 text-muted">
+            <i class="bi bi-image" style="font-size:3rem;"></i>
+            <p class="mt-3">No hi ha fotografies que coincideixin amb els filtres.</p>
+        </div>
+    }
+    else
+    {
+        <div class="row g-3 mb-4">
+            @foreach (var foto in _fotografiesFiltrades)
+            {
+                <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 col-6">
+                    <div class="foto-card" @onclick="() => ObrirLightbox(foto)">
+                        <img src="@foto.UrlMinio" alt="@(foto.Titol ?? foto.NomOriginal ?? "Fotografia")" class="foto-img" />
+                        <div class="foto-info">
+                            <div class="foto-titol text-truncate">@foto.Titol</div>
+                            @if (foto.Colleccio != null)
+                            {
+                                <div class="foto-meta text-truncate">
+                                    <i class="bi bi-collection me-1"></i>@foto.Colleccio.Nom
+                                </div>
+                            }
+                            @if (!string.IsNullOrEmpty(foto.Autor))
+                            {
+                                <div class="foto-meta text-truncate">
+                                    <i class="bi bi-person me-1"></i>@foto.Autor
+                                </div>
+                            }
+                            @if (foto.Tags.Any())
+                            {
+                                <div class="mt-1 d-flex flex-wrap gap-1">
+                                    @foreach (var tag in foto.Tags.Take(3))
+                                    {
+                                        <span class="tag-badge" style="background-color:@tag.Color;">@tag.Nom</span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<!-- Lightbox -->
+@if (_fotoLightbox != null)
+{
+    <div class="lightbox-overlay" @onclick="TancarLightbox">
+        <div class="lightbox-content" @onclick:stopPropagation>
+            <div class="lightbox-img-wrap @(_zoomed ? "zoomed" : "")">
+                <img src="@_fotoLightbox.UrlMinio"
+                     alt="@(_fotoLightbox.Titol ?? _fotoLightbox.NomOriginal ?? "Fotografia")"
+                     class="lightbox-img" />
+                <div class="lightbox-zoom-controls">
+                    @if (_zoomed)
+                    {
+                        <button class="btn btn-sm btn-dark opacity-75" @onclick="ZoomOut" @onclick:stopPropagation title="Reduir zoom">
+                            <i class="fas fa-search-minus"></i>
+                        </button>
+                        <button class="btn btn-sm btn-dark opacity-75" @onclick="ResetZoom" @onclick:stopPropagation title="Restablir zoom">
+                            <i class="fas fa-compress"></i>
+                        </button>
+                    }
+                    <button class="btn btn-sm btn-dark opacity-75" @onclick="ZoomIn" @onclick:stopPropagation title="Ampliar zoom">
+                        <i class="fas fa-search-plus"></i>
+                    </button>
+                </div>
+                <span class="lightbox-zoom-badge">
+                    @if (_zoomLevel > 1.01) { <text><i class="fas fa-search-minus me-1"></i>@(Math.Round(_zoomLevel * 100))%</text> }
+                    else { <text><i class="fas fa-search-plus me-1"></i>Zoom</text> }
+                </span>
+            </div>
+            <div class="lightbox-info">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h5 class="mb-1">@_fotoLightbox.Titol</h5>
+                        @if (!string.IsNullOrEmpty(_fotoLightbox.Descripcio))
+                        {
+                            <p class="text-muted mb-2">@_fotoLightbox.Descripcio</p>
+                        }
+                        <div class="d-flex flex-wrap gap-3 text-muted small">
+                            @if (_fotoLightbox.Colleccio != null)
+                            {
+                                <span><i class="bi bi-collection me-1"></i>@_fotoLightbox.Colleccio.Nom</span>
+                            }
+                            @if (_fotoLightbox.Localitzacio != null)
+                            {
+                                <span><i class="bi bi-geo-alt me-1"></i>@_fotoLightbox.Localitzacio.Nom</span>
+                            }
+                            @if (!string.IsNullOrEmpty(_fotoLightbox.Autor))
+                            {
+                                <span><i class="bi bi-person me-1"></i>@_fotoLightbox.Autor</span>
+                            }
+                            @if (_fotoLightbox.DataFotografia.HasValue)
+                            {
+                                <span><i class="bi bi-calendar me-1"></i>@_fotoLightbox.DataFotografia.Value.ToString("dd/MM/yyyy")</span>
+                            }
+                        </div>
+                        @if (_fotoLightbox.Tags.Any())
+                        {
+                            <div class="mt-2 d-flex flex-wrap gap-1">
+                                @foreach (var tag in _fotoLightbox.Tags)
+                                {
+                                    <span class="tag-badge" style="background-color:@tag.Color;">@tag.Nom</span>
+                                }
+                            </div>
+                        }
+                    </div>
+                    <button class="btn btn-sm btn-outline-secondary ms-3" @onclick="TancarLightbox">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _carregant = true;
+
+    private List<PatrimoniColeccio> _coleccions = new();
+    private List<PatrimoniLocalitzacio> _localitzacions = new();
+    private List<Tag> _tags = new();
+    private List<ArxiuPatrimoni> _fotografies = new();
+    private List<ArxiuPatrimoni> _fotografiesFiltrades = new();
+
+    private string _filtreCerca = "";
+    private int _filtreColleccio = 0;
+    private int _filtreLocalitzacio = 0;
+    private int _filtreTag = 0;
+    private string _filtreAutor = "";
+
+    private ArxiuPatrimoni? _fotoLightbox;
+    private double _zoomLevel = 1.0;
+    private bool _zoomed => _zoomLevel > 1.01;
+    private DotNetObjectReference<GaleriaFotos>? _dotNetRef;
+    private bool _jsLightboxActive = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var db = await DbContextFactory.CreateDbContextAsync();
+
+        _coleccions = await db.PatrimoniColeccions.Where(c => c.Actiu).OrderBy(c => c.Nom).ToListAsync();
+        _localitzacions = await db.PatrimoniLocalitzacions.Where(l => l.Actiu).OrderBy(l => l.Nom).ToListAsync();
+        _tags = await db.Tags.Where(t => t.Actiu).OrderBy(t => t.Nom).ToListAsync();
+
+        _fotografies = await db.ArxiusPatrimoni
+            .Where(a => a.PatrimoniId == null && a.VisiblePublic && a.Actiu)
+            .Include(a => a.Colleccio)
+            .Include(a => a.Localitzacio)
+            .Include(a => a.Tags)
+            .AsSplitQuery()
+            .OrderByDescending(a => a.DataFotografia)
+            .ThenByDescending(a => a.CreatedAt)
+            .ToListAsync();
+
+        AplicarFiltres();
+        _carregant = false;
+    }
+
+    private void AplicarFiltres()
+    {
+        _fotografiesFiltrades = _fotografies.Where(f =>
+        {
+            if (!string.IsNullOrWhiteSpace(_filtreCerca))
+            {
+                var cerca = _filtreCerca.ToLower();
+                if (!(f.Titol?.ToLower().Contains(cerca) == true ||
+                      f.Descripcio?.ToLower().Contains(cerca) == true ||
+                      f.Autor?.ToLower().Contains(cerca) == true))
+                    return false;
+            }
+            if (!string.IsNullOrWhiteSpace(_filtreAutor))
+            {
+                if (f.Autor?.ToLower().Contains(_filtreAutor.ToLower()) != true)
+                    return false;
+            }
+            if (_filtreColleccio > 0 && f.ColleccioId != _filtreColleccio) return false;
+            if (_filtreLocalitzacio > 0 && f.LocalitzacioId != _filtreLocalitzacio) return false;
+            if (_filtreTag > 0 && !f.Tags.Any(t => t.Id == _filtreTag)) return false;
+            return true;
+        }).ToList();
+    }
+
+    private void EsborrarFiltres()
+    {
+        _filtreCerca = "";
+        _filtreColleccio = 0;
+        _filtreLocalitzacio = 0;
+        _filtreTag = 0;
+        _filtreAutor = "";
+        AplicarFiltres();
+    }
+
+    private bool TenimFiltresActius() =>
+        !string.IsNullOrWhiteSpace(_filtreCerca) || _filtreColleccio > 0 ||
+        _filtreLocalitzacio > 0 || _filtreTag > 0 || !string.IsNullOrWhiteSpace(_filtreAutor);
+
+    private void ObrirLightbox(ArxiuPatrimoni foto)
+    {
+        _fotoLightbox = foto;
+        _zoomLevel = 1.0;
+        _jsLightboxActive = false;
+    }
+
+    private void TancarLightbox()
+    {
+        _fotoLightbox = null;
+        _zoomLevel = 1.0;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_fotoLightbox != null && !_jsLightboxActive)
+        {
+            _jsLightboxActive = true;
+            _dotNetRef ??= DotNetObjectReference.Create(this);
+            await JSRuntime.InvokeVoidAsync("galeriaFotosLightbox.init", _dotNetRef);
+        }
+        else if (_fotoLightbox == null && _jsLightboxActive)
+        {
+            _jsLightboxActive = false;
+            try { await JSRuntime.InvokeVoidAsync("galeriaFotosLightbox.destroy"); } catch { }
+        }
+    }
+
+    [JSInvokable]
+    public void SetZoomLevel(double zoom)
+    {
+        _zoomLevel = zoom;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ZoomIn()
+    {
+        _zoomLevel = Math.Min(5.0, _zoomLevel + 0.5);
+        await JSRuntime.InvokeVoidAsync("galeriaFotosLightbox.setZoom", _zoomLevel);
+    }
+
+    private async Task ZoomOut()
+    {
+        _zoomLevel = Math.Max(1.0, _zoomLevel - 0.5);
+        await JSRuntime.InvokeVoidAsync("galeriaFotosLightbox.setZoom", _zoomLevel);
+    }
+
+    private async Task ResetZoom()
+    {
+        _zoomLevel = 1.0;
+        await JSRuntime.InvokeVoidAsync("galeriaFotosLightbox.resetZoom");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_jsLightboxActive)
+        {
+            try { await JSRuntime.InvokeVoidAsync("galeriaFotosLightbox.destroy"); } catch { }
+        }
+
+        _dotNetRef?.Dispose();
+    }
+}

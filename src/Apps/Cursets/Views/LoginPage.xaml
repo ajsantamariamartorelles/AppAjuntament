@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:AjuntamentSantaMariaMartorelles.ViewModels"
+             x:Class="AjuntamentSantaMariaMartorelles.Views.LoginPage"
+             x:DataType="vm:LoginViewModel"
+             Shell.NavBarIsVisible="False"
+             BackgroundColor="{StaticResource PageBackground}"
+             Title="Ajuntament de Santa Maria de Martorelles">
+
+    <ScrollView>
+        <Grid RowDefinitions="*,Auto,*" Padding="28,24">
+
+            <VerticalStackLayout Grid.Row="1" Spacing="0">
+
+                <Image Source="escut_ajuntament.png"
+                       HeightRequest="140"
+                       Aspect="AspectFit"
+                       HorizontalOptions="Center"
+                       Margin="0,0,0,18" />
+
+                <Label Text="Ajuntament de Santa Maria de Martorelles"
+                       FontSize="20"
+                       FontAttributes="Bold"
+                       TextColor="{StaticResource TextPrimary}"
+                       HorizontalTextAlignment="Center" />
+
+                <BoxView HeightRequest="3"
+                         WidthRequest="54"
+                         Color="{StaticResource Accent}"
+                         HorizontalOptions="Center"
+                         Margin="0,12,0,26" />
+
+                <Border Style="{StaticResource Card}">
+                    <VerticalStackLayout Spacing="14">
+
+                        <Label Text="Inicia sessió"
+                               FontAttributes="Bold"
+                               TextColor="{StaticResource TextPrimary}" />
+
+                        <Button Text="Entra amb el compte de l'Ajuntament"
+                                Command="{Binding LoginMicrosoftCommand}"
+                                IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}" />
+
+                        <Grid ColumnDefinitions="*,Auto,*" ColumnSpacing="10" Margin="0,4">
+                            <BoxView Grid.Column="0" HeightRequest="1" Color="{StaticResource SurfaceBorder}" VerticalOptions="Center" />
+                            <Label Grid.Column="1" Text="o amb correu i contrasenya"
+                                   FontSize="12" TextColor="{StaticResource TextSecondary}" />
+                            <BoxView Grid.Column="2" HeightRequest="1" Color="{StaticResource SurfaceBorder}" VerticalOptions="Center" />
+                        </Grid>
+
+                        <Border Style="{StaticResource FieldFrame}">
+                            <Entry Placeholder="Correu electrònic"
+                                   Text="{Binding Email}"
+                                   Keyboard="Email"
+                                   ReturnType="Next"
+                                   IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}" />
+                        </Border>
+
+                        <Border Style="{StaticResource FieldFrame}">
+                            <Entry Placeholder="Contrasenya"
+                                   Text="{Binding Password}"
+                                   IsPassword="True"
+                                   ReturnType="Go"
+                                   ReturnCommand="{Binding LoginCommand}"
+                                   IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}" />
+                        </Border>
+
+                        <Label Text="{Binding ErrorMessage}"
+                               TextColor="#C0392B"
+                               FontSize="13"
+                               IsVisible="{Binding HasError}" />
+
+                        <Button Text="Entrar"
+                                Style="{StaticResource OutlineButton}"
+                                Command="{Binding LoginCommand}"
+                                IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}" />
+
+                        <ActivityIndicator IsRunning="{Binding IsBusy}"
+                                           IsVisible="{Binding IsBusy}"
+                                           Color="{StaticResource Primary}"
+                                           HorizontalOptions="Center" />
+
+                    </VerticalStackLayout>
+                </Border>
+
+                <Label Text="Ajuntament de Santa Maria de Martorelles"
+                       FontSize="11"
+                       TextColor="{StaticResource TextSecondary}"
+                       HorizontalTextAlignment="Center"
+                       Margin="0,22,0,0" />
+
+            </VerticalStackLayout>
+        </Grid>
+    </ScrollView>
+
+</ContentPage>

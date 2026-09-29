@@ -1,0 +1,63 @@
+@page "/gestio-subvencions"
+@using Microsoft.AspNetCore.Components.Authorization
+@using AppAjuntament.Controllers
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject HttpClient Http
+
+@attribute [Authorize(Policy = "ViewerOnly")]
+
+<h3>Gestió de Subvencions</h3>
+
+@if (subvencions == null)
+{
+    <p>Carregant...</p>
+}
+else
+{
+    <ul>
+        @foreach (var subvencio in subvencions)
+        {
+            <li>@subvencio.Nom - @subvencio.Descripcio</li>
+        }
+    </ul>
+
+    @if (userRole == "Admin" || userRole == "Editor")
+    {
+        <button @onclick="CreateSubvencio">Crear Subvenció</button>
+    }
+
+    @if (userRole == "Admin")
+    {
+        <button @onclick="DeleteSubvencio">Eliminar Subvenció</button>
+    }
+}
+
+@code {
+    private List<SubvencioModel>? subvencions;
+    private string? userRole;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        userRole = user.FindFirst("roles")?.Value ?? "Sense rol";
+
+        // Carregar dades (substitueix per crida real a API)
+        subvencions = await Http.GetFromJsonAsync<List<SubvencioModel>>("api/subvencions");
+    }
+
+    private async Task CreateSubvencio()
+    {
+        // Lògica per crear (substitueix per formulari)
+        var newSubvencio = new SubvencioModel { Nom = "Nova Subvenció", Descripcio = "Descripció" };
+        await Http.PostAsJsonAsync("api/subvencions", newSubvencio);
+        await OnInitializedAsync(); // Recarregar
+    }
+
+    private async Task DeleteSubvencio()
+    {
+        // Lògica per eliminar (substitueix per selecció)
+        await Http.DeleteAsync("api/subvencions/1");
+        await OnInitializedAsync(); // Recarregar
+    }
+}

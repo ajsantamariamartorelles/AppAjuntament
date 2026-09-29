@@ -1,0 +1,34 @@
+﻿@page "/select-ens"
+@using AppAjuntament.Models
+@inject GestorSubvencionsContext Context
+
+<div class="screen-header">
+    <h3 class="screen-title">Selecciona un Ens</h3>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <div class="mb-3">
+            <label class="form-label">Ens</label>
+            <select class="form-select" @bind="SelectedEnsId">
+                @foreach (var ens in Context.Ens)
+                {
+                    <option value="@ens.Id">@ens.Nom</option>
+                }
+            </select>
+        </div>
+
+        <div class="d-flex justify-content-end">
+            <button class="btn btn-primary" @onclick="SelectEns">Seleccionar</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    private int SelectedEnsId { get; set; }
+
+    private void SelectEns()
+    {
+        // Guarda l'ens seleccionat en una variable d'estat o en el context de l'usuari
+    }
+}

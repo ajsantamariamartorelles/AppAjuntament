@@ -1,0 +1,1004 @@
+﻿@page "/detall/{id:int}"
+@using AppAjuntament.Models
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@using AppAjuntament.Services
+@using Microsoft.AspNetCore.WebUtilities
+@using Microsoft.EntityFrameworkCore
+@inject IPatrimoniService PatrimoniService
+@inject ICatalogService CatalogService
+@inject IDbContextFactory<GestorSubvencionsContext> _dbContextFactory
+@inject NavigationManager Navigation
+
+<PageTitle>@(patrimoni?.Nom ?? "Detall del Patrimoni")</PageTitle>
+
+<style>
+    .detall-header {
+        background: linear-gradient(135deg, #2E8B57, #228B22);
+        color: white;
+        padding: 40px 0;
+        margin-bottom: 30px;
+    }
+    
+    .breadcrumb-nav {
+        margin-bottom: 20px;
+    }
+    
+    .breadcrumb-nav a {
+        color: rgba(255,255,255,0.8);
+        text-decoration: none;
+    }
+    
+    .breadcrumb-nav a:hover {
+        color: white;
+        text-decoration: underline;
+    }
+    
+    .patrimoni-title {
+        font-size: 2.5rem;
+        font-weight: bold;
+        margin-bottom: 15px;
+    }
+    
+    .patrimoni-type-badge {
+        background: rgba(255,255,255,0.2);
+        color: white;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 0.9rem;
+        display: inline-block;
+        margin-bottom: 20px;
+    }
+    
+    .main-image {
+        width: 100%;
+        height: 400px;
+        object-fit: cover;
+        border-radius: 15px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        margin-bottom: 30px;
+    }
+
+    .thumbnail-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+        gap: 10px;
+        margin-bottom: 30px;
+    }
+
+    .thumbnail-image {
+        width: 100%;
+        height: 90px;
+        object-fit: cover;
+        border-radius: 10px;
+        cursor: pointer;
+        border: 2px solid transparent;
+        transition: border-color 0.2s ease;
+    }
+
+    .thumbnail-image.active {
+        border-color: #2E8B57;
+    }
+    
+    .image-placeholder {
+        width: 100%;
+        height: 400px;
+        background: linear-gradient(45deg, #f0f0f0, #e0e0e0);
+        border-radius: 15px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 4rem;
+        color: #999;
+        margin-bottom: 30px;
+    }
+    
+    .info-card {
+        background: white;
+        border-radius: 15px;
+        padding: 25px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        margin-bottom: 25px;
+    }
+    
+    .info-card h5 {
+        color: #2E8B57;
+        font-weight: bold;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .info-row {
+        display: flex;
+        margin-bottom: 15px;
+        align-items: flex-start;
+    }
+    
+    .info-label {
+        font-weight: bold;
+        color: #495057;
+        min-width: 150px;
+        display: inline-block;
+    }
+    
+    .info-value {
+        color: #212529;
+        flex: 1;
+    }
+    
+    .status-badge {
+        padding: 6px 12px;
+        border-radius: 15px;
+        font-size: 0.85rem;
+        font-weight: bold;
+    }
+    
+    .status-bo { background: #d4edda; color: #155724; }
+    .status-regular { background: #fff3cd; color: #856404; }
+    .status-dolent { background: #f8d7da; color: #721c24; }
+    
+    .loading-spinner {
+        text-align: center;
+        padding: 100px;
+    }
+    
+    .error-message {
+        text-align: center;
+        padding: 100px;
+        color: #666;
+    }
+    
+    .btn-back {
+        background: #6c757d;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 20px;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 20px;
+    }
+    
+    .btn-back:hover {
+        background: #5a6268;
+        color: white;
+        text-decoration: none;
+    }
+    
+    .valor-economic {
+        font-size: 1.2rem;
+        font-weight: bold;
+        color: #2E8B57;
+    }
+    
+    .inspeccions-list {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    
+    .inspeccio-item {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 10px;
+        border-left: 4px solid #2E8B57;
+    }
+    
+    .inspeccio-data {
+        font-weight: bold;
+        color: #2E8B57;
+        margin-bottom: 5px;
+    }
+    
+    .arxius-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .arxiu-download-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: #f0f8f0;
+        border: 1px solid #c3e6cb;
+        border-radius: 8px;
+        padding: 10px 14px;
+        text-decoration: none;
+        color: #155724;
+        font-size: 0.9rem;
+        transition: background 0.15s ease;
+    }
+
+    .arxiu-download-item:hover {
+        background: #d4edda;
+        color: #0f3d19;
+        text-decoration: none;
+    }
+
+    .arxiu-nom {
+        flex: 1;
+        word-break: break-all;
+    }
+
+    .arxiu-item {
+        background: #e9ecef;
+        padding: 8px 12px;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .nota-item {
+        background: #f8f9fa;
+        border-left: 4px solid #2E8B57;
+        border-radius: 8px;
+        padding: 12px 14px;
+        margin-bottom: 10px;
+    }
+
+    .nota-titol {
+        font-weight: bold;
+        margin-bottom: 6px;
+        color: #2E8B57;
+    }
+
+    .nota-contingut {
+        white-space: pre-wrap;
+        margin-bottom: 0;
+    }
+
+    .nota-meta {
+        font-size: 0.85rem;
+        color: #6c757d;
+        margin-bottom: 6px;
+    }
+</style>
+
+@if (carregant)
+{
+    <div class="loading-spinner">
+        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+            <span class="visually-hidden">Carregant...</span>
+        </div>
+        <p class="mt-3 text-muted">Carregant detalls del patrimoni...</p>
+    </div>
+}
+else if (patrimoni == null)
+{
+    <div class="error-message">
+        <i class="bi bi-exclamation-triangle" style="font-size: 3rem; color: #ffc107; margin-bottom: 20px;"></i>
+        <h5>Element no trobat</h5>
+        <p>L'element de patrimoni que cerques no existeix o ha estat eliminat.</p>
+        <a href="@returnUrl" class="btn btn-primary">Tornar enrere</a>
+    </div>
+}
+else
+{
+    <!-- Header -->
+    <div class="detall-header">
+        <div class="container">
+            <div class="breadcrumb-nav">
+                <a href="/">Inici</a> > <a href="@returnUrl">@returnPageName</a> > @patrimoni.Nom
+            </div>
+            <h1 class="patrimoni-title">@patrimoni.Nom</h1>
+            @if (patrimoni.TipusPatrimoni != null)
+            {
+                <span class="patrimoni-type-badge">@patrimoni.TipusPatrimoni.Nom</span>
+            }
+        </div>
+    </div>
+
+    <div class="container">
+        <a href="@returnUrl" class="btn-back">
+            <i class="bi bi-arrow-left"></i> Tornar @returnPageNameLower
+        </a>
+
+        <div class="row">
+            <div class="col-lg-8">
+                <!-- Imatge principal -->
+                @if (imatgesPatrimoni.Any())
+                {
+                    var imatgePrincipal = imatgesPatrimoni[selectedImageIndex];
+                    <img src="@imatgePrincipal.UrlMinio" alt="@patrimoni.Nom" class="main-image" />
+                    @if (imatgePrincipal.Colleccio != null)
+                    {
+                        <p class="text-muted small mb-2">
+                            <i class="bi bi-collection me-1"></i>
+                            <strong>Font:</strong> @imatgePrincipal.Colleccio.Nom
+                            @if (!string.IsNullOrWhiteSpace(imatgePrincipal.Colleccio.Descripcio))
+                            {
+                                <span class="ms-1">— @imatgePrincipal.Colleccio.Descripcio</span>
+                            }
+                        </p>
+                    }
+
+                    @if (imatgesPatrimoni.Count > 1)
+                    {
+                        <div class="thumbnail-grid">
+                            @for (int i = 0; i < imatgesPatrimoni.Count; i++)
+                            {
+                                var index = i;
+                                <img src="@imatgesPatrimoni[index].UrlMinio"
+                                     alt="@($"Imatge {index + 1} de {patrimoni.Nom}")"
+                                     class="thumbnail-image @(index == selectedImageIndex ? "active" : string.Empty)"
+                                     @onclick="() => SeleccionarImatge(index)" />
+                            }
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="image-placeholder">
+                        <i class="bi bi-image"></i>
+                    </div>
+                }
+
+                <!-- Descripció breu -->
+                @if (!string.IsNullOrEmpty(patrimoni.DescripcioBreu))
+                {
+                    <div class="info-card">
+                        <h5><i class="bi bi-chat-left-text"></i> Resum</h5>
+                        <p>@patrimoni.DescripcioBreu</p>
+                    </div>
+                }
+
+                <!-- Descripció -->
+                @if (!string.IsNullOrEmpty(patrimoni.DescripcioDetallada))
+                {
+                    <div class="info-card">
+                        <h5><i class="bi bi-card-text"></i> Descripció</h5>
+                        <p>@patrimoni.DescripcioDetallada</p>
+                    </div>
+                }
+
+                <!-- Història -->
+                @if (!string.IsNullOrEmpty(patrimoni.Historia))
+                {
+                    <div class="info-card">
+                        <h5><i class="bi bi-book"></i> Història</h5>
+                        <p>@patrimoni.Historia</p>
+                    </div>
+                }
+
+                <!-- Notes -->
+                @{
+                    var notesPubliques = patrimoni.NotesPatrimoni?
+                        .Where(n => n.Actiu && n.VisiblePublic)
+                        .OrderByDescending(n => n.UpdatedAt)
+                        .ToList();
+                }
+                @if (notesPubliques != null && notesPubliques.Any())
+                {
+                    <div class="info-card">
+                        <h5><i class="bi bi-journal-text"></i> Notes</h5>
+                        @foreach (var nota in notesPubliques)
+                        {
+                            <div class="nota-item">
+                                @if (!string.IsNullOrWhiteSpace(nota.Titol))
+                                {
+                                    <div class="nota-titol">@nota.Titol</div>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(nota.TipusNota?.Nom))
+                                {
+                                    <div class="nota-meta">
+                                        <i class="bi bi-tag"></i> @nota.TipusNota.Nom
+                                    </div>
+                                }
+                                <p class="nota-contingut">@nota.Contingut</p>
+                            </div>
+                        }
+                    </div>
+                }
+
+                <!-- Inspeccions -->
+                @if (patrimoni.Inspeccions != null && patrimoni.Inspeccions.Any(i => i.Actiu))
+                {
+                    <div class="info-card">
+                        <h5><i class="bi bi-clipboard-check"></i> Inspeccions</h5>
+                        <div class="inspeccions-list">
+                            @foreach (var inspeccio in patrimoni.Inspeccions.Where(i => i.Actiu).OrderByDescending(i => i.DataInspeccio))
+                            {
+                                <div class="inspeccio-item">
+                                    <div class="inspeccio-data">
+                                        @inspeccio.DataInspeccio.ToString("dd/MM/yyyy")
+                                        <span class="ms-2 text-muted" style="font-size:0.85rem;">@inspeccio.TipusInspeccio</span>
+                                    </div>
+                                    @if (!string.IsNullOrEmpty(inspeccio.InspectorNom))
+                                    {
+                                        <div class="text-muted" style="font-size:0.85rem;">
+                                            <i class="bi bi-person"></i> @inspeccio.InspectorNom
+                                            @if (!string.IsNullOrEmpty(inspeccio.InspectorEntitat))
+                                            {
+                                                <span> — @inspeccio.InspectorEntitat</span>
+                                            }
+                                        </div>
+                                    }
+                                    @if (!string.IsNullOrEmpty(inspeccio.Observacions))
+                                    {
+                                        <div class="mt-1">@inspeccio.Observacions</div>
+                                    }
+                                    @if (!string.IsNullOrEmpty(inspeccio.Recomanacions))
+                                    {
+                                        <div class="mt-1 text-warning"><i class="bi bi-exclamation-triangle"></i> @inspeccio.Recomanacions</div>
+                                    }
+                                    @if (inspeccio.SeguimentNecessari && inspeccio.DataProperSeguiment.HasValue)
+                                    {
+                                        <div class="mt-1 text-danger" style="font-size:0.85rem;">
+                                            <i class="bi bi-calendar-event"></i> Pròxim seguiment: @inspeccio.DataProperSeguiment.Value.ToString("dd/MM/yyyy")
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+
+                <!-- Font de les dades -->
+                @{
+                    var identDiba   = patrimoni.Identificadors?.FirstOrDefault(i => i.Tipus == "DIBA");
+                    var identUrlDiba = patrimoni.Identificadors?.FirstOrDefault(i => i.Tipus == "URL_DIBA");
+                    var altresIdents = patrimoni.Identificadors?
+                        .Where(i => i.Tipus != "DIBA" && i.Tipus != "URL_DIBA")
+                        .ToList();
+                }
+                @if (identDiba != null || identUrlDiba != null)
+                {
+                    <div class="info-card">
+                        <h5><i class="bi bi-database"></i> Font de les dades</h5>
+                        <div class="info-row">
+                            <span class="info-label">Font:</span>
+                            <span class="info-value">Diputació de Barcelona</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Col·lecció:</span>
+                            <span class="info-value">Patrimoni Cultural</span>
+                        </div>
+                        @if (identDiba != null)
+                        {
+                            <div class="info-row">
+                                <span class="info-label">Codi DIBA:</span>
+                                <span class="info-value">@identDiba.Valor</span>
+                            </div>
+                        }
+                        @if (identUrlDiba != null)
+                        {
+                            <div class="info-row">
+                                <span class="info-label">Fitxa original:</span>
+                                <span class="info-value">
+                                    <a href="@identUrlDiba.Valor" target="_blank" rel="noopener noreferrer">
+                                        <i class="bi bi-box-arrow-up-right"></i> Veure a patrimonicultural.diba.cat
+                                    </a>
+                                </span>
+                            </div>
+                        }
+                        @if (altresIdents != null && altresIdents.Any())
+                        {
+                            @foreach (var ident in altresIdents)
+                            {
+                                <div class="info-row">
+                                    <span class="info-label">@ident.Tipus:</span>
+                                    <span class="info-value">@ident.Valor</span>
+                                </div>
+                            }
+                        }
+                    </div>
+                }
+
+                <!-- Data última inspecció -->
+                @if (patrimoni.DataUltimaInspeccio.HasValue)
+                {
+                    <div class="info-card">
+                        <h5><i class="bi bi-calendar-check"></i> Última inspecció</h5>
+                        <p class="mb-0">@patrimoni.DataUltimaInspeccio.Value.ToString("dd/MM/yyyy")</p>
+                    </div>
+                }
+
+                <!-- Observacions estat de conservació -->
+                @if (!string.IsNullOrEmpty(patrimoni.ObservacionsEstat))
+                {
+                    <div class="info-card">
+                        <h5><i class="bi bi-exclamation-circle"></i> Observacions estat</h5>
+                        <p>@patrimoni.ObservacionsEstat</p>
+                    </div>
+                }
+
+                <!-- Localització (coordenades) -->
+                @if (patrimoni.Latitud.HasValue && patrimoni.Longitud.HasValue)
+                {
+                    <div class="info-card">
+                        <h5><i class="bi bi-geo-alt"></i> Localització</h5>
+                        <div class="info-row">
+                            <span class="info-label">Latitud:</span>
+                            <span class="info-value">@patrimoni.Latitud.Value.ToString("F6")</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Longitud:</span>
+                            <span class="info-value">@patrimoni.Longitud.Value.ToString("F6")</span>
+                        </div>
+                        <a href="https://maps.google.com/?q=@patrimoni.Latitud.Value.ToString("F6", System.Globalization.CultureInfo.InvariantCulture),@patrimoni.Longitud.Value.ToString("F6", System.Globalization.CultureInfo.InvariantCulture)"
+                           target="_blank" class="btn btn-sm btn-outline-success mt-2">
+                            <i class="bi bi-map"></i> Veure al mapa
+                        </a>
+                    </div>
+                }
+            </div>
+
+            <div class="col-lg-4">
+                <!-- Informació bàsica -->
+                <div class="info-card">
+                    <h5><i class="bi bi-info-circle"></i> Informació bàsica</h5>
+                    
+                    @if (patrimoni.TipusPatrimoni != null)
+                    {
+                        <div class="info-row">
+                            <span class="info-label">Tipus:</span>
+                            <span class="info-value">@patrimoni.TipusPatrimoni.Nom</span>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(subtipusNom))
+                    {
+                        <div class="info-row">
+                            <span class="info-label">Subtipus:</span>
+                            <span class="info-value">@subtipusNom</span>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(patrimoni.CodiInventari))
+                    {
+                        <div class="info-row">
+                            <span class="info-label">Codi inventari:</span>
+                            <span class="info-value">@patrimoni.CodiInventari</span>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(patrimoni.NomAlternatiu))
+                    {
+                        <div class="info-row">
+                            <span class="info-label">Nom alternatiu:</span>
+                            <span class="info-value">@patrimoni.NomAlternatiu</span>
+                        </div>
+                    }
+
+                    @if (patrimoni.Ubicacio != null)
+                    {
+                        <div class="info-row">
+                            <span class="info-label">Ubicació:</span>
+                            <span class="info-value">@patrimoni.Ubicacio.Nom</span>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(patrimoni.AdrecaCompleta) || !string.IsNullOrEmpty(patrimoni.NumeroPolicia))
+                    {
+                        <div class="info-row">
+                            <span class="info-label">Adreça:</span>
+                            <span class="info-value">
+                                @patrimoni.AdrecaCompleta
+                                @if (!string.IsNullOrEmpty(patrimoni.NumeroPolicia))
+                                {
+                                    <span class="ms-1">(núm. @patrimoni.NumeroPolicia)</span>
+                                }
+                            </span>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(patrimoni.Municipi))
+                    {
+                        <div class="info-row">
+                            <span class="info-label">Municipi:</span>
+                            <span class="info-value">@patrimoni.Municipi</span>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(patrimoni.Comarca))
+                    {
+                        <div class="info-row">
+                            <span class="info-label">Comarca:</span>
+                            <span class="info-value">@patrimoni.Comarca</span>
+                        </div>
+                    }
+
+                    @if (patrimoni.EstatConservacio != null)
+                    {
+                        <div class="info-row">
+                            <span class="info-label">Estat:</span>
+                            <span class="info-value">
+                                <span class="status-badge status-@GetStatusClass(patrimoni.EstatConservacio.Nom)">
+                                    @patrimoni.EstatConservacio.Nom
+                                </span>
+                            </span>
+                        </div>
+                    }
+
+                    @if (patrimoni.AnyConstruccio.HasValue)
+                    {
+                        <div class="info-row">
+                            <span class="info-label">Any construcció:</span>
+                            <span class="info-value">@patrimoni.AnyConstruccio.Value</span>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(patrimoni.PeriodeHistoric))
+                    {
+                        <div class="info-row">
+                            <span class="info-label">Període:</span>
+                            <span class="info-value">@patrimoni.PeriodeHistoric</span>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(patrimoni.EstilArquitectonic))
+                    {
+                        <div class="info-row">
+                            <span class="info-label">Estil:</span>
+                            <span class="info-value">@patrimoni.EstilArquitectonic</span>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(patrimoni.MaterialsPrincipals))
+                    {
+                        <div class="info-row">
+                            <span class="info-label">Materials:</span>
+                            <span class="info-value">@patrimoni.MaterialsPrincipals</span>
+                        </div>
+                    }
+                </div>
+
+                <!-- Ús i propietat -->
+                @if (!string.IsNullOrEmpty(patrimoni.UsActual) || !string.IsNullOrEmpty(patrimoni.UsOriginal) ||
+                     !string.IsNullOrEmpty(patrimoni.PropietariActual) || patrimoni.RegimPropietat != RegimPropietat.Desconegut)
+                {
+                    <div class="info-card">
+                        <h5><i class="bi bi-house"></i> Ús i propietat</h5>
+
+                        @if (!string.IsNullOrEmpty(patrimoni.UsActual))
+                        {
+                            <div class="info-row">
+                                <span class="info-label">Ús actual:</span>
+                                <span class="info-value">@patrimoni.UsActual</span>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(patrimoni.UsOriginal))
+                        {
+                            <div class="info-row">
+                                <span class="info-label">Ús original:</span>
+                                <span class="info-value">@patrimoni.UsOriginal</span>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(patrimoni.PropietariActual))
+                        {
+                            <div class="info-row">
+                                <span class="info-label">Propietari:</span>
+                                <span class="info-value">@patrimoni.PropietariActual</span>
+                            </div>
+                        }
+                        @if (patrimoni.RegimPropietat != RegimPropietat.Desconegut)
+                        {
+                            <div class="info-row">
+                                <span class="info-label">Règim:</span>
+                                <span class="info-value">@patrimoni.RegimPropietat</span>
+                            </div>
+                        }
+                    </div>
+                }
+
+                <!-- Protecció legal -->
+                @if (patrimoni.ProteccioLegal != ProteccioLegal.Cap || !string.IsNullOrEmpty(patrimoni.NumeroExpedient) ||
+                     !string.IsNullOrEmpty(patrimoni.OrganismeProteccio))
+                {
+                    <div class="info-card">
+                        <h5><i class="bi bi-shield-check"></i> Protecció legal</h5>
+
+                        @if (patrimoni.ProteccioLegal != ProteccioLegal.Cap)
+                        {
+                            <div class="info-row">
+                                <span class="info-label">Protecció:</span>
+                                <span class="info-value">@patrimoni.ProteccioLegal</span>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(patrimoni.NumeroExpedient))
+                        {
+                            <div class="info-row">
+                                <span class="info-label">Exp. núm.:</span>
+                                <span class="info-value">@patrimoni.NumeroExpedient</span>
+                            </div>
+                        }
+                        @if (patrimoni.DataDeclaracio.HasValue)
+                        {
+                            <div class="info-row">
+                                <span class="info-label">Data declaració:</span>
+                                <span class="info-value">@patrimoni.DataDeclaracio.Value.ToString("dd/MM/yyyy")</span>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(patrimoni.OrganismeProteccio))
+                        {
+                            <div class="info-row">
+                                <span class="info-label">Organisme:</span>
+                                <span class="info-value">@patrimoni.OrganismeProteccio</span>
+                            </div>
+                        }
+                    </div>
+                }
+
+                <!-- Valoració -->
+                @if (patrimoni.ValorTotal > 0)
+                {
+                    <div class="info-card">
+                        <h5><i class="bi bi-star"></i> Valoració</h5>
+                        <div class="info-row">
+                            <span class="info-label">Valor total:</span>
+                            <span class="info-value valor-economic">@patrimoni.ValorTotal.ToString("C2")</span>
+                        </div>
+                        @if (patrimoni.ValorHistoric > 0)
+                        {
+                            <div class="info-row">
+                                <span class="info-label">Valor històric:</span>
+                                <span class="info-value">@patrimoni.ValorHistoric / 5</span>
+                            </div>
+                        }
+                        @if (patrimoni.ValorArtistic > 0)
+                        {
+                            <div class="info-row">
+                                <span class="info-label">Valor artístic:</span>
+                                <span class="info-value">@patrimoni.ValorArtistic / 5</span>
+                            </div>
+                        }
+                        @if (patrimoni.ValorArquitectonic > 0)
+                        {
+                            <div class="info-row">
+                                <span class="info-label">Valor arquitectònic:</span>
+                                <span class="info-value">@patrimoni.ValorArquitectonic / 5</span>
+                            </div>
+                        }
+                        @if (patrimoni.ValorSocial > 0)
+                        {
+                            <div class="info-row">
+                                <span class="info-label">Valor social:</span>
+                                <span class="info-value">@patrimoni.ValorSocial / 5</span>
+                            </div>
+                        }
+                    </div>
+                }
+
+                <!-- Accés públic -->
+                @if (patrimoni.AccessiblePublic || !string.IsNullOrEmpty(patrimoni.HorariVisites) || patrimoni.PreuEntrada.HasValue)
+                {
+                    <div class="info-card">
+                        <h5><i class="bi bi-door-open"></i> Accés públic</h5>
+                        <div class="info-row">
+                            <span class="info-label">Accessible:</span>
+                            <span class="info-value">
+                                <span class="status-badge @(patrimoni.AccessiblePublic ? "status-bo" : "status-regular")">
+                                    @(patrimoni.AccessiblePublic ? "Sí" : "No")
+                                </span>
+                            </span>
+                        </div>
+                        @if (!string.IsNullOrEmpty(patrimoni.HorariVisites))
+                        {
+                            <div class="info-row">
+                                <span class="info-label">Horari:</span>
+                                <span class="info-value">@patrimoni.HorariVisites</span>
+                            </div>
+                        }
+                        @if (patrimoni.PreuEntrada.HasValue)
+                        {
+                            <div class="info-row">
+                                <span class="info-label">Preu entrada:</span>
+                                <span class="info-value">@(patrimoni.PreuEntrada.Value == 0 ? "Gratuït" : patrimoni.PreuEntrada.Value.ToString("C2"))</span>
+                            </div>
+                        }
+                    </div>
+                }
+
+                <!-- Altres dades -->
+                <div class="info-card">
+                    <h5><i class="bi bi-calendar"></i> Registre</h5>
+                    <div class="info-row">
+                        <span class="info-label">Actiu:</span>
+                        <span class="info-value">
+                            @if (patrimoni.Actiu)
+                            {
+                                <span class="status-badge status-bo">Sí</span>
+                            }
+                            else
+                            {
+                                <span class="status-badge status-dolent">No</span>
+                            }
+                        </span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Creat:</span>
+                        <span class="info-value">@patrimoni.CreatedAt.ToString("dd/MM/yyyy")</span>
+                    </div>
+                    @if (patrimoni.UpdatedAt != patrimoni.CreatedAt)
+                    {
+                        <div class="info-row">
+                            <span class="info-label">Actualitzat:</span>
+                            <span class="info-value">@patrimoni.UpdatedAt.ToString("dd/MM/yyyy")</span>
+                        </div>
+                    }
+                </div>
+
+                <!-- Arxius no-imatge (PDFs, documents, etc.) -->
+                @{
+                    var arxiusDescàrrega = patrimoni.Arxius?
+                        .Where(a => !a.EsImatge && a.VisiblePublic && a.Actiu && !string.IsNullOrWhiteSpace(a.UrlMinio))
+                        .OrderBy(a => a.NomOriginal)
+                        .ToList();
+                }
+                @if (arxiusDescàrrega != null && arxiusDescàrrega.Any())
+                {
+                    <div class="info-card">
+                        <h5><i class="bi bi-files"></i> Documents</h5>
+                        <div class="arxius-list">
+                            @foreach (var arxiu in arxiusDescàrrega)
+                            {
+                                <a class="arxiu-download-item" href="@arxiu.UrlMinio" target="_blank" download="@arxiu.NomOriginal">
+                                    <i class="bi @GetFileIcon(arxiu.MimeType)"></i>
+                                    <div class="arxiu-nom">
+                                        <div>@arxiu.NomOriginal</div>
+                                        @if (arxiu.Colleccio != null)
+                                        {
+                                            <small class="text-muted"><i class="bi bi-collection me-1"></i>@arxiu.Colleccio.Nom</small>
+                                        }
+                                    </div>
+                                    <i class="bi bi-download ms-auto"></i>
+                                </a>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+    
+    private bool carregant = true;
+    private Patrimoni? patrimoni;
+    private List<ArxiuPatrimoni> imatgesPatrimoni = new();
+    private int selectedImageIndex = 0;
+    private string? subtipusNom;
+    private string returnUrl = "/galeria";
+    private string returnPageName = "Galeria";
+    private string returnPageNameLower = "a la galeria";
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Detectar d'on ve l'usuari
+        var uri = new Uri(Navigation.Uri);
+        var queryParams = QueryHelpers.ParseQuery(uri.Query);
+        
+        if (queryParams.TryGetValue("from", out var from))
+        {
+            switch (from.ToString().ToLower())
+            {
+                case "mapa":
+                    returnUrl = "/mapa";
+                    returnPageName = "Mapa";
+                    returnPageNameLower = "al mapa";
+                    break;
+                case "cerca":
+                    returnUrl = "/cerca";
+                    returnPageName = "Cerca";
+                    returnPageNameLower = "a la cerca";
+                    break;
+                case "home":
+                    returnUrl = "/";
+                    returnPageName = "Inici";
+                    returnPageNameLower = "a l'inici";
+                    break;
+                default:
+                    returnUrl = "/galeria";
+                    returnPageName = "Galeria";
+                    returnPageNameLower = "a la galeria";
+                    break;
+            }
+        }
+        
+        await CarregarPatrimoni();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (patrimoni?.Id != Id)
+        {
+            await CarregarPatrimoni();
+        }
+    }
+
+    private async Task CarregarPatrimoni()
+    {
+        carregant = true;
+        StateHasChanged();
+
+        try
+        {
+            patrimoni = await PatrimoniService.GetByIdAsync(Id);
+            subtipusNom = await ResolveSubtipusAsync(patrimoni);
+            imatgesPatrimoni = patrimoni?.Arxius?
+                .Where(a => a.VisiblePublic && a.Actiu && !string.IsNullOrWhiteSpace(a.UrlMinio) && a.EsImatge)
+                .OrderBy(a => a.OrdreVisualitzacio)
+                .ToList() ?? new List<ArxiuPatrimoni>();
+            selectedImageIndex = 0;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error carregant patrimoni: {ex.Message}");
+            patrimoni = null;
+            imatgesPatrimoni = new List<ArxiuPatrimoni>();
+        }
+        finally
+        {
+            carregant = false;
+            StateHasChanged();
+        }
+    }
+
+    private string GetStatusClass(string? estat)
+    {
+        return estat?.ToLower() switch
+        {
+            "bo" or "molt bo" or "excel·lent" => "bo",
+            "regular" or "acceptable" => "regular",
+            "dolent" or "molt dolent" or "ruïnós" => "dolent",
+            _ => "regular"
+        };
+    }
+
+    private async Task<string?> ResolveSubtipusAsync(Patrimoni? p)
+    {
+        if (p == null || string.IsNullOrWhiteSpace(p.Subtipus))
+        {
+            return null;
+        }
+
+        if (!int.TryParse(p.Subtipus, out var subtipusId))
+        {
+            return p.Subtipus; // Ja és un nom de text
+        }
+
+        // És un ID numèric, cal resoldre el nom
+        try
+        {
+            var tots = await CatalogService.GetSubtipusPatrimoniAsync(p.TipusPatrimoniId);
+            // GetSubtipusPatrimoniAsync retorna List<string> amb els noms; fem fallback al context directe
+            using var context = _dbContextFactory.CreateDbContext();
+            var subtipus = await context.SubtipusPatrimonis
+                .Where(s => s.Id == subtipusId)
+                .Select(s => s.Nom)
+                .FirstOrDefaultAsync();
+            return subtipus ?? p.Subtipus;
+        }
+        catch
+        {
+            return p.Subtipus;
+        }
+    }
+
+    private void SeleccionarImatge(int index)
+    {
+        if (index >= 0 && index < imatgesPatrimoni.Count)
+        {
+            selectedImageIndex = index;
+        }
+    }
+
+    private static string GetFileIcon(string? mimeType) => mimeType switch
+    {
+        var m when m?.StartsWith("application/pdf") == true     => "bi-file-earmark-pdf",
+        var m when m?.StartsWith("application/vnd.openxml") == true => "bi-file-earmark-spreadsheet",
+        var m when m?.Contains("word") == true                  => "bi-file-earmark-word",
+        var m when m?.Contains("excel") == true                 => "bi-file-earmark-excel",
+        var m when m?.StartsWith("video/") == true              => "bi-file-earmark-play",
+        var m when m?.StartsWith("audio/") == true              => "bi-file-earmark-music",
+        _                                                        => "bi-file-earmark"
+    };
+}

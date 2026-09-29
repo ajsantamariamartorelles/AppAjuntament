@@ -1,0 +1,127 @@
+@page "/cursets"
+@using AppAjuntament.Models.Cursets.Dto
+@using AppAjuntament.Services.Cursets
+@attribute [Authorize(Policy = "EditorOrAdmin")]
+@inject ICursetsCatalogService CatalogService
+@inject NavigationManager Nav
+@inject AppAjuntament.Services.DatabaseLoggerService DbLogger
+
+<PageTitle>Cursets</PageTitle>
+
+<div class="screen-header mb-3">
+    <h3 class="screen-title"><i class="fas fa-dumbbell me-2"></i>Cursets</h3>
+    <a class="btn btn-primary" href="/cursets/nou">
+        <i class="fas fa-plus me-2"></i>Nou curset
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <h6 class="mb-0">Llistat (@Filtrats.Count)</h6>
+        <input class="form-control form-control-sm" style="width: 16rem;" placeholder="Cerca per nom o temàtica…"
+               @bind="cerca" @bind:event="oninput" />
+    </div>
+    <div class="card-body p-0">
+        @if (carregant)
+        {
+            <div class="p-4 text-center text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Carregant...</div>
+        }
+        else if (!Filtrats.Any())
+        {
+            <div class="p-4 text-center text-muted">
+                @(string.IsNullOrWhiteSpace(cerca) ? "Encara no hi ha cap curset." : "Cap curset coincideix amb la cerca.")
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0 align-middle">
+                    <thead>
+                        <tr>
+                            <th>Curset</th>
+                            <th>Professora</th>
+                            <th>Regidor</th>
+                            <th>Horari</th>
+                            <th class="text-center">Alumnes</th>
+                            <th class="text-end">Preu (E/NE)</th>
+                            <th class="text-center">Estat</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var c in Filtrats)
+                        {
+                            <tr class="@(c.Actiu ? "" : "table-secondary")" style="cursor: pointer;" @onclick="() => Obrir(c.Id)">
+                                <td>
+                                    <div>@c.Nom</div>
+                                    <div class="small text-muted">@c.TipusCursetNom</div>
+                                </td>
+                                <td>@c.ProfessoraNom</td>
+                                <td class="small">@(c.RegidorNom ?? "—")</td>
+                                <td class="small">@Horari(c)</td>
+                                <td class="text-center">@c.NumAlumnes</td>
+                                <td class="text-end small">@c.PreuPerSessioEmpadronat.ToString("0.00") / @c.PreuPerSessioNoEmpadronat.ToString("0.00")</td>
+                                <td class="text-center">
+                                    <span class="badge bg-@(c.Actiu ? "success" : "secondary")">@(c.Actiu ? "Actiu" : "De baixa")</span>
+                                </td>
+                                <td class="text-end"><i class="fas fa-chevron-right text-muted"></i></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private List<CursetDto> cursets = new();
+    private bool carregant = true;
+    private string cerca = string.Empty;
+
+    private List<CursetDto> Filtrats => cursets
+        .Where(c => string.IsNullOrWhiteSpace(cerca)
+            || c.Nom.Contains(cerca, StringComparison.OrdinalIgnoreCase)
+            || c.TipusCursetNom.Contains(cerca, StringComparison.OrdinalIgnoreCase))
+        .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            cursets = await CatalogService.GetCursetsAdminAsync();
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error carregant cursets", ex, "Cursets.Carregar");
+        }
+        finally
+        {
+            carregant = false;
+        }
+    }
+
+    private void Obrir(int id) => Nav.NavigateTo($"/cursets/{id}");
+
+    private static string Horari(CursetDto c)
+    {
+        if (!c.DiaSetmana.HasValue && !c.HoraInici.HasValue) return "—";
+        var dia = c.DiaSetmana.HasValue ? NomDia(c.DiaSetmana.Value) : "";
+        var hora = c.HoraInici.HasValue
+            ? $"{c.HoraInici.Value:hh\\:mm}{(c.HoraFi.HasValue ? "–" + c.HoraFi.Value.ToString(@"hh\:mm") : "")}"
+            : "";
+        return $"{dia} {hora}".Trim();
+    }
+
+    private static string NomDia(DayOfWeek d) => d switch
+    {
+        DayOfWeek.Monday => "Dilluns",
+        DayOfWeek.Tuesday => "Dimarts",
+        DayOfWeek.Wednesday => "Dimecres",
+        DayOfWeek.Thursday => "Dijous",
+        DayOfWeek.Friday => "Divendres",
+        DayOfWeek.Saturday => "Dissabte",
+        DayOfWeek.Sunday => "Diumenge",
+        _ => d.ToString()
+    };
+}

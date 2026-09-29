@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+	<application android:allowBackup="true" android:icon="@mipmap/appicon" android:roundIcon="@mipmap/appicon_round" android:supportsRtl="true">
+		<!-- MSAL: rep la redirecció d'Azure AD després d'identificar-se al navegador.
+		     L'esquema ha de coincidir amb AzureAdConfig.RedirectUri i amb el
+		     redirect URI donat d'alta a l'Azure (plataforma "Mobile and desktop"). -->
+		<activity android:name="microsoft.identity.client.BrowserTabActivity" android:exported="true">
+			<intent-filter>
+				<action android:name="android.intent.action.VIEW" />
+				<category android:name="android.intent.category.DEFAULT" />
+				<category android:name="android.intent.category.BROWSABLE" />
+				<data android:scheme="msal8fa27198-fc80-4593-9912-eb98295e73c7" android:host="auth" />
+			</intent-filter>
+		</activity>
+	</application>
+	<uses-permission android:name="android.permission.INTERNET" />
+	<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+</manifest>

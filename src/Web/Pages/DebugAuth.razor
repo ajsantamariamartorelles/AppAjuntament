@@ -1,0 +1,123 @@
+﻿@page "/debug-auth"
+@using Microsoft.AspNetCore.Authorization
+@using System.Security.Claims
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JSRuntime
+@inject AppAjuntament.Services.DatabaseLoggerService DbLogger
+
+<div class="screen-header">
+    <h3 class="screen-title">Debug de l'estat d'autenticació</h3>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header screen-header">
+        <h5 class="mb-0">Informació d'autenticació</h5>
+    </div>
+    <div class="card-body">
+        <p><strong>Estó autenticat:</strong> @isAuthenticated</p>
+        <p><strong>Nom d'usuari:</strong> @userName</p>
+        <p><strong>Tipus d'autenticació:</strong> @authenticationType</p>
+        <p><strong>óltima actualització:</strong> @lastUpdate.ToString("HH:mm:ss")</p>
+        
+        <div class="d-flex gap-2 mb-3 flex-wrap">
+            <button class="btn btn-primary" @onclick="RefreshAuthState">Actualitzar estat</button>
+            <button class="btn btn-info" @onclick="ShowClaims">Mostrar Claims</button>
+        </div>
+        
+        @if (showClaims && claims.Any())
+        {
+            <h6 class="mt-3">Claims de l'usuari:</h6>
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Tipus</th>
+                            <th>Valor</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var claim in claims)
+                        {
+                            <tr>
+                                <td><code>@claim.Type</code></td>
+                                <td>@claim.Value</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        @if (groups.Any())
+        {
+            <h6 class="mt-3">Grups de l'usuari:</h6>
+            <ul class="list-group">
+                @foreach (var group in groups)
+                {
+                    <li class="list-group-item">@group</li>
+                }
+            </ul>
+        }
+    </div>
+</div>
+
+<div class="mt-3">
+    <AuthorizeView>
+        <Authorized>
+            <div class="alert alert-success">
+                <h6>AuthorizeView - Autoritzat</h6>
+                <p>L'usuari estó autenticat segons AuthorizeView.</p>
+                <p>Nom: @context.User?.Identity?.Name</p>
+            </div>
+        </Authorized>
+        <NotAuthorized>
+            <div class="alert alert-warning">
+                <h6>AuthorizeView - No autoritzat</h6>
+                <p>L'usuari NO estó autenticat segons AuthorizeView.</p>
+            </div>
+        </NotAuthorized>
+    </AuthorizeView>
+</div>
+
+@code {
+    private bool isAuthenticated = false;
+    private string userName = "";
+    private string authenticationType = "";
+    private DateTime lastUpdate = DateTime.Now;
+    private List<Claim> claims = new List<Claim>();
+    private bool showClaims = false;
+    private List<string> groups = new List<string>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshAuthState();
+    }
+
+    private async Task RefreshAuthState()
+    {
+        try
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+
+            isAuthenticated = user?.Identity?.IsAuthenticated ?? false;
+            userName = user?.Identity?.Name ?? "Anònim";
+            authenticationType = user?.Identity?.AuthenticationType ?? "None";
+            claims = user?.Claims?.ToList() ?? new List<Claim>();
+            groups = claims.Where(c => c.Type == "groups").Select(c => c.Value).ToList();
+            lastUpdate = DateTime.Now;
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error obtenint estat d'autenticació a pàgina debug", ex, "LoadAuthState");
+            await JSRuntime.InvokeVoidAsync("console.error", "Error obtenint estat d'autenticació:", ex.Message);
+        }
+    }
+
+    private void ShowClaims()
+    {
+        showClaims = !showClaims;
+    }
+}

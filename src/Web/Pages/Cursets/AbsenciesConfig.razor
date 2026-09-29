@@ -1,0 +1,142 @@
+@page "/cursets/absencies/configuracio"
+@using AppAjuntament.Models.Cursets.Dto
+@using AppAjuntament.Services.Cursets
+@attribute [Authorize(Policy = "EditorOrAdmin")]
+@inject ICursetsSessionsService SessionsService
+@inject AppAjuntament.Services.DatabaseLoggerService DbLogger
+
+<PageTitle>Configuració del correu de baixa</PageTitle>
+
+<div class="screen-header mb-3 d-flex justify-content-between align-items-center">
+    <h3 class="screen-title"><i class="fas fa-cog me-2"></i>Configuració del correu de baixa</h3>
+    <a class="btn btn-sm btn-outline-secondary" href="/cursets/absencies">
+        <i class="fas fa-arrow-left me-1"></i>Absències
+    </a>
+</div>
+
+<p class="text-muted">
+    Aquests paràmetres es guarden a la base de dades i s'apliquen a l'instant: canviar-los
+    no requereix tornar a publicar l'aplicació.
+</p>
+
+@if (missatge is not null)
+{
+    <div class="alert alert-@missatgeTipus alert-dismissible">
+        @missatge
+        <button type="button" class="btn-close" @onclick="() => missatge = null"></button>
+    </div>
+}
+
+@if (config is null)
+{
+    <div class="p-4 text-center text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Carregant...</div>
+}
+else
+{
+    <EditForm Model="config" OnValidSubmit="Desar">
+        <div class="card mb-4">
+            <div class="card-header"><h6 class="mb-0">Servidor SMTP</h6></div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-8">
+                        <label class="form-label">Servidor (host)</label>
+                        <InputText class="form-control" @bind-Value="config.SmtpHost" placeholder="p. ex. smtp.office365.com" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Port</label>
+                        <InputNumber class="form-control" @bind-Value="config.SmtpPort" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Usuari</label>
+                        <InputText class="form-control" @bind-Value="config.SmtpUser" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Contrasenya</label>
+                        <InputText type="password" class="form-control" @bind-Value="config.SmtpPassword" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Email remitent</label>
+                        <InputText class="form-control" @bind-Value="config.RemitentEmail" placeholder="cursets@santamariademartorelles.cat" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Nom remitent</label>
+                        <InputText class="form-control" @bind-Value="config.RemitentNom" />
+                    </div>
+                    <div class="col-12">
+                        <div class="form-check">
+                            <InputCheckbox class="form-check-input" id="smtpSsl" @bind-Value="config.SmtpSsl" />
+                            <label class="form-check-label" for="smtpSsl">Connexió xifrada (SSL/TLS)</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-text mt-2">
+                    Si el servidor queda buit no s'enviarà cap correu; les baixes es faran igualment.
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header"><h6 class="mb-0">Missatge de baixa per absències</h6></div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Assumpte</label>
+                    <InputText class="form-control" @bind-Value="config.Assumpte" />
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">Cos del correu (HTML)</label>
+                    <InputTextArea class="form-control" rows="8" @bind-Value="config.CosHtml" />
+                </div>
+                <div class="form-text">
+                    Tokens: <code>{NOM}</code> (alumne), <code>{CURSET}</code>, <code>{INSTITUCIO}</code> i
+                    <code>{MISSATGE}</code> (el text opcional que s'afegeix des de la pantalla d'absències).
+                </div>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary" disabled="@ocupat">
+            @if (ocupat) { <span class="spinner-border spinner-border-sm me-2"></span> }
+            <i class="fas fa-save me-2"></i>Desa la configuració
+        </button>
+    </EditForm>
+}
+
+@code {
+    private EmailAbsenciesConfigDto? config;
+    private bool ocupat;
+    private string? missatge;
+    private string missatgeTipus = "success";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            config = await SessionsService.GetEmailConfigAsync();
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error carregant configuració del correu d'absències", ex, "AbsenciesConfig.OnInit");
+            MostrarError("No s'ha pogut carregar la configuració.");
+        }
+    }
+
+    private async Task Desar()
+    {
+        if (ocupat || config is null) return;
+        ocupat = true;
+        try
+        {
+            await SessionsService.DesarEmailConfigAsync(config);
+            config = await SessionsService.GetEmailConfigAsync();
+            MostrarOk("Configuració desada.");
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error desant configuració del correu d'absències", ex, "AbsenciesConfig.Desar");
+            MostrarError("No s'ha pogut desar la configuració.");
+        }
+        finally { ocupat = false; }
+    }
+
+    private void MostrarOk(string t) { missatge = t; missatgeTipus = "success"; }
+    private void MostrarError(string t) { missatge = t; missatgeTipus = "danger"; }
+}

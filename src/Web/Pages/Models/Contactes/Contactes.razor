@@ -1,0 +1,74 @@
+﻿@page "/contactes"
+@using Microsoft.EntityFrameworkCore
+@inject NavigationManager NavigationManager
+@inject GestorSubvencionsContext Context
+
+<div class="screen-header">
+    <h3 class="screen-title"><i class="fas fa-address-card me-2"></i>Llistat de Contactes</h3>
+    <button @onclick="NouContacte" class="btn btn-primary">
+        <i class="fas fa-plus me-1"></i>Nou Contacte
+    </button>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Id</th>
+                        <th>Adreça</th>
+                        <th>Telèfon</th>
+                        <th>Email</th>
+                        <th class="text-end">Accions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var contacte in contactes)
+                    {
+                        <tr>
+                            <td>@contacte.Id</td>
+                            <td>@contacte.Adreca</td>
+                            <td>@contacte.Telefon</td>
+                            <td>@contacte.Email</td>
+                            <td class="text-end">
+                                <button @onclick="() => EditarContacte(contacte.Id)" class="btn btn-sm btn-outline-primary me-2">Editar</button>
+                                <button @onclick="() => EliminarContacte(contacte.Id)" class="btn btn-sm btn-outline-danger">Eliminar</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<Contacte> contactes = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        contactes = await Context.Contactes.ToListAsync();
+    }
+
+    private void NouContacte()
+    {
+        NavigationManager.NavigateTo("/contactes/nou");
+    }
+
+    private void EditarContacte(int id)
+    {
+        NavigationManager.NavigateTo($"/contactes/editar/{id}");
+    }
+
+    private async Task EliminarContacte(int id)
+    {
+        var contacte = await Context.Contactes.FindAsync(id);
+        if (contacte != null)
+        {
+            Context.Contactes.Remove(contacte);
+            await Context.SaveChangesAsync();
+            contactes = await Context.Contactes.ToListAsync();
+        }
+    }
+}

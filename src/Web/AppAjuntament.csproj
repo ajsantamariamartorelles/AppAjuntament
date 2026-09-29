@@ -1,0 +1,50 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <WarningsNotAsErrors>CS8618;CS8625;CS8601;CS8603;CS8604;CS8765;CS8767;CS8600;CS8602</WarningsNotAsErrors>
+    <UserSecretsId>6efa24f7-d2f9-4b7c-8afc-cd9367b2f056</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="4.0.101.4" />
+    <PackageReference Include="AWSSDK.S3" Version="4.0.103.4" />
+    <PackageReference Include="Hangfire.InMemory" Version="1.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.Negotiate" Version="10.0.12" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.12" />
+    <!-- EF Core es queda a la línia 9.x: Pomelo (connector MySQL) encara no té
+         versió compatible amb EF Core 10. Vegeu AGENTS.md, regla 1. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.20" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.20">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <!-- Microsoft.Extensions.Localization i .Identity.Core ja venen amb el framework
+         compartit a net10.0 (avís NU1510): no cal referenciar-los explícitament. -->
+    <PackageReference Include="Microsoft.Identity.Web" Version="3.15.1" />
+    <!-- Sobreescriu System.Security.Cryptography.Xml 9.0.15, que arrossega
+         Microsoft.Identity.Web via Microsoft.AspNetCore.DataProtection (NU1903).
+         L'avís NU1510 que dona és fals positiu per a aquest cas: sense la
+         referència explícita torna la vulnerabilitat (provat). -->
+    <PackageReference Include="System.Security.Cryptography.Xml" Version="9.0.20" />
+    <PackageReference Include="NetTopologySuite" Version="2.6.0" />
+    <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="9.0.0" />
+    <PackageReference Include="ClosedXML" Version="0.105.1" />
+    <PackageReference Include="QuestPDF" Version="2026.9.1" />
+    <PackageReference Include="Hangfire.AspNetCore" Version="1.8.25" />
+    <PackageReference Include="Hangfire.Core" Version="1.8.25" />
+    <!-- Sobreescriu Newtonsoft.Json 11.0.1, que arrossega Hangfire.Core (vulnerabilitat
+         coneguda, NU1903): forcem una versió posterior i segura. -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Update="wwwroot\favicon.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+</Project>

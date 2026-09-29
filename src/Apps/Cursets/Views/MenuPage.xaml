@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:AjuntamentSantaMariaMartorelles.ViewModels"
+             x:Class="AjuntamentSantaMariaMartorelles.Views.MenuPage"
+             x:DataType="vm:MenuViewModel"
+             BackgroundColor="{StaticResource PageBackground}"
+             Title="Ajuntament de Santa Maria de Martorelles">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="20,18" Spacing="16">
+
+            <HorizontalStackLayout Spacing="14" VerticalOptions="Center">
+                <Image Source="escut_ajuntament.png" HeightRequest="52" Aspect="AspectFit" />
+                <VerticalStackLayout Spacing="4" VerticalOptions="Center">
+                    <Label Text="{Binding BenvingudaText}" Style="{StaticResource PageTitle}" />
+                    <BoxView Style="{StaticResource GoldRule}" />
+                </VerticalStackLayout>
+            </HorizontalStackLayout>
+
+            <Label Text="Menú principal" Style="{StaticResource Subtitle}" />
+
+            <Border Style="{StaticResource ListCard}">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Command="{Binding ElsMeusCursetsCommand}" />
+                </Border.GestureRecognizers>
+                <Grid ColumnDefinitions="4,*,Auto" ColumnSpacing="14">
+                    <BoxView Grid.Column="0" Color="{StaticResource Primary}" CornerRadius="2" />
+                    <VerticalStackLayout Grid.Column="1" Spacing="3">
+                        <Label Text="{Binding CursetsTitol}" Style="{StaticResource ItemTitle}" />
+                        <Label Text="{Binding CursetsDescripcio}" Style="{StaticResource ItemMeta}" />
+                    </VerticalStackLayout>
+                    <Label Grid.Column="2" Text="&#x203A;" FontSize="24"
+                           TextColor="{StaticResource TextSecondary}" VerticalOptions="Center" />
+                </Grid>
+            </Border>
+
+            <Border Style="{StaticResource ListCard}" IsVisible="{Binding EsControlador}">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Command="{Binding CobramentsCommand}" />
+                </Border.GestureRecognizers>
+                <Grid ColumnDefinitions="4,*,Auto" ColumnSpacing="14">
+                    <BoxView Grid.Column="0" Color="{StaticResource Danger}" CornerRadius="2" />
+                    <VerticalStackLayout Grid.Column="1" Spacing="3">
+                        <Label Text="Cobraments" Style="{StaticResource ItemTitle}" />
+                        <Label Text="Qui té pagaments pendents als cursets que superviso" Style="{StaticResource ItemMeta}" />
+                    </VerticalStackLayout>
+                    <Label Grid.Column="2" Text="&#x203A;" FontSize="24"
+                           TextColor="{StaticResource TextSecondary}" VerticalOptions="Center" />
+                </Grid>
+            </Border>
+
+            <Border Style="{StaticResource ListCard}">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Command="{Binding ElMeuCompteCommand}" />
+                </Border.GestureRecognizers>
+                <Grid ColumnDefinitions="4,*,Auto" ColumnSpacing="14">
+                    <BoxView Grid.Column="0" Color="{StaticResource Accent}" CornerRadius="2" />
+                    <VerticalStackLayout Grid.Column="1" Spacing="3">
+                        <Label Text="El meu compte" Style="{StaticResource ItemTitle}" />
+                        <Label Text="Dades de la sessió i tancar sessió" Style="{StaticResource ItemMeta}" />
+                    </VerticalStackLayout>
+                    <Label Grid.Column="2" Text="&#x203A;" FontSize="24"
+                           TextColor="{StaticResource TextSecondary}" VerticalOptions="Center" />
+                </Grid>
+            </Border>
+
+        </VerticalStackLayout>
+    </ScrollView>
+
+</ContentPage>

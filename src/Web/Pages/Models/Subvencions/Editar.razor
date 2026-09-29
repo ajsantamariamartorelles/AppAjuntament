@@ -1,0 +1,618 @@
+﻿@page "/subvencions/editar/{Id:int}"
+@using Microsoft.EntityFrameworkCore
+@using System.Globalization;
+@inject GestorSubvencionsContext Context
+@inject NavigationManager NavigationManager
+
+@if (!carregat)
+{
+    <div class="alert alert-info">Carregant dades...</div>
+}
+else if (subvencio is null)
+{
+    <div class="alert alert-danger">No s'ha trobat la subvenció.</div>
+}
+else
+{
+    <div class="screen-header">
+        <h3 class="screen-title"><i class="fas fa-euro-sign me-2"></i>Editar Subvenció</h3>
+        <button type="button" @onclick="Tornar" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Tornar
+        </button>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <EditForm Model="@subvencio" OnValidSubmit="Guardar">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+
+        <div class="form-group mb-3">
+            <label>Subvenció</label>
+            <InputText @bind-Value="subvencio.Subvencio" @bind-Value:after="MarcarCanvis" class="form-control" />
+        </div>
+
+        <div class="form-group mb-3">
+            <label>Actuació</label>
+            <InputText @bind-Value="subvencio.Actuacio" @bind-Value:after="MarcarCanvis" class="form-control" />
+        </div>
+
+        <div class="row mb-3">
+            <div class="form-group col-md-3">
+                <label>Any</label>
+                <InputSelect @bind-Value="subvencio.AnyId" @bind-Value:after="MarcarCanvis" class="form-control">
+                    <option value="">Selecciona un any</option>
+                    @foreach (var any in anys)
+                    {
+                        <option value="@any.Id">@any.Any</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="form-group col-md-3">
+                <label>Àrea</label>
+                <InputSelect @bind-Value="subvencio.AreaId" @bind-Value:after="MarcarCanvis" class="form-control">
+                    <option value="">Selecciona una àrea</option>
+                    @foreach (var area in arees)
+                    {
+                        <option value="@area.Id">@area.Nom</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="form-group col-md-3">
+                <label>Entitat</label>
+                <InputSelect @bind-Value="subvencio.EntitatId" @bind-Value:after="MarcarCanvis" class="form-control">
+                    <option value="">Selecciona una entitat</option>
+                    @foreach (var entitat in entitats)
+                    {
+                        <option value="@entitat.Id">@entitat.Nom</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="form-group col-md-3">
+                <label>Estat</label>
+                <InputSelect @bind-Value="subvencio.EstatId" @bind-Value:after="MarcarCanvis" class="form-control">
+                    <option value="">Selecciona un estat</option>
+                    @foreach (var estat in estats)
+                    {
+                        <option value="@estat.Id">@estat.Nom</option>
+                    }
+                </InputSelect>
+            </div>
+        </div>
+
+        <div class="row mb-3">
+            <div class="form-group col-md-4">
+                <label>Ens</label>
+                <InputSelect @bind-Value="subvencio.EnsId" @bind-Value:after="MarcarCanvis" class="form-control">
+                    <option value="">Selecciona un ens</option>
+                    @foreach (var ens in ensList)
+                    {
+                        <option value="@ens.Id">@ens.Nom</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="form-group col-md-8">
+                <label>Persona de Contacte</label>
+                <InputTextArea @bind-Value="subvencio.PersonaContacte" @bind-Value:after="MarcarCanvis" class="form-control" rows="3" />
+            </div>
+        </div>
+
+        <div class="row mb-3">
+            <div class="form-group col-md-4">
+                <label>Regidors</label>
+                <div class="border p-2" style="max-height: 200px; overflow-y: auto;">
+                    @foreach (var regidor in regidors)
+                    {
+                        <div class="form-check">
+                            <input type="checkbox" 
+                                   checked="@selectedRegidors[regidor.Id]" 
+                                   @onchange="e => { selectedRegidors[regidor.Id] = (bool)e.Value!; MarcarCanvis(); }" 
+                                   class="form-check-input" />
+                            <label class="form-check-label">@regidor.Nom</label>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-3">
+            <div class="form-group col-md-4">
+                <label>Import Atorgat</label>
+                <InputText @bind-Value="importAtorgatFormatted" class="form-control text-end" @onblur="OnImportAtorgatBlur" />
+            </div>
+            <div class="form-group col-md-4">
+                <label>Import Total Actuació</label>
+                <InputText @bind-Value="importTotalActuacioFormatted" class="form-control text-end" @onblur="OnImportTotalActuacioBlur" />
+            </div>
+            <div class="form-group col-md-4">
+                <label>Imports a Retornar</label>
+                <InputText @bind-Value="importsRetornarFormatted" class="form-control text-end" @onblur="OnImportsRetornarBlur" />
+            </div>
+        </div>
+
+        <div class="row mb-3">
+            <div class="form-group col-md-6">
+                <label>Obligacions</label>
+                <InputTextArea @bind-Value="subvencio.Obligacions" @bind-Value:after="MarcarCanvis" class="form-control" rows="3" />
+            </div>
+            <div class="form-group col-md-6">
+                <label>Justificació</label>
+                <InputTextArea @bind-Value="subvencio.Justificacio" @bind-Value:after="MarcarCanvis" class="form-control" rows="3" />
+            </div>
+        </div>
+
+        <div class="row mb-3">
+            <div class="form-group col-md-6">
+                <label>Partida</label>
+                <InputText @bind-Value="subvencio.Partida" @bind-Value:after="MarcarCanvis" class="form-control" />
+            </div>
+            <div class="form-group col-md-6">
+                <label>Justificació Verificada</label>
+                <InputText @bind-Value="subvencio.JustificacioVerificada" @bind-Value:after="MarcarCanvis" class="form-control" />
+            </div>
+        </div>
+
+        <div class="row mb-3">
+            <div class="form-group col-md-12">
+                <label>Expedients</label>
+                <div class="d-flex flex-wrap gap-2 mb-2">
+                    @foreach (var (expedient, index) in expedients.Select((e, i) => (e, i)))
+                    {
+                        <div class="input-group" style="min-width: 250px; max-width: 300px;">
+                            <InputText @bind-Value="expedient.NumeroExpedient" 
+                                       @bind-Value:after="async () => await GravarExpedientSiTeDades(expedient)"
+                                       class="form-control form-control-sm" placeholder="Número d'Expedient" />
+                            <button type="button" class="btn btn-outline-danger btn-sm" @onclick="() => EsborrarExpedient(index)" title="Esborrar expedient">
+                                <span>✕</span>
+                            </button>
+                        </div>
+                    }
+                </div>
+                <button type="button" class="btn btn-outline-primary btn-sm" @onclick="AfegirExpedient">
+                    + Afegir Expedient
+                </button>
+            </div>
+        </div>
+
+        <div class="row mb-3">
+            <div class="form-group col-md-12">
+                <label>Terminis</label>
+                @foreach (var (terminiSubvencio, index) in terminisSubvencio.Select((t, i) => (t, i)))
+                {
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <label class="form-label">Tipus de Termini</label>
+                                    <InputSelect @bind-Value="terminiSubvencio.TerminiId"
+                                                 @bind-Value:after="async () => await GravarTerminiSiTeDades(terminiSubvencio)"
+                                                 class="form-control">
+                                        <option value="">Selecciona un termini</option>
+                                        @foreach (var termini in terminis)
+                                        {
+                                            <option value="@termini.Id">@termini.Nom</option>
+                                        }
+                                    </InputSelect>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Data Inici</label>
+                                    <InputDate @bind-Value="terminiSubvencio.DataInici" 
+                                               @bind-Value:after="async () => await GravarTerminiSiTeDades(terminiSubvencio)"
+                                               class="form-control" />
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Data Fi</label>
+                                    <InputDate @bind-Value="terminiSubvencio.DataFi" 
+                                               @bind-Value:after="async () => await GravarTerminiSiTeDades(terminiSubvencio)"
+                                               class="form-control" />
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Notes</label>
+                                    <InputText @bind-Value="terminiSubvencio.Notes" 
+                                               @bind-Value:after="async () => await GravarTerminiSiTeDades(terminiSubvencio)"
+                                               class="form-control" />
+                                </div>
+                                <div class="col-md-1">
+                                    <label class="form-label">&nbsp;</label>
+                                    <button type="button" class="btn btn-outline-danger btn-sm w-100" @onclick="async () => await EsborrarTermini(index)">
+                                        <span>✕</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+                <button type="button" class="btn btn-outline-primary btn-sm" @onclick="AfegirTermini">
+                    + Afegir Termini
+                </button>
+            </div>
+        </div>
+
+        <div class="row mb-3">
+            <div class="form-group col-md-12">
+                <label>Pagaments</label>
+                @foreach (var (pagament, index) in pagaments.Select((p, i) => (p, i)))
+                {
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-2">
+                                    <label class="form-label">Import</label>
+                                    <InputText @bind-Value="pagament.AmountFormatted" 
+                                               class="form-control text-end" 
+                                               @onblur="async () => await OnPagamentAmountBlur(pagament)" />
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Data</label>
+                                    <InputDate @bind-Value="pagament.Date" 
+                                               @bind-Value:after="async () => await GravarPagamentSiTeDades(pagament)"
+                                               class="form-control" />
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Comentari</label>
+                                    <InputText @bind-Value="pagament.Comment" 
+                                               @bind-Value:after="async () => await GravarPagamentSiTeDades(pagament)"
+                                               class="form-control" />
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Sense Pagament</label>
+                                    <InputCheckbox @bind-Value="pagament.IsNoPayment" 
+                                                   @bind-Value:after="async () => await GravarPagamentSiTeDades(pagament)"
+                                                   class="form-check-input ms-2" />
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Descripció Servei</label>
+                                    <InputText @bind-Value="pagament.ServiceDescription" 
+                                               @bind-Value:after="async () => await GravarPagamentSiTeDades(pagament)"
+                                               class="form-control" />
+                                </div>
+                                <div class="col-md-1">
+                                    <label class="form-label">&nbsp;</label>
+                                    <button type="button" class="btn btn-outline-danger btn-sm w-100" @onclick="async () => await EsborrarPagament(index)">
+                                        <span>✕</span>
+                                    </button>
+                                </div>
+                            </div>
+                            @if (pagament.PaymentPercentage.HasValue)
+                            {
+                                <div class="row mt-2">
+                                    <div class="col-md-12">
+                                        <small class="text-muted">Percentatge: @pagament.PaymentPercentage.Value% del total atorgat</small>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+                <button type="button" class="btn btn-outline-primary btn-sm" @onclick="AfegirPagament">
+                    + Afegir Pagament
+                </button>
+            </div>
+        </div>
+                <div class="d-flex justify-content-end gap-2">
+                    <button type="button" @onclick="Tornar" class="btn btn-outline-secondary">Cancel·lar</button>
+                    <button type="submit" class="btn btn-primary" disabled="@(!canvisPendents)">Desar</button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private Subvencio_? subvencio;
+    private List<Any_> anys = new();
+    private List<Area> arees = new();
+    private List<Entitat> entitats = new();
+    private List<Estat> estats = new();
+    private List<Regidor> regidors = new();
+    private List<Ens> ensList = new();
+
+    private Dictionary<int, bool> selectedRegidors = new();
+    private List<Expedient> expedients = new();
+    private List<Pagament> pagaments = new();
+    private List<Termini> terminis = new();
+    private List<TerminisSubvencio> terminisSubvencio = new();
+
+    private string importAtorgatFormatted = string.Empty;
+    private bool carregat = false;
+    private bool canvisPendents = false;
+
+    private string importTotalActuacioFormatted = string.Empty;
+    private string importsRetornarFormatted = string.Empty;
+
+    // Diccionari per emmagatzemar els valors formatats dels imports de pagaments
+    private Dictionary<int, string> pagamentAmountFormatted = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        subvencio = await Context.Subvencions
+            .Include(s => s.RegidorsSubvencions)
+            .Include(s => s.Expedients)
+            .Include(s => s.Pagaments)
+            .Include(s => s.TerminisSubvencions).ThenInclude(ts => ts.Termini)
+            .FirstOrDefaultAsync(s => s.Id == Id);
+
+        anys = await Context.Anys.ToListAsync();
+        arees = await Context.Arees.ToListAsync();
+        entitats = await Context.Entitats.ToListAsync();
+        estats = await Context.Estats.ToListAsync();
+        regidors = await Context.Regidors.ToListAsync();
+        ensList = await Context.Ens.ToListAsync();
+        terminis = await Context.Terminis.Where(t => t.Actiu).ToListAsync();
+
+        selectedRegidors = regidors.ToDictionary(r => r.Id, r => false);
+
+        if (subvencio != null)
+        {
+            // Carregar expedients existents o afegir-ne un de buit
+            expedients = subvencio.Expedients.ToList();
+            if (expedients.Count == 0)
+            {
+                expedients.Add(new Expedient { SubvencioId = Id, NumeroExpedient = "" });
+            }
+
+            // Carregar pagaments existents
+            pagaments = subvencio.Pagaments.ToList();
+            
+            // Inicialitzar formats dels imports de pagaments
+            foreach (var pag in pagaments)
+            {
+                pag.AmountFormatted = pag.Amount.HasValue ? FormatImport(pag.Amount.Value) : string.Empty;
+            }
+
+            // Carregar terminis existents
+            terminisSubvencio = subvencio.TerminisSubvencions.ToList();
+
+            foreach (var rs in subvencio.RegidorsSubvencions)
+            {
+                selectedRegidors[rs.RegidorId] = true;
+            }
+
+            if (subvencio.ImportAtorgat.HasValue)
+            {
+                importAtorgatFormatted = FormatImport(subvencio.ImportAtorgat.Value);
+            }
+
+            if (subvencio.ImportTotalActuacio.HasValue)
+            {
+                importTotalActuacioFormatted = FormatImport(subvencio.ImportTotalActuacio.Value);
+            }
+
+            if (subvencio.ImportsRetornar.HasValue)
+            {
+                importsRetornarFormatted = FormatImport(subvencio.ImportsRetornar.Value);
+            }
+        }
+
+        carregat = true;
+    }
+
+    private void AfegirExpedient()
+    {
+        expedients.Add(new Expedient { SubvencioId = Id, NumeroExpedient = "" });
+    }
+
+    private async Task EsborrarExpedient(int index)
+    {
+        if (index >= 0 && index < expedients.Count)
+        {
+            var expedient = expedients[index];
+            if (expedient.Id > 0) // Si ja existeix a la BD
+            {
+                Context.Expedients.Remove(expedient);
+                await Context.SaveChangesAsync();
+            }
+            expedients.RemoveAt(index);
+        }
+    }
+
+    private async Task GravarExpedientSiTeDades(Expedient expedient)
+    {
+        // Només gravar si té número d'expedient
+        if (!string.IsNullOrWhiteSpace(expedient.NumeroExpedient))
+        {
+            if (expedient.Id == 0) // Nou expedient
+            {
+                Context.Expedients.Add(expedient);
+            }
+            else // Actualitzar existent
+            {
+                Context.Expedients.Update(expedient);
+            }
+            await Context.SaveChangesAsync();
+            StateHasChanged();
+        }
+    }
+
+    private void AfegirPagament()
+    {
+        pagaments.Add(new Pagament { SubvencioId = Id });
+    }
+
+    private void AfegirTermini()
+    {
+        terminisSubvencio.Add(new TerminisSubvencio { SubvencioId = Id });
+    }
+
+    private async Task EsborrarPagament(int index)
+    {
+        if (index >= 0 && index < pagaments.Count)
+        {
+            var pagament = pagaments[index];
+            if (pagament.Id > 0) // Si ja existeix a la BD
+            {
+                Context.Pagaments.Remove(pagament);
+                await Context.SaveChangesAsync();
+            }
+            pagaments.RemoveAt(index);
+            StateHasChanged();
+        }
+    }
+
+    private async Task EsborrarTermini(int index)
+    {
+        if (index >= 0 && index < terminisSubvencio.Count)
+        {
+            var termini = terminisSubvencio[index];
+            if (termini.Id > 0) // Si ja existeix a la BD
+            {
+                Context.TerminisSubvencions.Remove(termini);
+                await Context.SaveChangesAsync();
+            }
+            terminisSubvencio.RemoveAt(index);
+            StateHasChanged();
+        }
+    }
+
+    private async Task GravarPagamentSiTeDades(Pagament pagament)
+    {
+        // Només gravar si té algun valor significatiu i no està ja gravat
+        if (pagament.Amount > 0 || pagament.Date.HasValue || !string.IsNullOrWhiteSpace(pagament.Comment) || !string.IsNullOrWhiteSpace(pagament.ServiceDescription))
+        {
+            if (pagament.Id == 0) // Nou pagament
+            {
+                Context.Pagaments.Add(pagament);
+            }
+            else // Actualitzar existent
+            {
+                Context.Pagaments.Update(pagament);
+            }
+            await Context.SaveChangesAsync();
+            StateHasChanged();
+        }
+    }
+
+    private async Task GravarTerminiSiTeDades(TerminisSubvencio termini)
+    {
+        // Només gravar si té termini seleccionat i algun valor de data o notes
+        if (termini.TerminiId > 0 && (termini.DataInici.HasValue || termini.DataFi.HasValue || !string.IsNullOrWhiteSpace(termini.Notes)))
+        {
+            if (termini.Id == 0) // Nou termini
+            {
+                Context.TerminisSubvencions.Add(termini);
+            }
+            else // Actualitzar existent
+            {
+                Context.TerminisSubvencions.Update(termini);
+            }
+            await Context.SaveChangesAsync();
+            StateHasChanged();
+        }
+    }
+
+    private string FormatImport(decimal value)
+    {
+        return value.ToString("N2", System.Globalization.CultureInfo.GetCultureInfo("ca-ES"));
+    }
+
+    private void MarcarCanvis()
+    {
+        canvisPendents = true;
+    }
+
+    private async Task Guardar()
+    {
+        if (subvencio is not null)
+        {
+            var selectedRegidorIds = selectedRegidors.Where(kv => kv.Value).Select(kv => kv.Key).ToList();
+
+            // Gestionar regidors
+            var regidorsActuals = subvencio.RegidorsSubvencions.Select(rs => rs.RegidorId).ToList();
+            var regidorsAEliminar = regidorsActuals.Except(selectedRegidorIds).ToList();
+            var regidorsAAfegir = selectedRegidorIds.Except(regidorsActuals).ToList();
+
+            // Eliminar regidors no seleccionats
+            foreach (var regidorId in regidorsAEliminar)
+            {
+                var rs = subvencio.RegidorsSubvencions.First(rs => rs.RegidorId == regidorId);
+                Context.RegidorsSubvencions.Remove(rs);
+            }
+
+            // Afegir regidors nous
+            foreach (var regidorId in regidorsAAfegir)
+            {
+                var rs = new RegidorsSubvencions { SubvencioId = subvencio.Id, RegidorId = regidorId };
+                Context.RegidorsSubvencions.Add(rs);
+            }
+
+            Context.Subvencions.Update(subvencio);
+            await Context.SaveChangesAsync();
+            canvisPendents = false; // Reset after saving
+            NavigationManager.NavigateTo("/subvencions");
+        }
+    }
+
+    private void Tornar()
+    {
+        NavigationManager.NavigateTo("/subvencions");
+    }
+
+    private void OnImportAtorgatBlur()
+    {
+        if (subvencio == null) return;
+
+        if (decimal.TryParse(importAtorgatFormatted, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.GetCultureInfo("ca-ES"), out var result))
+        {
+            subvencio.ImportAtorgat = result;
+            importAtorgatFormatted = FormatImport(result);
+        }
+        else
+        {
+            importAtorgatFormatted = string.Empty;
+            subvencio.ImportAtorgat = null;
+        }
+        MarcarCanvis();
+    }
+
+    private void OnImportTotalActuacioBlur()
+    {
+        if (subvencio == null) return;
+
+        if (decimal.TryParse(importTotalActuacioFormatted, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.GetCultureInfo("ca-ES"), out var result))
+        {
+            subvencio.ImportTotalActuacio = result;
+            importTotalActuacioFormatted = FormatImport(result);
+        }
+        else
+        {
+            importTotalActuacioFormatted = string.Empty;
+            subvencio.ImportTotalActuacio = null;
+        }
+        MarcarCanvis();
+    }
+
+    private void OnImportsRetornarBlur()
+    {
+        if (subvencio == null) return;
+
+        if (decimal.TryParse(importsRetornarFormatted, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.GetCultureInfo("ca-ES"), out var result))
+        {
+            subvencio.ImportsRetornar = result;
+            importsRetornarFormatted = FormatImport(result);
+        }
+        else
+        {
+            importsRetornarFormatted = string.Empty;
+            subvencio.ImportsRetornar = null;
+        }
+        MarcarCanvis();
+    }
+
+    private async Task OnPagamentAmountBlur(Pagament pagament)
+    {
+        if (decimal.TryParse(pagament.AmountFormatted, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.GetCultureInfo("ca-ES"), out var result))
+        {
+            pagament.Amount = result;
+            pagament.AmountFormatted = FormatImport(result);
+        }
+        else
+        {
+            pagament.AmountFormatted = string.Empty;
+            pagament.Amount = null;
+        }
+        await GravarPagamentSiTeDades(pagament);
+    }
+}

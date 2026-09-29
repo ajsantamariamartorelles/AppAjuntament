@@ -1,0 +1,229 @@
+@page "/dades-municipals/punts-aigua"
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@using AppAjuntament.Models.PuntsAigua
+@using AppAjuntament.Services
+@inject PuntsAiguaService PuntsAiguaService
+@inject IJSRuntime JSRuntime
+@inject ILogger<PuntsAigua> Logger
+
+<PageTitle>Punts d'Aigua – Prevenció d'Incendis</PageTitle>
+
+<div class="container-fluid">
+    <div class="screen-header">
+        <h1 class="h3 mb-0">
+            <i class="fas fa-fire-extinguisher me-2 text-danger"></i>
+            Punts d'Aigua per a la Prevenció d'Incendis Forestals
+        </h1>
+        <button class="btn btn-outline-primary" @onclick="Carregar" disabled="@isLoading">
+            @if (isLoading)
+            {
+                <i class="fas fa-spinner fa-spin me-2"></i>
+            }
+            else
+            {
+                <i class="fas fa-sync-alt me-2"></i>
+            }
+            Actualitzar
+        </button>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-danger" role="status"></div>
+            <p class="mt-3">Carregant punts d'aigua...</p>
+        </div>
+    }
+    else if (errorMessage != null)
+    {
+        <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            @errorMessage
+        </div>
+    }
+    else if (punts.Any())
+    {
+        <!-- Resum -->
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-md-3">
+                <div class="card text-center border-0 bg-light">
+                    <div class="card-body py-3">
+                        <div class="fs-2 fw-bold text-danger">@punts.Count</div>
+                        <div class="text-muted small">Total punts</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card text-center border-0 bg-light">
+                    <div class="card-body py-3">
+                        <div class="fs-2 fw-bold text-success">@punts.Count(p => p.Estat == "En servei")</div>
+                        <div class="text-muted small">En servei</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card text-center border-0 bg-light">
+                    <div class="card-body py-3">
+                        <div class="fs-2 fw-bold text-primary">@punts.Count(p => p.Tipologia == "Hidrant")</div>
+                        <div class="text-muted small">Hidrants</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card text-center border-0 bg-light">
+                    <div class="card-body py-3">
+                        <div class="fs-2 fw-bold text-warning">@punts.Count(p => p.Tipologia != "Hidrant")</div>
+                        <div class="text-muted small">Altres tipologies</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mapa -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-body p-0">
+                <div id="punts-aigua-map" style="height:450px;width:100%;border-radius:0.375rem;"></div>
+            </div>
+        </div>
+
+        <!-- Taula -->
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <i class="fas fa-table me-2"></i> Llistat de punts d'aigua
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Codi</th>
+                            <th>Tipologia</th>
+                            <th>Tipus</th>
+                            <th>Ubicació</th>
+                            <th>Estat</th>
+                            <th>Categoria</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var p in punts)
+                        {
+                            <tr>
+                                <td><code>@p.Codi</code></td>
+                                <td>@p.Tipologia</td>
+                                <td>@p.Tipus</td>
+                                <td>@p.Paratge</td>
+                                <td>
+                                    @if (p.Estat == "En servei")
+                                    {
+                                        <span class="badge bg-success">@p.Estat</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary">@(p.Estat ?? "–")</span>
+                                    }
+                                </td>
+                                <td><span class="badge bg-light text-dark border">@(p.Categoria ?? "–")</span></td>
+                                <td>
+                                    @if (p.TeFoto1)
+                                    {
+                                        <a href="@p.Foto1" target="_blank" class="btn btn-outline-secondary btn-sm">
+                                            <i class="fas fa-camera"></i>
+                                        </a>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="card-footer text-muted small">
+                <i class="fas fa-info-circle me-1"></i>
+                Dades proporcionades per la Diputació de Barcelona – Oficina Tècnica de Prevenció Municipal d'Incendis Forestals.
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="text-center py-5 text-muted">
+            <i class="fas fa-fire-extinguisher fa-3x mb-3"></i>
+            <h4>No hi ha punts d'aigua registrats per a aquest municipi.</h4>
+        </div>
+    }
+</div>
+
+@code {
+    private List<PuntAigua> punts = new();
+    private bool isLoading = true;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync() => await Carregar();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !isLoading && punts.Any())
+            await InicialitzarMapa();
+    }
+
+    private async Task Carregar()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+            StateHasChanged();
+            punts = await PuntsAiguaService.GetPuntsAiguaAsync();
+        }
+        catch (TaskCanceledException)
+        {
+            errorMessage = "El servei DIBA no està disponible en aquest moment.";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error carregant punts d'aigua");
+            errorMessage = "No s'han pogut carregar les dades.";
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+            if (punts.Any())
+                await InicialitzarMapa();
+        }
+    }
+
+    private async Task InicialitzarMapa()
+    {
+        // Petit delay per assegurar que el DOM estigui llest
+        await Task.Delay(300);
+
+        var centrelat = punts.Average(p => p.Lat!.Value);
+        var centrelng = punts.Average(p => p.Long!.Value);
+
+        for (int i = 0; i < 5; i++)
+        {
+            try
+            {
+                var ok = await JSRuntime.InvokeAsync<bool>("inicialitzarMapaPuntsAigua", centrelat, centrelng);
+                if (ok)
+                {
+                    var markersData = punts.Select(p => new
+                    {
+                        codi = p.Codi,
+                        tipologia = p.Tipologia,
+                        tipus = p.Tipus,
+                        paratge = p.Paratge,
+                        estat = p.Estat,
+                        foto1 = p.TeFoto1 ? p.Foto1 : null,
+                        lat = p.Lat!.Value,
+                        lng = p.Long!.Value
+                    }).ToArray();
+
+                    await JSRuntime.InvokeVoidAsync("afegirMarkersPuntsAigua", (object)markersData);
+                    return;
+                }
+            }
+            catch { }
+            await Task.Delay(400);
+        }
+    }
+}

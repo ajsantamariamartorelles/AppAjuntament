@@ -1,0 +1,79 @@
+@page "/accepta-termes"
+@using AppAjuntament.Services
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IAcceptacioTermesService AcceptacioTermesService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Termes i protecció de dades - Gestor de Subvencions</PageTitle>
+
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-7">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Abans de continuar</h5>
+                </div>
+                <div class="card-body">
+                    <p>
+                        Per fer servir aquesta aplicació cal que llegeixis i acceptis els
+                        <a href="/terms-and-conditions" target="_blank">Termes i Condicions d'Ús</a>
+                        i la <a href="/data-privacy" target="_blank">Política de Privacitat</a>.
+                    </p>
+
+                    <div class="form-check my-3">
+                        <input class="form-check-input" type="checkbox" id="accepta" @bind="accepta" />
+                        <label class="form-check-label" for="accepta">
+                            He llegit i accepto els Termes i Condicions d'Ús i la Política de Privacitat.
+                        </label>
+                    </div>
+
+                    @if (mostraError)
+                    {
+                        <div class="alert alert-warning" role="alert">
+                            Cal marcar la casella per continuar.
+                        </div>
+                    }
+
+                    <button class="btn btn-primary" @onclick="Continuar" disabled="@processant">
+                        Continuar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool accepta;
+    private bool mostraError;
+    private bool processant;
+    private string? redirectUri;
+
+    [Microsoft.AspNetCore.Components.SupplyParameterFromQuery]
+    public string? ReturnUrl { get; set; }
+
+    protected override void OnInitialized()
+    {
+        redirectUri = string.IsNullOrWhiteSpace(ReturnUrl) ? "/" : ReturnUrl;
+    }
+
+    private async Task Continuar()
+    {
+        if (!accepta)
+        {
+            mostraError = true;
+            return;
+        }
+        mostraError = false;
+        processant = true;
+
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var email = authState.User.GetEmail();
+        if (!string.IsNullOrWhiteSpace(email))
+        {
+            await AcceptacioTermesService.AcceptaAsync(email);
+        }
+
+        NavigationManager.NavigateTo(redirectUri ?? "/", forceLoad: true);
+    }
+}

@@ -1,0 +1,408 @@
+@page "/tercers/nou"
+@page "/tercers/editar/{Id:int}"
+@using AppAjuntament.Models.Tercers
+@using AppAjuntament.Models.Base.Sexe
+@using AppAjuntament.Models.Municipi
+@using AppAjuntament.Models.Base.Provincia
+@using Microsoft.EntityFrameworkCore
+@using System.Threading
+@inject GestorSubvencionsContext Context
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+@inject AppAjuntament.Services.DatabaseLoggerService DbLogger
+@implements IDisposable
+
+<div class="screen-header">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/tercers">Persones</a></li>
+            <li class="breadcrumb-item active">@(Id.HasValue ? "Editar" : "Nova") Persona</li>
+        </ol>
+    </nav>
+    <div>
+        <button @onclick="Tornar" class="btn btn-outline-secondary me-2">
+            <i class="fas fa-arrow-left me-2"></i>Tornar
+        </button>
+        <button @onclick="Guardar" class="btn btn-primary" disabled="@estaGuardant">
+            @if (estaGuardant)
+            {
+                <span class="spinner-border spinner-border-sm me-2"></span>
+            }
+            else
+            {
+                <i class="fas fa-save me-2"></i>
+            }
+            Guardar
+        </button>
+    </div>
+</div>
+
+@if (isLoading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Carregant...</span>
+        </div>
+    </div>
+}
+else
+{
+    <div class="row">
+        <div class="col-lg-8">
+            <EditForm Model="tercer" OnValidSubmit="Guardar">
+                <DataAnnotationsValidator />
+
+                @if (!string.IsNullOrEmpty(errorMsg))
+                {
+                    <div class="alert alert-danger mb-3">
+                        <i class="fas fa-exclamation-circle me-2"></i>@errorMsg
+                    </div>
+                }
+
+                <!-- Identificació -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-id-card me-2"></i>Identificació</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Nom *</label>
+                                <InputText @bind-Value="tercer.Nom" class="form-control" />
+                                <ValidationMessage For="@(() => tercer.Nom)" class="text-danger" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Cognoms</label>
+                                <InputText @bind-Value="tercer.Cognoms" class="form-control" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">DNI / NIE / Passaport</label>
+                                <InputText @bind-Value="tercer.DNI" class="form-control"
+                                           placeholder="00000000A" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Data de Naixement</label>
+                                <InputDate @bind-Value="tercer.DataNaixement" class="form-control" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Sexe</label>
+                                <InputSelect @bind-Value="tercer.SexeId" class="form-select">
+                                    <option value="">— Selecciona —</option>
+                                    @foreach (var sexe in sexesDisponibles)
+                                    {
+                                        <option value="@sexe.Id">@sexe.Descripcio</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Contacte -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-phone me-2"></i>Contacte</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Telèfon</label>
+                                <InputText @bind-Value="tercer.Telefon" class="form-control" placeholder="600 000 000" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Email</label>
+                                <InputText @bind-Value="tercer.Email" class="form-control" type="email" placeholder="exemple@domini.cat" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Domicili -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-home me-2"></i>Domicili</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-8">
+                                <label class="form-label">Adreça</label>
+                                <InputText @bind-Value="tercer.Adreca" class="form-control" placeholder="Carrer, número, pis..." />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Codi Postal</label>
+                                <InputText @bind-Value="tercer.CodiPostal" class="form-control" placeholder="00000" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Població</label>
+                                <InputText @bind-Value="tercer.Poblacio" class="form-control" placeholder="Nom del municipi" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Municipi (cens)</label>
+                                <select class="form-select" @bind="tercer.MunicipiIne">
+                                    <option value="">— Selecciona —</option>
+                                    @foreach (var mun in municipisDisponibles)
+                                    {
+                                        <option value="@mun.Ine">@mun.MunicipiNom</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Província</label>
+                                <select class="form-select" @bind="tercer.ProvinciaId">
+                                    <option value="">— Selecciona —</option>
+                                    @foreach (var prov in provinciesDisponibles)
+                                    {
+                                        <option value="@prov.Id">@prov.Nom</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                @if (!Id.HasValue)
+                {
+                    <!-- Autorització de tractament de dades -->
+                    <div class="card mb-4 border-warning">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="fas fa-file-signature me-2"></i>Autorització de tractament de dades</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-check">
+                                <InputCheckbox @bind-Value="autoritzacioSignada" class="form-check-input" id="autoritzacio" />
+                                <label class="form-check-label" for="autoritzacio">
+                                    Confirmo que la persona ha signat l'autorització de tractament de dades
+                                    per als serveis de l'Ajuntament. *
+                                </label>
+                            </div>
+                            @if (mostraErrorAutoritzacio && !autoritzacioSignada)
+                            {
+                                <div class="text-danger small mt-1">Cal confirmar-ho per poder guardar la persona.</div>
+                            }
+                        </div>
+                    </div>
+                }
+
+            </EditForm>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-paperclip me-2"></i>Documents</h6>
+                </div>
+                <div class="card-body p-2">
+                    @if (Id.HasValue && Id.Value > 0)
+                    {
+                        <AppAjuntament.Pages.Components.DocumentsPanel EntityType="@DocumentEntityType.Tercer"
+                                                                       EntityId="@Id"
+                                                                       TramitCodi="TERCER_ALTA"
+                                                                       AllowCustomType="true" />
+                    }
+                    else
+                    {
+                        <div class="alert alert-warning small mb-0">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Primer guarda la persona per poder adjuntar documents.
+                        </div>
+                    }
+                </div>
+            </div>
+            @if (Id.HasValue && tercer.Voluntaris.Any())
+            {
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="fas fa-users me-2"></i>Voluntaris vinculats</h6>
+                    </div>
+                    <div class="card-body p-0">
+                        <ul class="list-group list-group-flush">
+                            @foreach (var vol in tercer.Voluntaris)
+                            {
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>
+                                        <i class="fas fa-user me-2 text-success"></i>
+                                        @vol.EstatVoluntari?.Nom
+                                    </span>
+                                    <a href="/voluntaris/editar/@vol.Id" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                </div>
+            }
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Informació</h6>
+                </div>
+                <div class="card-body">
+                    <small class="text-muted">
+                        @if (tercer.DataNaixement.HasValue)
+                        {
+                            <p class="mb-1"><strong>Edat:</strong> @tercer.Edat anys</p>
+                        }
+                        @if (Id.HasValue)
+                        {
+                            <p class="mb-1"><strong>Creat:</strong> @tercer.CreatedAt.ToString("dd/MM/yyyy")</p>
+                            <p class="mb-1"><strong>Actualitzat:</strong> @tercer.UpdatedAt.ToString("dd/MM/yyyy")</p>
+                        }
+                        <p class="mb-0"><strong>Voluntaris:</strong> @tercer.Voluntaris.Count</p>
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int? Id { get; set; }
+
+    private Tercer tercer = new() { CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+    private List<Sexe> sexesDisponibles = new();
+    private List<MunicipiModel> municipisDisponibles = new();
+    private List<Provincia> provinciesDisponibles = new();
+    private string errorMsg = "";
+    private bool estaGuardant = false;
+    private bool isLoading = true;
+    private CancellationTokenSource _cts = new();
+    private bool autoritzacioSignada;
+    private bool mostraErrorAutoritzacio;
+
+    // Alias per evitar problemes amb el nom Municipi
+    private class MunicipiModel
+    {
+        public string Ine { get; set; } = "";
+        public string MunicipiNom { get; set; } = "";
+    }
+
+    private class Provincia
+    {
+        public string Id { get; set; } = "";
+        public string Nom { get; set; } = "";
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await CarregarLookups();
+            if (Id.HasValue)
+                await CarregarTercer();
+            isLoading = false;
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error inicialitzant formulari de Tercer", ex, "OnInitializedAsync");
+            isLoading = false;
+        }
+    }
+
+    private async Task CarregarLookups()
+    {
+        sexesDisponibles = await Context.Sexes
+            .OrderBy(s => s.Descripcio)
+            .ToListAsync(_cts.Token);
+
+        municipisDisponibles = await Context.Municipis
+            .OrderBy(m => m.MunicipiNom)
+            .Select(m => new MunicipiModel { Ine = m.Ine, MunicipiNom = m.MunicipiNom })
+            .ToListAsync(_cts.Token);
+
+        provinciesDisponibles = await Context.Provincies
+            .OrderBy(p => p.Nom)
+            .Select(p => new Provincia { Id = p.Id ?? "", Nom = p.Nom ?? "" })
+            .ToListAsync(_cts.Token);
+    }
+
+    private async Task CarregarTercer()
+    {
+        if (!Id.HasValue) return;
+
+        var t = await Context.Tercers
+            .Include(t => t.Sexe)
+            .Include(t => t.Voluntaris).ThenInclude(v => v.EstatVoluntari)
+            .FirstOrDefaultAsync(t => t.Id == Id.Value, _cts.Token);
+
+        if (t == null)
+            NavigationManager.NavigateTo("/tercers");
+        else
+            tercer = t;
+    }
+
+    private async Task Guardar()
+    {
+        if (estaGuardant) return;
+        estaGuardant = true;
+        errorMsg = "";
+
+        try
+        {
+            // Validació bàsica
+            if (string.IsNullOrWhiteSpace(tercer.Nom))
+            {
+                errorMsg = "El nom és obligatori.";
+                return;
+            }
+
+            if (!Id.HasValue && !autoritzacioSignada)
+            {
+                mostraErrorAutoritzacio = true;
+                errorMsg = "Cal confirmar que la persona ha signat l'autorització de tractament de dades.";
+                return;
+            }
+
+            // Comprovar DNI duplicat
+            if (!string.IsNullOrWhiteSpace(tercer.DNI))
+            {
+                var dniNorm = tercer.DNI.Trim().ToUpper();
+                tercer.DNI = dniNorm;
+                var dniExist = await Context.Tercers
+                    .AnyAsync(t => t.DNI == dniNorm && t.Id != (Id ?? 0), _cts.Token);
+                if (dniExist)
+                {
+                    errorMsg = $"Ja existeix una persona amb el DNI '{dniNorm}'.";
+                    return;
+                }
+            }
+
+            tercer.Nom = tercer.Nom.Trim();
+            tercer.Cognoms = tercer.Cognoms?.Trim();
+            tercer.UpdatedAt = DateTime.UtcNow;
+
+            if (Id.HasValue)
+            {
+                Context.Tercers.Update(tercer);
+            }
+            else
+            {
+                tercer.CreatedAt = DateTime.UtcNow;
+                tercer.AutoritzacioTractamentSignada = true;
+                tercer.DataAutoritzacio = DateTime.Now;
+                Context.Tercers.Add(tercer);
+            }
+
+            await Context.SaveChangesAsync(_cts.Token);
+            NavigationManager.NavigateTo("/tercers");
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error guardant Tercer", ex, "Guardar");
+            errorMsg = "Error en guardar la persona: " + ex.Message;
+        }
+        finally
+        {
+            estaGuardant = false;
+        }
+    }
+
+    private void Tornar() => NavigationManager.NavigateTo("/tercers");
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+    }
+}

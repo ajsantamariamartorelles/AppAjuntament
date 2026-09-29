@@ -1,0 +1,220 @@
+@page "/admin/patrimoni/tags"
+@inject GestorSubvencionsContext DbContext
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+@using Microsoft.EntityFrameworkCore
+
+<PageTitle>Gestió de Tags</PageTitle>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/patrimoni/gestio">Patrimoni</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Tags</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-12 d-flex justify-content-between align-items-center">
+            <h1 class="h3 mb-0">Gestió de Tags</h1>
+            <button @onclick="ShowCreateModal" class="btn btn-success">
+                <i class="fas fa-plus me-2"></i>Nou Tag
+            </button>
+        </div>
+    </div>
+
+    @if (TagsList == null)
+    {
+        <div class="text-center">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Carregant...</span>
+            </div>
+        </div>
+    }
+    else if (!TagsList.Any())
+    {
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>No hi ha tags definits.
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Color</th>
+                        <th>Nom</th>
+                        <th>Actiu</th>
+                        <th>Accions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var tag in TagsList.OrderBy(t => t.Nom))
+                    {
+                        <tr>
+                            <td>
+                                <span class="badge" style="background-color: @tag.Color; font-size: 1rem; padding: .4em .7em;">&nbsp;</span>
+                            </td>
+                            <td>
+                                <span class="badge" style="background-color: @tag.Color">@tag.Nom</span>
+                            </td>
+                            <td>
+                                @if (tag.Actiu)
+                                {
+                                    <span class="badge bg-success">Actiu</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">Inactiu</span>
+                                }
+                            </td>
+                            <td>
+                                <button @onclick="() => EditTag(tag)" class="btn btn-sm btn-outline-primary me-1">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button @onclick="() => DeleteTag(tag)" class="btn btn-sm btn-outline-danger">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+<!-- Modal crear/editar -->
+<div class="modal fade @(EditingTag != null ? "show d-block" : "")" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">@(EditingTag?.Id > 0 ? "Editar Tag" : "Nou Tag")</h5>
+                <button type="button" class="btn-close" @onclick="CloseModal"></button>
+            </div>
+            <div class="modal-body">
+                @if (EditingTag != null)
+                {
+                    <EditForm Model="EditingTag" OnValidSubmit="SaveTag">
+                        <DataAnnotationsValidator />
+                        <div class="mb-3">
+                            <label class="form-label">Nom *</label>
+                            <InputText @bind-Value="EditingTag.Nom" class="form-control" />
+                            <ValidationMessage For="() => EditingTag.Nom" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Color</label>
+                            <div class="d-flex align-items-center gap-2">
+                                <input type="color" value="@EditingTag.Color"
+                                       @onchange="e => EditingTag.Color = e.Value?.ToString() ?? EditingTag.Color"
+                                       class="form-control form-control-color" style="width: 60px;" />
+                                <span class="badge" style="background-color: @EditingTag.Color; font-size: .9rem;">@EditingTag.Nom</span>
+                            </div>
+                        </div>
+                        <div class="mb-3 form-check">
+                            <InputCheckbox @bind-Value="EditingTag.Actiu" class="form-check-input" id="chkActiu" />
+                            <label class="form-check-label" for="chkActiu">Actiu</label>
+                        </div>
+                        <div class="modal-footer px-0 pb-0">
+                            <button type="button" class="btn btn-secondary" @onclick="CloseModal">Cancel·lar</button>
+                            <button type="submit" class="btn btn-primary">Guardar</button>
+                        </div>
+                    </EditForm>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+@if (EditingTag != null)
+{
+    <div class="modal-backdrop fade show"></div>
+}
+
+@code {
+    private List<Tag>? TagsList { get; set; }
+    private Tag? EditingTag { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTags();
+    }
+
+    private async Task LoadTags()
+    {
+        TagsList = await DbContext.Tags.OrderBy(t => t.Nom).ToListAsync();
+    }
+
+    private void ShowCreateModal()
+    {
+        EditingTag = new Tag { Actiu = true, Color = "#6C757D" };
+    }
+
+    private void EditTag(Tag tag)
+    {
+        EditingTag = new Tag
+        {
+            Id = tag.Id,
+            Nom = tag.Nom,
+            Color = tag.Color,
+            Actiu = tag.Actiu
+        };
+    }
+
+    private async Task SaveTag()
+    {
+        if (EditingTag == null) return;
+        try
+        {
+            EditingTag.UpdatedAt = DateTime.Now;
+            if (EditingTag.Id == 0)
+            {
+                EditingTag.CreatedAt = DateTime.Now;
+                DbContext.Tags.Add(EditingTag);
+            }
+            else
+            {
+                var existing = await DbContext.Tags.FindAsync(EditingTag.Id);
+                if (existing != null)
+                {
+                    existing.Nom = EditingTag.Nom;
+                    existing.Color = EditingTag.Color;
+                    existing.Actiu = EditingTag.Actiu;
+                    existing.UpdatedAt = DateTime.Now;
+                }
+            }
+            await DbContext.SaveChangesAsync();
+            await LoadTags();
+            CloseModal();
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error: {ex.Message}");
+        }
+    }
+
+    private async Task DeleteTag(Tag tag)
+    {
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", $"Eliminar el tag '{tag.Nom}'?"))
+            return;
+        try
+        {
+            DbContext.Tags.Remove(tag);
+            await DbContext.SaveChangesAsync();
+            await LoadTags();
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error eliminant tag: {ex.Message}");
+        }
+    }
+
+    private void CloseModal()
+    {
+        EditingTag = null;
+    }
+}

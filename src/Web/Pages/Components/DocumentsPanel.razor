@@ -1,0 +1,494 @@
+@* Component reutilitzable per gestionar documents vinculats a qualsevol entitat.
+   Ús: <DocumentsPanel EntityType="@DocumentEntityType.Voluntari" EntityId="@voluntariId" />
+   Paràmetres opcionals:
+   - AllowedDocumentTypes: Llista d'IDs de tipus de documents permesos
+   - AllowCustomType: Permet introduir tipus personalitzat "Altres"
+   - RequiredTypes: Llista d'IDs de tipus obligatoris
+*@
+
+@using Microsoft.EntityFrameworkCore
+@using AppAjuntament.Services
+@using AppAjuntament.Models.Documents
+@using System.Text
+@inject IDbContextFactory<GestorSubvencionsContext> DbContextFactory
+@inject MinioStorageService MinioStorage
+@inject IJSRuntime JS
+
+<div class="documents-panel">
+    <div class="screen-header mb-2">
+        <h6 class="screen-title mb-0"><i class="fas fa-folder-open me-1"></i>Documents</h6>
+    </div>
+    @if (_loading)
+    {
+        <div class="text-center py-3">
+            <div class="spinner-border spinner-border-sm text-secondary" role="status">
+                <span class="visually-hidden">Carregant...</span>
+            </div>
+        </div>
+    }
+    else if (_errorCarrega != null)
+    {
+        <div class="alert alert-danger py-2 small">
+            <i class="fas fa-exclamation-triangle me-1"></i>
+            <strong>Error en carregar documents:</strong> @_errorCarrega
+        </div>
+    }
+    else
+    {
+        @if (!ReadOnly && _requiredTypeIds.Any())
+        {
+            var documentsObligatorisFalten = GetDocumentsObligatorisFalten();
+            if (documentsObligatorisFalten.Any())
+            {
+                <div class="alert alert-warning py-2 mb-3 small">
+                    <i class="fas fa-exclamation-triangle me-1"></i>
+                    <strong>Documents obligatoris pendents:</strong>
+                    @string.Join(", ", documentsObligatorisFalten)
+                </div>
+            }
+        }
+
+        @if (!ReadOnly)
+        {
+            <div class="mb-3">
+                <label class="form-label fw-semibold">
+                    <i class="fas fa-paperclip me-1"></i>Adjuntar document
+                </label>
+                <div class="row g-2">
+                    <div class="col-md-4">
+                        <select class="form-select form-select-sm" @bind="_tipusSeleccionat" @bind:after="OnTipusCanviat">
+                            <option value="0">-- Tipus de document --</option>
+                            @foreach (var t in _tipusDocuments)
+                            {
+                                <option value="@t.Id">@t.Nom@(_requiredTypeIds.Contains(t.Id) ? " *" : "")</option>
+                            }
+                            @if (AllowCustomType)
+                            {
+                                <option value="-1">Altres</option>
+                            }
+                        </select>
+                    </div>
+                    @if (_isTipusPersonalitzat)
+                    {
+                        <div class="col-md-3">
+                            <input type="text" class="form-control form-control-sm" placeholder="Tipus personalitzat"
+                                   @bind="_tipusPersonalitzat" maxlength="100" />
+                        </div>
+                        <div class="col-md-2">
+                            <InputFile OnChange="FileSeleccionat" class="form-control form-control-sm"
+                                       accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx" />
+                        </div>
+                        <div class="col-md-3">
+                            <button type="button" class="btn btn-sm btn-primary w-100"
+                                    @onclick="PujarDocument"
+                                    disabled="@(_fileSeleccionat == null || _pujant || string.IsNullOrWhiteSpace(_tipusPersonalitzat))">
+                                @if (_pujant)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                                }
+                                else
+                                {
+                                    <i class="fas fa-upload me-1"></i>
+                                }
+                                Pujar
+                            </button>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="col-md-5">
+                            <InputFile OnChange="FileSeleccionat" class="form-control form-control-sm"
+                                       accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx" />
+                        </div>
+                        <div class="col-md-3">
+                            <button type="button" class="btn btn-sm btn-primary w-100"
+                                    @onclick="PujarDocument"
+                                    disabled="@(_fileSeleccionat == null || _pujant || _tipusSeleccionat == 0)">
+                                @if (_pujant)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                                }
+                                else
+                                {
+                                    <i class="fas fa-upload me-1"></i>
+                                }
+                                Pujar
+                            </button>
+                        </div>
+                    }
+                </div>
+                @if (!string.IsNullOrWhiteSpace(_errorPuja))
+                {
+                    <div class="alert alert-danger py-1 mt-2 mb-0 small">@_errorPuja</div>
+                }
+            </div>
+        }
+
+        @if (_documents.Count == 0)
+        {
+            <p class="text-muted small fst-italic mb-0">
+                <i class="fas fa-folder-open me-1"></i>Cap document adjuntat.
+            </p>
+        }
+        else
+        {
+            <table class="table table-sm table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Nom</th>
+                        <th>Tipus</th>
+                        <th>Data</th>
+                        <th>Mida</th>
+                        @if (!ReadOnly)
+                        {
+                            <th></th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var doc in _documents)
+                    {
+                        <tr>
+                            <td>
+                                <button type="button" class="btn btn-link btn-sm p-0 text-start"
+                                        @onclick="() => DescarregarDocument(doc)"
+                                        title="Descarregar @doc.Nom">
+                                    <i class="@GetIcona(doc.MimeType) me-1"></i>@doc.Nom
+                                </button>
+                            </td>
+                            <td class="text-muted small">@(doc.TipusDocument?.Nom ?? doc.TipusPersonalitzat ?? "—")</td>
+                            <td class="text-muted small">
+                                @(doc.DataDocument.HasValue ? doc.DataDocument.Value.ToString("dd/MM/yyyy") : "—")
+                            </td>
+                            <td class="text-muted small">@FormatMida(doc.MidaBytes)</td>
+                            @if (!ReadOnly)
+                            {
+                                <td class="text-end">
+                                    <button type="button" class="btn btn-sm btn-outline-danger py-0"
+                                            @onclick="() => EliminarDocument(doc)"
+                                            title="Eliminar">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                </td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+</div>
+
+@code {
+    /// <summary>Tipus d'entitat (veure DocumentEntityType).</summary>
+    [Parameter, EditorRequired] public string EntityType { get; set; } = string.Empty;
+
+    /// <summary>Id de l'entitat. null = entitat encara no guardada (mode nou).</summary>
+    [Parameter, EditorRequired] public int? EntityId { get; set; }
+
+    /// <summary>Si true, amaga els controls de puja i eliminació.</summary>
+    [Parameter] public bool ReadOnly { get; set; } = false;
+
+    /// <summary>Llista d'IDs de tipus de documents permesos. Si null o buit, mostra tots.</summary>
+    [Parameter] public List<int>? AllowedDocumentTypes { get; set; }
+
+    /// <summary>Llista de noms de tipus de documents permesos. Si null o buit, mostra tots.</summary>
+    [Parameter] public List<string>? AllowedDocumentTypeNames { get; set; }
+
+    /// <summary>Codi del tràmit (Aux_Tramit.Codi) per carregar tipus de document via relació.</summary>
+    [Parameter] public string? TramitCodi { get; set; }
+
+    /// <summary>Si true, permet introduir tipus personalitzat "Altres".</summary>
+    [Parameter] public bool AllowCustomType { get; set; } = true;
+
+    /// <summary>Llista d'IDs de tipus de documents obligatoris.</summary>
+    [Parameter] public List<int>? RequiredTypes { get; set; }
+
+    private List<Document> _documents = [];
+    private List<TipusDocument> _tipusDocuments = [];
+    private bool _loading = true;
+    private bool _pujant = false;
+    private string? _errorPuja;
+    private string? _errorCarrega;
+    private IBrowserFile? _fileSeleccionat;
+    private int _tipusSeleccionat = 0;
+    private string _tipusPersonalitzat = "";
+    private bool _isTipusPersonalitzat = false;
+    private HashSet<int> _requiredTypeIds = [];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await CarregarDocuments();
+    }
+
+    private async Task CarregarDocuments()
+    {
+        _loading = true;
+        _errorCarrega = null;
+        try
+        {
+            await using var db = await DbContextFactory.CreateDbContextAsync();
+
+            // Prioritat 1: configuració per tràmit
+            if (!string.IsNullOrWhiteSpace(TramitCodi))
+            {
+                var tramitCodi = TramitCodi.Trim();
+
+                var tipusPerTramit = await db.TramitTipusDocuments
+                    .Where(r => r.Actiu)
+                    .Join(
+                        db.Tramits.Where(t => t.Actiu && t.Codi == tramitCodi),
+                        r => r.TramitId,
+                        t => t.Id,
+                        (r, _) => r)
+                    .Join(
+                        db.TipusDocuments.Where(td => td.Actiu),
+                        r => r.TipusDocumentId,
+                        td => td.Id,
+                        (r, td) => new { Rel = r, Tipus = td })
+                    .OrderBy(x => x.Rel.Ordre)
+                    .ThenBy(x => x.Tipus.Nom)
+                    .AsNoTracking()
+                    .ToListAsync();
+
+                _tipusDocuments = tipusPerTramit.Select(x => x.Tipus).ToList();
+                _requiredTypeIds = tipusPerTramit
+                    .Where(x => x.Rel.EsObligatori)
+                    .Select(x => x.Rel.TipusDocumentId)
+                    .ToHashSet();
+            }
+            else
+            {
+                var totsTipus = await db.TipusDocuments
+                    .Where(t => t.Actiu)
+                    .OrderBy(t => t.Nom)
+                    .AsNoTracking()
+                    .ToListAsync();
+
+                // Fallback legacy per compatibilitat
+                if (AllowedDocumentTypes != null && AllowedDocumentTypes.Any())
+                {
+                    _tipusDocuments = totsTipus.Where(t => AllowedDocumentTypes.Contains(t.Id)).ToList();
+                }
+                else if (AllowedDocumentTypeNames != null && AllowedDocumentTypeNames.Any())
+                {
+                    var allowedNames = AllowedDocumentTypeNames
+                        .Where(n => !string.IsNullOrWhiteSpace(n))
+                        .Select(NormalizeDocumentTypeName)
+                        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                    _tipusDocuments = totsTipus
+                        .Where(t => allowedNames.Contains(NormalizeDocumentTypeName(t.Nom)))
+                        .ToList();
+                }
+                else
+                {
+                    _tipusDocuments = totsTipus;
+                }
+
+                _requiredTypeIds = RequiredTypes?.ToHashSet() ?? [];
+            }
+
+            if (EntityId.HasValue && EntityId.Value > 0)
+            {
+                _documents = await db.Documents
+                    .Include(d => d.TipusDocument)
+                    .Where(d => d.EntityType == EntityType && d.EntityId == EntityId.Value)
+                    .OrderByDescending(d => d.CreatedAt)
+                    .AsNoTracking()
+                    .ToListAsync();
+            }
+            else
+            {
+                _documents = [];
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorCarrega = ex.InnerException?.Message ?? ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void OnTipusCanviat()
+    {
+        _isTipusPersonalitzat = _tipusSeleccionat == -1;
+        if (!_isTipusPersonalitzat)
+        {
+            _tipusPersonalitzat = "";
+        }
+        _errorPuja = null;
+    }
+
+    private void FileSeleccionat(InputFileChangeEventArgs e)
+    {
+        _fileSeleccionat = e.File;
+        _errorPuja = null;
+    }
+
+    private async Task PujarDocument()
+    {
+        if (_fileSeleccionat == null || !EntityId.HasValue || EntityId.Value <= 0)
+        {
+            _errorPuja = !EntityId.HasValue || EntityId.Value <= 0
+                ? "Primer guarda el registre per poder adjuntar documents."
+                : "Selecciona un fitxer.";
+            return;
+        }
+
+        if (_tipusSeleccionat == 0 && !_isTipusPersonalitzat)
+        {
+            _errorPuja = "Selecciona un tipus de document.";
+            return;
+        }
+
+        if (_isTipusPersonalitzat && string.IsNullOrWhiteSpace(_tipusPersonalitzat))
+        {
+            _errorPuja = "Introdueix el tipus de document personalitzat.";
+            return;
+        }
+
+        _pujant = true;
+        _errorPuja = null;
+
+        try
+        {
+            // Construir objectKey: EntityType/EntityId/nom_original
+            var safeName = Path.GetFileName(_fileSeleccionat.Name);
+            var objectKey = $"{EntityType}/{EntityId}/{DateTime.UtcNow:yyyyMMddHHmmss}_{safeName}";
+
+            using var stream = _fileSeleccionat.OpenReadStream(maxAllowedSize: 20 * 1024 * 1024); // 20 MB
+            await MinioStorage.UploadFileAsync(objectKey, stream, _fileSeleccionat.ContentType);
+
+            var document = new Document
+            {
+                EntityType      = EntityType,
+                EntityId        = EntityId.Value,
+                TipusDocumentId = _tipusSeleccionat > 0 ? _tipusSeleccionat : null,
+                TipusPersonalitzat = _isTipusPersonalitzat ? _tipusPersonalitzat.Trim() : null,
+                Nom             = safeName,
+                PathMinio       = objectKey,
+                MimeType        = _fileSeleccionat.ContentType,
+                MidaBytes       = _fileSeleccionat.Size,
+                DataDocument    = DateOnly.FromDateTime(DateTime.Today),
+            };
+
+            await using (var db = await DbContextFactory.CreateDbContextAsync())
+            {
+                db.Documents.Add(document);
+                await db.SaveChangesAsync();
+            }
+
+            _fileSeleccionat = null;
+            _tipusSeleccionat = 0;
+            _tipusPersonalitzat = "";
+            _isTipusPersonalitzat = false;
+            await CarregarDocuments();
+        }
+        catch (Exception ex)
+        {
+            _errorPuja = $"Error en pujar el document: {ex.Message}";
+        }
+        finally
+        {
+            _pujant = false;
+        }
+    }
+
+    private async Task DescarregarDocument(Document doc)
+    {
+        try
+        {
+            var stream = await MinioStorage.GetFileAsync(doc.PathMinio);
+            if (stream == null) return;
+
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            var bytes = ms.ToArray();
+            var base64 = Convert.ToBase64String(bytes);
+            var mimeType = doc.MimeType ?? "application/octet-stream";
+
+            await JS.InvokeVoidAsync("downloadBase64File", base64, doc.Nom, mimeType);
+        }
+        catch (Exception ex)
+        {
+            _errorPuja = $"Error en descarregar: {ex.Message}";
+        }
+    }
+
+    private async Task EliminarDocument(Document doc)
+    {
+        var confirmat = await JS.InvokeAsync<bool>("confirm", $"Eliminar el document '{doc.Nom}'?");
+        if (!confirmat) return;
+
+        try
+        {
+            await MinioStorage.DeleteFileAsync(doc.PathMinio);
+
+            await using (var db = await DbContextFactory.CreateDbContextAsync())
+            {
+                var entity = await db.Documents.FindAsync(doc.Id);
+                if (entity != null)
+                {
+                    db.Documents.Remove(entity);
+                    await db.SaveChangesAsync();
+                }
+            }
+
+            _documents.Remove(doc);
+        }
+        catch (Exception ex)
+        {
+            _errorPuja = $"Error en eliminar: {ex.Message}";
+        }
+    }
+
+    private static string GetIcona(string? mimeType) => mimeType switch
+    {
+        "application/pdf"                                                          => "fas fa-file-pdf text-danger",
+        "image/jpeg" or "image/png" or "image/gif" or "image/webp"               => "fas fa-file-image text-info",
+        "application/msword"
+            or "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                                                                                  => "fas fa-file-word text-primary",
+        "application/vnd.ms-excel"
+            or "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                                                                                  => "fas fa-file-excel text-success",
+        _                                                                          => "fas fa-file text-secondary",
+    };
+
+    private static string FormatMida(long? bytes) => bytes switch
+    {
+        null          => "—",
+        < 1024        => $"{bytes} B",
+        < 1024 * 1024 => $"{bytes / 1024} KB",
+        _             => $"{bytes / (1024 * 1024)} MB",
+    };
+
+    private static string NormalizeDocumentTypeName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return string.Empty;
+        }
+
+        return name.Trim().Normalize(NormalizationForm.FormC);
+    }
+
+    private List<string> GetDocumentsObligatorisFalten()
+    {
+        if (!_requiredTypeIds.Any()) return [];
+
+        var documentsPujats = _documents
+            .Where(d => d.TipusDocumentId.HasValue)
+            .Select(d => d.TipusDocumentId!.Value)
+            .ToHashSet();
+
+        return _requiredTypeIds
+            .Where(id => !documentsPujats.Contains(id))
+            .Select(id => _tipusDocuments.FirstOrDefault(t => t.Id == id)?.Nom ?? $"ID:{id}")
+            .ToList();
+    }
+}

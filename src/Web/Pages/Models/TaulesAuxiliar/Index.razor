@@ -1,0 +1,96 @@
+@page "/taules-auxiliar"
+@inject NavigationManager NavigationManager
+
+<PageTitle>Taules Auxiliar</PageTitle>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item active" aria-current="page">Taules Auxiliar</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="screen-header mb-4">
+                <h1 class="h3 mb-0 screen-title">Taules Auxiliar</h1>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <i class="fas fa-shield-alt fa-3x text-danger mb-3"></i>
+                    <h5 class="card-title">Armes (Aux)</h5>
+                    <p class="card-text">Tipus arma, llicències, estats i resultats d'inspecció</p>
+                    <button @onclick="NavigateToArmesAux" class="btn btn-danger">
+                        <i class="fas fa-arrow-right me-2"></i>Gestionar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <i class="fas fa-file-signature fa-3x text-info mb-3"></i>
+                    <h5 class="card-title">Documents / Tràmits</h5>
+                    <p class="card-text">Manteniment de tràmits, tipus de document i relacions</p>
+                    <button @onclick="NavigateToDocumentsTramits" class="btn btn-info text-white">
+                        <i class="fas fa-arrow-right me-2"></i>Gestionar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <i class="fas fa-layer-group fa-3x text-primary mb-3"></i>
+                    <h5 class="card-title">Àmbits / Subàmbit</h5>
+                    <p class="card-text">Gestionar àmbits i subàmbits dels voluntaris</p>
+                    <button @onclick="NavigateToAmbits" class="btn btn-primary">
+                        <i class="fas fa-arrow-right me-2"></i>Gestionar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Aquí es poden afegir més taules auxiliars en el futur -->
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100 border-secondary shadow-sm">
+                <div class="card-body text-center">
+                    <i class="fas fa-plus-circle fa-3x text-secondary mb-3"></i>
+                    <h5 class="card-title">Més taules</h5>
+                    <p class="card-text">Taules auxiliars addicionals</p>
+                    <button class="btn btn-secondary" disabled>
+                        <i class="fas fa-clock me-2"></i>Pròximament
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private void NavigateToArmesAux()
+    {
+        NavigationManager.NavigateTo("/taules-auxiliar/armes");
+    }
+
+    private void NavigateToDocumentsTramits()
+    {
+        NavigationManager.NavigateTo("/taules-auxiliar/documents-tramits");
+    }
+
+    private void NavigateToAmbits()
+    {
+        NavigationManager.NavigateTo("/taules-auxiliar/ambits");
+    }
+}

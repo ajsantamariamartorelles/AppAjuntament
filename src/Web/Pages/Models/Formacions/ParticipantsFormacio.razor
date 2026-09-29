@@ -1,0 +1,503 @@
+@page "/formacions/{formacioId:int}/participants"
+@using Microsoft.EntityFrameworkCore
+@inject GestorSubvencionsContext Context
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+@inject AppAjuntament.Services.DatabaseLoggerService DbLogger
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header screen-header">
+                    <h3 class="mb-0 screen-title">
+                        <i class="fas fa-users me-2"></i>Participants - @formacio?.Nom
+                    </h3>
+                    <div>
+                        <button class="btn btn-success me-2" @onclick="AfegirParticipant">
+                            <i class="fas fa-user-plus me-1"></i>Afegir Participant
+                        </button>
+                        <button class="btn btn-secondary" @onclick="TornarAFormacions">
+                            <i class="fas fa-arrow-left me-1"></i>Tornar
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    @if (formacio != null)
+                    {
+                        <!-- Informació de la formació -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="card bg-light">
+                                    <div class="card-body">
+                                        <h6 class="card-title">Informació de la Formació</h6>
+                                        <p class="card-text mb-1"><strong>Data d'inici:</strong> @formacio.DataInici.ToString("dd/MM/yyyy")</p>
+                                        @if (formacio.DataFi.HasValue)
+                                        {
+                                            <p class="card-text mb-1"><strong>Data de fi:</strong> @formacio.DataFi.Value.ToString("dd/MM/yyyy")</p>
+                                        }
+                                        @if (formacio.DuradaHores.HasValue)
+                                        {
+                                            <p class="card-text mb-1"><strong>Durada:</strong> @formacio.DuradaHores.Value hores</p>
+                                        }
+                                        @if (!string.IsNullOrEmpty(formacio.Formador))
+                                        {
+                                            <p class="card-text mb-1"><strong>Formador:</strong> @formacio.Formador</p>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card bg-info text-white">
+                                    <div class="card-body">
+                                        <h6 class="card-title">Estadístiques</h6>
+                                        <p class="card-text mb-1"><strong>Total participants:</strong> @participants.Count</p>
+                                        <p class="card-text mb-1"><strong>Han superat:</strong> @participants.Count(p => p.Superat)</p>
+                                        <p class="card-text mb-1"><strong>Pendent de completar:</strong> @participants.Count(p => !p.DataCompletat.HasValue)</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Filtre de participants -->
+                        <div class="card mb-3 screen-filters-card">
+                            <div class="card-body">
+                                <div class="row g-3 align-items-end">
+                                    <div class="col-md-4">
+                                        <label class="form-label">Cercar participant:</label>
+                                        <input type="text" class="form-control" @bind="filtreNom" @oninput="FiltrarParticipants" placeholder="Nom del voluntari..." />
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Estat:</label>
+                                        <select class="form-select" @bind="filtreEstat" @bind:after="FiltrarParticipants">
+                                            <option value="">Tots</option>
+                                            <option value="pendent">Pendent</option>
+                                            <option value="completat">Completat</option>
+                                            <option value="superat">Superat</option>
+                                            <option value="no-superat">No superat</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-5 d-flex justify-content-md-end">
+                                        <button class="btn btn-outline-secondary me-2" @onclick="NetejirFiltres">
+                                            <i class="fas fa-times me-1"></i>Netejar
+                                        </button>
+                                        <button class="btn btn-warning me-2" @onclick="MarcarTotsCompletats">
+                                            <i class="fas fa-check-double me-1"></i>Marcar tots completats
+                                        </button>
+                                        <button class="btn btn-info" @onclick="ExportarParticipants">
+                                            <i class="fas fa-download me-1"></i>Exportar
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Taula de participants -->
+                        @if (participantsFiltrats.Any())
+                        {
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Voluntari</th>
+                                            <th>DNI</th>
+                                            <th>Data Inscripció</th>
+                                            <th>Data Completat</th>
+                                            <th>Superat</th>
+                                            <th>Observacions</th>
+                                            <th>Accions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var participant in participantsFiltrats)
+                                        {
+                                            <tr>
+                                                <td>
+                                                    <strong>@participant.Voluntari?.NomComplet</strong><br />
+                                                    <small class="text-muted">@string.Join(", ", participant.Voluntari?.VoluntarisAmbits?.Select(va => va.AmbitVoluntari?.Nom) ?? Enumerable.Empty<string?>())</small>
+                                                </td>
+                                                <td>@participant.Voluntari?.Tercer?.DNI</td>
+                                                <td>@participant.DataInscripcio.ToString("dd/MM/yyyy")</td>
+                                                <td>
+                                                    @if (participant.DataCompletat.HasValue)
+                                                    {
+                                                        <text>@participant.DataCompletat.Value.ToString("dd/MM/yyyy")</text>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="text-muted">Pendent</span>
+                                                    }
+                                                </td>
+                                                <td>
+                                                    @if (participant.Superat)
+                                                    {
+                                                        <span class="badge bg-success">Superat</span>
+                                                    }
+                                                    else if (participant.DataCompletat.HasValue)
+                                                    {
+                                                        <span class="badge bg-danger">No superat</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-warning">Pendent</span>
+                                                    }
+                                                </td>
+                                                <td>
+                                                    @if (!string.IsNullOrEmpty(participant.Observacions))
+                                                    {
+                                                        <span title="@participant.Observacions">
+                                                            @(participant.Observacions.Length > 30 ? participant.Observacions.Substring(0, 30) + "..." : participant.Observacions)
+                                                        </span>
+                                                    }
+                                                </td>
+                                                <td>
+                                                    <div class="btn-group" role="group">
+                                                        <button class="btn btn-sm btn-outline-primary" @onclick="() => EditarParticipant(participant)" title="Editar">
+                                                            <i class="fas fa-edit"></i>
+                                                        </button>
+                                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => EliminarParticipant(participant.VoluntariId)" title="Eliminar">
+                                                            <i class="fas fa-trash"></i>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="text-center py-5">
+                                <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                                <h5 class="text-muted">No hi ha participants inscrits</h5>
+                                <p class="text-muted">Comença afegint el primer participant fent clic al botó "Afegir Participant"</p>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal per afegir/editar participant -->
+@if (mostrarModal)
+{
+    <div class="modal fade show" style="display: block;" tabindex="-1">
+        <div class="modal-backdrop fade show"></div>
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        @(participantEditar != null ? "Editar Participant" : "Afegir Participant")
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="TancarModal"></button>
+                </div>
+                <div class="modal-body">
+                    <EditForm Model="nouParticipant" OnValidSubmit="GuardarParticipant">
+                        <DataAnnotationsValidator />
+
+                        @if (participantEditar == null)
+                        {
+                            <div class="mb-3">
+                                <label class="form-label">Voluntari *</label>
+                                <select @bind="nouParticipant.VoluntariId" class="form-select">
+                                    <option value="">Selecciona un voluntari...</option>
+                                    @foreach (var voluntari in voluntarisDisponibles)
+                                    {
+                                        <option value="@voluntari.Id">@voluntari.NomComplet (@voluntari.Tercer?.DNI)</option>
+                                    }
+                                </select>
+                                <ValidationMessage For="@(() => nouParticipant.VoluntariId)" class="text-danger" />
+                            </div>
+                        }
+
+                        <div class="mb-3">
+                            <label class="form-label">Data de completat</label>
+                            <InputDate @bind-Value="nouParticipant.DataCompletat" class="form-control" />
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <InputCheckbox @bind-Value="nouParticipant.Superat" class="form-check-input" />
+                                <label class="form-check-label">Ha superat la formació</label>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Observacions</label>
+                            <InputTextArea @bind-Value="nouParticipant.Observacions" class="form-control" rows="3" />
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <InputCheckbox @bind-Value="nouParticipant.Actiu" class="form-check-input" />
+                                <label class="form-check-label">Participant actiu</label>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-end">
+                            <button type="button" class="btn btn-secondary me-2" @onclick="TancarModal">Cancel·lar</button>
+                            <button type="submit" class="btn btn-primary" disabled="@guardant">
+                                @if (guardant)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                }
+                                @(participantEditar != null ? "Actualitzar" : "Afegir")
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int FormacioId { get; set; }
+
+    private Formacio? formacio;
+    private List<FormacioVoluntari> participants = new();
+    private List<FormacioVoluntari> participantsFiltrats = new();
+    private List<Voluntari> voluntarisDisponibles = new();
+    
+    private string filtreNom = "";
+    private string filtreEstat = "";
+    
+    private bool mostrarModal = false;
+    private bool guardant = false;
+    private FormacioVoluntari nouParticipant = new();
+    private FormacioVoluntari? participantEditar = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarFormacio();
+        await CarregarParticipants();
+        await CarregarVoluntarisDisponibles();
+    }
+
+    private async Task CarregarFormacio()
+    {
+        try
+        {
+            formacio = await Context.Formacions
+                .Include(f => f.Ens)
+                .FirstOrDefaultAsync(f => f.Id == FormacioId);
+
+            if (formacio == null)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "Formació no trobada.");
+                NavigationManager.NavigateTo("/formacions");
+            }
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync($"Error carregant formació ID={FormacioId}", ex, "CarregarFormacio", $"FormacioId={FormacioId}");
+            await JSRuntime.InvokeVoidAsync("console.error", "Error carregant formació: " + ex.Message);
+        }
+    }
+
+    private async Task CarregarParticipants()
+    {
+        try
+        {
+            participants = await Context.FormacionsVoluntaris
+                .Where(fv => fv.FormacioId == FormacioId)
+                .Include(fv => fv.Voluntari)
+                .ThenInclude(v => v!.VoluntarisAmbits)
+                .ThenInclude(va => va.AmbitVoluntari)
+                .Include(fv => fv.Voluntari!.Tercer)
+                .OrderBy(fv => fv.Voluntari!.Tercer != null ? fv.Voluntari!.Tercer.Nom : "")
+                .ToListAsync();
+            
+            participantsFiltrats = participants.ToList();
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync($"Error carregant participants de formació ID={FormacioId}", ex, "CarregarParticipants", $"FormacioId={FormacioId}");
+            await JSRuntime.InvokeVoidAsync("console.error", "Error carregant participants: " + ex.Message);
+        }
+    }
+
+    private async Task CarregarVoluntarisDisponibles()
+    {
+        try
+        {
+            var idsParticipants = participants.Select(p => p.VoluntariId).ToList();
+            
+            voluntarisDisponibles = await Context.Voluntaris
+                .Where(v => v.Actiu && !idsParticipants.Contains(v.Id))
+                .Include(v => v.Tercer)
+                .OrderBy(v => v.Tercer != null ? v.Tercer.Nom : "")
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync($"Error carregant voluntaris disponibles per formació ID={FormacioId}", ex, "CarregarVoluntarisDisponibles", $"FormacioId={FormacioId}");
+            await JSRuntime.InvokeVoidAsync("console.error", "Error carregant voluntaris: " + ex.Message);
+        }
+    }
+
+    private void FiltrarParticipants()
+    {
+        participantsFiltrats = participants.Where(p =>
+            (string.IsNullOrEmpty(filtreNom) || 
+             (p.Voluntari?.NomComplet ?? "").Contains(filtreNom, StringComparison.OrdinalIgnoreCase)) &&
+            (string.IsNullOrEmpty(filtreEstat) || CompleixFiltreEstat(p, filtreEstat))
+        ).ToList();
+        
+        StateHasChanged();
+    }
+
+    private bool CompleixFiltreEstat(FormacioVoluntari participant, string estat)
+    {
+        return estat switch
+        {
+            "pendent" => !participant.DataCompletat.HasValue,
+            "completat" => participant.DataCompletat.HasValue,
+            "superat" => participant.Superat,
+            "no-superat" => participant.DataCompletat.HasValue && !participant.Superat,
+            _ => true
+        };
+    }
+
+    private void NetejirFiltres()
+    {
+        filtreNom = "";
+        filtreEstat = "";
+        FiltrarParticipants();
+    }
+
+    private void AfegirParticipant()
+    {
+        participantEditar = null;
+        nouParticipant = new FormacioVoluntari
+        {
+            FormacioId = FormacioId,
+            DataInscripcio = DateTime.Now,
+            Actiu = true,
+            Superat = false
+        };
+        mostrarModal = true;
+    }
+
+    private void EditarParticipant(FormacioVoluntari participant)
+    {
+        participantEditar = participant;
+        nouParticipant = new FormacioVoluntari
+        {
+            FormacioId = participant.FormacioId,
+            VoluntariId = participant.VoluntariId,
+            DataInscripcio = participant.DataInscripcio,
+            DataCompletat = participant.DataCompletat,
+            Superat = participant.Superat,
+            Observacions = participant.Observacions,
+            Actiu = participant.Actiu
+        };
+        mostrarModal = true;
+    }
+
+    private async Task GuardarParticipant()
+    {
+        guardant = true;
+        try
+        {
+            if (participantEditar != null)
+            {
+                // Actualitzar participant existent
+                participantEditar.DataCompletat = nouParticipant.DataCompletat;
+                participantEditar.Superat = nouParticipant.Superat;
+                participantEditar.Observacions = nouParticipant.Observacions;
+                participantEditar.Actiu = nouParticipant.Actiu;
+                
+                Context.FormacionsVoluntaris.Update(participantEditar);
+            }
+            else
+            {
+                // Afegir nou participant
+                Context.FormacionsVoluntaris.Add(nouParticipant);
+            }
+
+            await Context.SaveChangesAsync();
+            await CarregarParticipants();
+            await CarregarVoluntarisDisponibles();
+            TancarModal();
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync($"Error guardant participant: FormacioId={FormacioId}, VoluntariId={nouParticipant.VoluntariId}", ex, "GuardarParticipant", $"FormacioId={FormacioId}, VoluntariId={nouParticipant.VoluntariId}");
+            await JSRuntime.InvokeVoidAsync("alert", "Error guardant el participant: " + ex.Message);
+        }
+        finally
+        {
+            guardant = false;
+        }
+    }
+
+    private async Task EliminarParticipant(int voluntariId)
+    {
+        var confirmacio = await JSRuntime.InvokeAsync<bool>("confirm", "Estàs segur que vols eliminar aquest participant?");
+        if (confirmacio)
+        {
+            try
+            {
+                var participant = await Context.FormacionsVoluntaris
+                    .FirstOrDefaultAsync(fv => fv.FormacioId == FormacioId && fv.VoluntariId == voluntariId);
+                
+                if (participant != null)
+                {
+                    Context.FormacionsVoluntaris.Remove(participant);
+                    await Context.SaveChangesAsync();
+                    await CarregarParticipants();
+                    await CarregarVoluntarisDisponibles();
+                }
+            }
+            catch (Exception ex)
+            {
+                await DbLogger.LogErrorAsync($"Error eliminant participant: FormacioId={FormacioId}, VoluntariId={voluntariId}", ex, "EliminarParticipant", $"FormacioId={FormacioId}, VoluntariId={voluntariId}");
+                await JSRuntime.InvokeVoidAsync("alert", "Error eliminant el participant: " + ex.Message);
+            }
+        }
+    }
+
+    private async Task MarcarTotsCompletats()
+    {
+        var confirmacio = await JSRuntime.InvokeAsync<bool>("confirm", "Estàs segur que vols marcar tots els participants com a completats?");
+        if (confirmacio)
+        {
+            try
+            {
+                foreach (var participant in participants.Where(p => !p.DataCompletat.HasValue))
+                {
+                    participant.DataCompletat = DateTime.Today;
+                }
+                
+                await Context.SaveChangesAsync();
+                await CarregarParticipants();
+            }
+            catch (Exception ex)
+            {
+                await DbLogger.LogErrorAsync($"Error marcant participants com completats: FormacioId={FormacioId}", ex, "MarcarTotsCompletats", $"FormacioId={FormacioId}");
+                await JSRuntime.InvokeVoidAsync("alert", "Error actualitzant els participants: " + ex.Message);
+            }
+        }
+    }
+
+    private void TancarModal()
+    {
+        mostrarModal = false;
+        participantEditar = null;
+        nouParticipant = new();
+    }
+
+    private void TornarAFormacions()
+    {
+        NavigationManager.NavigateTo("/formacions");
+    }
+
+    private async Task ExportarParticipants()
+    {
+        await JSRuntime.InvokeVoidAsync("alert", "Funcionalitat d'exportació en desenvolupament.");
+    }
+}

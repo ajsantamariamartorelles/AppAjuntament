@@ -1,0 +1,108 @@
+﻿@page "/anys"
+@using Microsoft.EntityFrameworkCore
+@inject GestorSubvencionsContext Context
+
+<div class="screen-header">
+    <h3 class="screen-title"><i class="fas fa-calendar-alt me-2"></i>Llistat d'Anys</h3>
+    <button @onclick="AfegirAny" class="btn btn-primary">
+        <i class="fas fa-plus me-1"></i>Afegir Any
+    </button>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Id</th>
+                        <th>Any</th>
+                        <th class="text-end">Accions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var any in anys)
+                    {
+                        <tr>
+                            <td>@any.Id</td>
+                            <td>
+                                @if (anyEnEdicio == any.Id)
+                                {
+                                    <input @bind="any.Any" type="number" class="form-control" />
+                                }
+                                else
+                                {
+                                    @any.Any
+                                }
+                            </td>
+                            <td class="text-end">
+                                @if (anyEnEdicio == any.Id)
+                                {
+                                    <button @onclick="() => GuardarCanvis(any)" class="btn btn-sm btn-success me-2">Guardar</button>
+                                    <button @onclick="CancelarEdicio" class="btn btn-sm btn-secondary">Cancel·lar</button>
+                                }
+                                else
+                                {
+                                    <button @onclick="() => IniciarEdicio(any.Id)" class="btn btn-sm btn-outline-primary me-2">Editar</button>
+                                    <button @onclick="() => EliminarAny(any.Id)" class="btn btn-sm btn-outline-danger">Eliminar</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<Any_> anys = new();
+    private int? anyEnEdicio = null; // Guarda l'ID de l'any que s'està editant
+
+    protected override async Task OnInitializedAsync()
+    {
+        anys = await Context.Anys.ToListAsync();
+    }
+
+    private void IniciarEdicio(int id)
+    {
+        anyEnEdicio = id; // Inicia l'edició de l'any amb aquest ID
+    }
+
+    private async Task GuardarCanvis(Any_ any)
+    {
+        // Actualitza l'any a la base de dades
+        Context.Anys.Update(any);
+        await Context.SaveChangesAsync();
+
+        // Finalitza l'edició
+        anyEnEdicio = null;
+    }
+
+    private void CancelarEdicio()
+    {
+        // Cancela l'edició sense guardar canvis
+        anyEnEdicio = null;
+    }
+
+    private async Task EliminarAny(int id)
+    {
+        var any = await Context.Anys.FindAsync(id);
+        if (any != null)
+        {
+            Context.Anys.Remove(any);
+            await Context.SaveChangesAsync();
+            anys = await Context.Anys.ToListAsync(); // Actualitza la llista
+        }
+    }
+
+    private async Task AfegirAny()
+    {
+        // Troba l'any màxim existent i afegeix l'any següent
+        var maxAny = await Context.Anys.MaxAsync(a => (int?)a.Any) ?? 0;
+        var nouAny = new Any_ { Any = maxAny + 1 };
+        Context.Anys.Add(nouAny);
+        await Context.SaveChangesAsync();
+        anys = await Context.Anys.ToListAsync(); // Actualitza la llista
+    }
+}

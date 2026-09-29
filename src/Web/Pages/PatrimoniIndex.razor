@@ -1,0 +1,415 @@
+﻿@page "/patrimoniindex"
+@using AppAjuntament.Models
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@using AppAjuntament.Services
+@inject IPatrimoniService PatrimoniService
+@inject ICatalogService CatalogService
+@inject ICachedMunicipiService CachedMunicipiService
+@inject NavigationManager Navigation
+
+<PageTitle>Patrimoni Cultural de l'Ajuntament</PageTitle>
+
+<style>
+    .hero-section {
+        position: relative;
+        margin-bottom: 40px;
+        border-radius: 15px;
+        overflow: hidden;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        background: linear-gradient(135deg, #2E8B57, #228B22);
+        color: white;
+        padding: 80px 40px;
+        text-align: center;
+    }
+    
+    .hero-title {
+        font-size: 3rem;
+        font-weight: bold;
+        margin-bottom: 20px;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+    }
+    
+    .hero-subtitle {
+        font-size: 1.3rem;
+        opacity: 0.9;
+        margin-bottom: 30px;
+    }
+    
+    .stats-container {
+        display: flex;
+        gap: 30px;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin: 40px 0;
+    }
+    
+    .stat-card {
+        background: rgba(255,255,255,0.15);
+        backdrop-filter: blur(10px);
+        border-radius: 15px;
+        padding: 25px;
+        text-align: center;
+        min-width: 180px;
+        border: 1px solid rgba(255,255,255,0.2);
+    }
+    
+    .stat-number {
+        font-size: 2.5rem;
+        font-weight: bold;
+        display: block;
+        margin-bottom: 5px;
+    }
+    
+    .stat-label {
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        opacity: 0.9;
+    }
+    
+    .patrimoni-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 25px;
+        margin: 40px 0;
+    }
+    
+    .patrimoni-card {
+        background: white;
+        border-radius: 15px;
+        overflow: hidden;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        cursor: pointer;
+    }
+    
+    .patrimoni-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    }
+    
+    .patrimoni-image {
+        width: 100%;
+        height: 200px;
+        background: linear-gradient(45deg, #f0f0f0, #e0e0e0);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #999;
+        font-size: 3rem;
+    }
+    
+    .patrimoni-content {
+        padding: 20px;
+    }
+    
+    .patrimoni-title {
+        font-size: 1.3rem;
+        font-weight: bold;
+        color: #333;
+        margin-bottom: 8px;
+    }
+    
+    .patrimoni-type {
+        background: #2E8B57;
+        color: white;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        display: inline-block;
+        margin-bottom: 10px;
+    }
+    
+    .patrimoni-description {
+        color: #666;
+        font-size: 0.9rem;
+        line-height: 1.4;
+        margin-bottom: 15px;
+    }
+    
+    .patrimoni-meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.8rem;
+        color: #999;
+    }
+    
+    .patrimoni-location {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+    
+    .patrimoni-status {
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 0.7rem;
+        font-weight: bold;
+    }
+    
+    .status-bo { background: #d4edda; color: #155724; }
+    .status-regular { background: #fff3cd; color: #856404; }
+    .status-dolent { background: #f8d7da; color: #721c24; }
+    
+    .loading-spinner {
+        text-align: center;
+        padding: 60px;
+    }
+    
+    .section-title {
+        font-size: 2rem;
+        font-weight: bold;
+        text-align: center;
+        margin: 50px 0 30px 0;
+        color: #333;
+    }
+    
+    .view-all-btn {
+        display: block;
+        margin: 30px auto;
+        padding: 12px 30px;
+        background: #2E8B57;
+        color: white;
+        text-decoration: none;
+        border-radius: 25px;
+        font-weight: bold;
+        text-align: center;
+        transition: background 0.3s ease;
+        max-width: 200px;
+    }
+    
+    .view-all-btn:hover {
+        background: #228B22;
+        color: white;
+        text-decoration: none;
+    }
+    
+    .municipi-info {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+        margin-bottom: 30px;
+    }
+    
+    .escut-municipi {
+        height: 60px;
+        width: auto;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    }
+    
+    .municipi-nom {
+        font-size: 1.8rem;
+        font-weight: bold;
+        opacity: 0.9;
+    }
+</style>
+
+@if (carregant)
+{
+    <div class="loading-spinner">
+        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+            <span class="visually-hidden">Carregant...</span>
+        </div>
+        <p class="mt-3 text-muted">Carregant patrimoni cultural...</p>
+    </div>
+}
+else
+{
+    <!-- Hero Section -->
+    <div class="hero-section">
+        <!-- Informació del Municipi -->
+        <div class="municipi-info">
+            @if (municipi != null && !string.IsNullOrEmpty(municipi.municipi_escut))
+            {
+                <img src="@municipi.municipi_escut" alt="Escut de @municipi.municipi_nom" class="escut-municipi" />
+            }
+            else
+            {
+                <!-- Fallback quan no hi ha escut disponible -->
+                <div style="width: 60px; height: 60px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; color: #2E8B57; box-shadow: 0 2px 10px rgba(0,0,0,0.3);">
+                    🏛️
+                </div>
+            }
+            <div class="municipi-nom">
+                @if (municipi != null && !string.IsNullOrEmpty(municipi.municipi_nom))
+                {
+                    @municipi.municipi_nom
+                }
+                else
+                {
+                    <span>Ajuntament Municipal</span>
+                }
+            </div>
+        </div>
+        
+        <h1 class="hero-title">Patrimoni Cultural</h1>
+        <p class="hero-subtitle">Descobreix el nostre llegat històric i cultural</p>
+        
+        <div class="stats-container">
+            <div class="stat-card">
+                <span class="stat-number">@totalPatrimoni</span>
+                <span class="stat-label">Elements</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-number">@totalTipus</span>
+                <span class="stat-label">Tipologies</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-number">@totalUbicacions</span>
+                <span class="stat-label">Ubicacions</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Patrimoni destacat -->
+    @if (patrimoniDestacats?.Any() == true)
+    {
+        <h2 class="section-title">Patrimoni Destacat</h2>
+        <div class="patrimoni-grid">
+            @foreach (var element in patrimoniDestacats.Take(6))
+            {
+                var arxiu = element.Arxius?.FirstOrDefault(a => a.EsImatge && a.VisiblePublic && a.Actiu);
+                var imgUrl = arxiu?.UrlMinio;
+                if (!string.IsNullOrEmpty(imgUrl))
+                {
+                    Console.WriteLine($"[PatrimoniIndex] Attempting image URL for Patrimoni {element.Id}: {imgUrl}");
+                }
+
+                <div class="patrimoni-card" @onclick="() => MostrarDetall(element.Id)">
+                    <div class="patrimoni-image">
+                        @if (!string.IsNullOrEmpty(imgUrl))
+                        {
+                            <img src="@imgUrl" alt="@element.Nom" style="width: 100%; height: 200px; object-fit: cover;" 
+                                 onerror="console.error('Image load error: ' + this.src)" 
+                                 onload="console.log('Image loaded: ' + this.src)" />
+                        }
+                        else
+                        {
+                            <i class="fas fa-building"></i>
+                        }
+                    </div>
+                    <div class="patrimoni-content">
+                        <div class="patrimoni-type">@element.TipusPatrimoni?.Nom</div>
+                        <h3 class="patrimoni-title">@element.Nom</h3>
+                        <p class="patrimoni-description">
+                            @(element.DescripcioBreu?.Length > 100 ? 
+                              element.DescripcioBreu.Substring(0, 100) + "..." : 
+                              element.DescripcioBreu)
+                        </p>
+                        <div class="patrimoni-meta">
+                            <div class="patrimoni-location">
+                                <i class="fas fa-map-marker-alt"></i>
+                                <span>@element.Ubicacio?.Nom</span>
+                            </div>
+                            @if (element.EstatConservacio != null)
+                            {
+                                <span class="patrimoni-status status-@GetStatusClass(element.EstatConservacio.Nom)">
+                                    @element.EstatConservacio.Nom
+                                </span>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+        
+        <a href="/galeria" class="view-all-btn">
+            Veure tot el patrimoni
+        </a>
+    }
+    else
+    {
+        <div class="alert alert-info text-center m-5">
+            <i class="fas fa-info-circle me-2"></i>
+            No hi ha patrimoni registrat al sistema. Afegiu elements per començar.
+        </div>
+    }
+}
+
+@code {
+    private bool carregant = true;
+    private int totalPatrimoni = 0;
+    private int totalTipus = 0;
+    private int totalUbicacions = 0;
+    private List<AppAjuntament.Models.Patrimoni>? patrimoniDestacats;
+    private ApiMunicipiElement? municipi;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarDades();
+    }
+
+    private async Task CarregarDades()
+    {
+        carregant = true;
+        StateHasChanged();
+
+        try
+        {
+            // Carregar informació del municipi en paral·lel amb les dades del patrimoni
+            var municipiTask = CarregarDadesMunicipi();
+            
+            // Carregar estadístiques
+            var totPatrimoni = await PatrimoniService.GetAllAsync();
+            totalPatrimoni = totPatrimoni?.Count() ?? 0;
+
+            var catalogs = await CatalogService.GetTipusPatrimoniAsync();
+            totalTipus = catalogs?.Count() ?? 0;
+            
+            var ubicacions = await CatalogService.GetUbicacionsAsync();
+            totalUbicacions = ubicacions?.Count() ?? 0;
+
+            // Carregar patrimoni destacat (els més recents o amb millor estat)
+            patrimoniDestacats = totPatrimoni?
+                .Where(p => p.Actiu)
+                .OrderByDescending(p => p.ValorTotal)
+                .ThenByDescending(p => p.CreatedAt)
+                .ToList();
+
+            // Esperar les dades del municipi
+            await municipiTask;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error carregant dades: {ex.Message}");
+        }
+        finally
+        {
+            carregant = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task CarregarDadesMunicipi()
+    {
+        try
+        {
+            // Aquí pots configurar el nom del municipi o obtenir-lo de la configuració
+            municipi = await CachedMunicipiService.ObtindreInfoMunicipiAsync("Santa Maria de Martorelles");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error carregant dades del municipi: {ex.Message}");
+            // Si falla, es mantindrà el fallback visual
+        }
+    }
+
+    private void MostrarDetall(int id)
+    {
+        Navigation.NavigateTo($"/detall/{id}");
+    }
+
+    private string GetStatusClass(string? estat)
+    {
+        return estat?.ToLower() switch
+        {
+            "bo" or "molt bo" or "excel·lent" => "bo",
+            "regular" or "acceptable" => "regular",
+            "dolent" or "molt dolent" or "ruïnós" => "dolent",
+            _ => "regular"
+        };
+    }
+}

@@ -1,0 +1,518 @@
+@page "/admin/patrimoni/fotografies"
+@using Microsoft.EntityFrameworkCore
+@using AppAjuntament.Services
+@attribute [Authorize]
+@inject IDbContextFactory<GestorSubvencionsContext> DbContextFactory
+@inject MinioStorageService MinioStorage
+@inject IJSRuntime JS
+
+<PageTitle>Gestió de Fotografies</PageTitle>
+
+<div class="card shadow-sm screen-filters-card">
+    <div class="card-header bg-primary text-white screen-header">
+        <h5 class="mb-0 screen-title"><i class="fas fa-images me-2"></i>Fotografies</h5>
+    </div>
+    <div class="card-body">
+
+        @if (_missatgeExit != null)
+        {
+            <div class="alert alert-success alert-dismissible">
+                @_missatgeExit
+                <button type="button" class="btn-close" @onclick="() => _missatgeExit = null"></button>
+            </div>
+        }
+        @if (_missatgeError != null)
+        {
+            <div class="alert alert-danger alert-dismissible">
+                @_missatgeError
+                <button type="button" class="btn-close" @onclick="() => _missatgeError = null"></button>
+            </div>
+        }
+
+        <!-- Formulari alta -->
+        <div class="card border-primary mb-4">
+            <div class="card-header bg-light">
+                <h6 class="mb-0"><i class="fas fa-plus me-2"></i>Nova fotografia</h6>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <!-- Col·lecció obligatòria -->
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Col·lecció <span class="text-danger">*</span></label>
+                        <select class="form-select @(_validacioColleccio ? "is-invalid" : "")" @bind="_novaColleccioId">
+                            <option value="0">-- Selecciona col·lecció --</option>
+                            @foreach (var c in _coleccions)
+                            {
+                                <option value="@c.Id">@c.Nom</option>
+                            }
+                        </select>
+                        @if (_validacioColleccio)
+                        {
+                            <div class="invalid-feedback">La col·lecció és obligatòria.</div>
+                        }
+                    </div>
+
+                    <!-- Localització -->
+                    <div class="col-md-4">
+                        <label class="form-label">Localització</label>
+                        <select class="form-select" @bind="_novaLocalitzacioId">
+                            <option value="0">-- Cap --</option>
+                            @foreach (var l in _localitzacions)
+                            {
+                                <option value="@l.Id">@l.Nom</option>
+                            }
+                        </select>
+                    </div>
+
+                    <!-- Títol -->
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Títol <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control @(_validacioTitol ? "is-invalid" : "")"
+                               @bind="_novaTitol" maxlength="200" placeholder="Títol de la fotografia" />
+                        @if (_validacioTitol)
+                        {
+                            <div class="invalid-feedback">El títol és obligatori.</div>
+                        }
+                    </div>
+
+                    <!-- Descripció -->
+                    <div class="col-md-6">
+                        <label class="form-label">Descripció</label>
+                        <textarea class="form-control" @bind="_novaDescripcio" rows="2" maxlength="1000"
+                                  placeholder="Descripció opcional"></textarea>
+                    </div>
+
+                    <!-- Autor -->
+                    <div class="col-md-3">
+                        <label class="form-label">Autor</label>
+                        <input type="text" class="form-control" @bind="_novaAutor" maxlength="200"
+                               placeholder="Autor de la fotografia" />
+                    </div>
+
+                    <!-- Data fotografia -->
+                    <div class="col-md-3">
+                        <label class="form-label">Data</label>
+                        <input type="date" class="form-control" @bind="_novaData" />
+                    </div>
+
+                    <!-- Tags -->
+                    <div class="col-12">
+                        <label class="form-label">Tags</label>
+                        <div class="d-flex flex-wrap gap-2">
+                            @foreach (var tag in _tags)
+                            {
+                                var tagId = tag.Id;
+                                var seleccionat = _tagsSeleccionats.Contains(tagId);
+                                <button type="button"
+                                        class="btn btn-sm @(seleccionat ? "btn-primary" : "btn-outline-secondary")"
+                                        style="@(seleccionat ? $"background-color:{tag.Color};border-color:{tag.Color}" : $"color:{tag.Color};border-color:{tag.Color}")"
+                                        @onclick="() => ToggleTag(tagId)">
+                                    @tag.Nom
+                                </button>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Mode: fitxer o URL -->
+                    <div class="col-12">
+                        <ul class="nav nav-tabs mb-2">
+                            <li class="nav-item">
+                                <button type="button" class="nav-link @(_modeUrl ? "" : "active")"
+                                        @onclick="() => _modeUrl = false">
+                                    <i class="fas fa-upload me-1"></i>Fitxer
+                                </button>
+                            </li>
+                            <li class="nav-item">
+                                <button type="button" class="nav-link @(_modeUrl ? "active" : "")"
+                                        @onclick="() => _modeUrl = true">
+                                    <i class="fas fa-link me-1"></i>URL
+                                </button>
+                            </li>
+                        </ul>
+
+                        @if (!_modeUrl)
+                        {
+                            <InputFile OnChange="FitxerSeleccionat" class="form-control"
+                                       accept=".jpg,.jpeg,.png,.gif,.webp" />
+                            @if (_fitxerSeleccionat != null)
+                            {
+                                <small class="text-muted">@_fitxerSeleccionat.Name (@FormatMida(_fitxerSeleccionat.Size))</small>
+                            }
+                        }
+                        else
+                        {
+                            <input type="url" class="form-control @(_validacioUrl ? "is-invalid" : "")"
+                                   @bind="_novaUrl" placeholder="https://..." />
+                            @if (_validacioUrl)
+                            {
+                                <div class="invalid-feedback">Introdueix una URL vàlida (http/https).</div>
+                            }
+                        }
+                    </div>
+
+                    <!-- Visible al públic -->
+                    <div class="col-12 d-flex align-items-center gap-2">
+                        <input type="checkbox" class="form-check-input" id="visiblePublic" @bind="_novaVisiblePublic" />
+                        <label class="form-check-label" for="visiblePublic">Visible al públic</label>
+                    </div>
+
+                    <div class="col-12">
+                        <button type="button" class="btn btn-primary" @onclick="GuardarFotografia"
+                                disabled="@_guardant">
+                            @if (_guardant)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            <i class="fas fa-save me-1"></i>Guardar fotografia
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filtres llista -->
+        <div class="row g-2 mb-3">
+            <div class="col-md-3">
+                <input type="text" class="form-control form-control-sm" placeholder="Cerca per títol, descripció o autor..."
+                       @bind="_filtreCerca" @bind:event="oninput" @onkeyup="AplicarFiltres" />
+            </div>
+            <div class="col-md-3">
+                <select class="form-select form-select-sm" @bind="_filtreColleccio" @bind:after="AplicarFiltres">
+                    <option value="0">Totes les col·leccions</option>
+                    @foreach (var c in _coleccions)
+                    {
+                        <option value="@c.Id">@c.Nom</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select form-select-sm" @bind="_filtreLocalitzacio" @bind:after="AplicarFiltres">
+                    <option value="0">Totes les localitzacions</option>
+                    @foreach (var l in _localitzacions)
+                    {
+                        <option value="@l.Id">@l.Nom</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select form-select-sm" @bind="_filtreTag" @bind:after="AplicarFiltres">
+                    <option value="0">Tots els tags</option>
+                    @foreach (var t in _tags)
+                    {
+                        <option value="@t.Id">@t.Nom</option>
+                    }
+                </select>
+            </div>
+        </div>
+
+        <!-- Llista fotografies -->
+        @if (_carregant)
+        {
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status"></div>
+            </div>
+        }
+        else if (!_fotografiesFiltrades.Any())
+        {
+            <div class="alert alert-info">No hi ha fotografies que coincideixin amb els filtres.</div>
+        }
+        else
+        {
+            <div class="row g-3">
+                @foreach (var foto in _fotografiesFiltrades)
+                {
+                    <div class="col-md-3 col-sm-4 col-6">
+                        <div class="card h-100 shadow-sm">
+                            <img src="@foto.UrlMinio" class="card-img-top"
+                                 style="height:160px;object-fit:cover;"
+                                 alt="@foto.Titol" />
+                            <div class="card-body p-2">
+                                <div class="fw-semibold small text-truncate">@foto.Titol</div>
+                                @if (foto.Colleccio != null)
+                                {
+                                    <div class="text-muted" style="font-size:0.75rem;">
+                                        <i class="fas fa-book me-1"></i>@foto.Colleccio.Nom
+                                    </div>
+                                }
+                                @if (!string.IsNullOrEmpty(foto.Autor))
+                                {
+                                    <div class="text-muted" style="font-size:0.75rem;">
+                                        <i class="fas fa-user me-1"></i>@foto.Autor
+                                    </div>
+                                }
+                                @if (foto.DataFotografia.HasValue)
+                                {
+                                    <div class="text-muted" style="font-size:0.75rem;">
+                                        <i class="fas fa-calendar me-1"></i>@foto.DataFotografia.Value.ToString("dd/MM/yyyy")
+                                    </div>
+                                }
+                                @if (foto.Tags.Any())
+                                {
+                                    <div class="mt-1 d-flex flex-wrap gap-1">
+                                        @foreach (var tag in foto.Tags)
+                                        {
+                                            <span class="badge" style="background-color:@tag.Color;font-size:0.65rem;">@tag.Nom</span>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                            <div class="card-footer p-1 d-flex justify-content-between align-items-center">
+                                <span class="badge @(foto.VisiblePublic ? "bg-success" : "bg-secondary")" style="font-size:0.65rem;">
+                                    @(foto.VisiblePublic ? "Públic" : "Privat")
+                                </span>
+                                <button class="btn btn-sm btn-danger py-0 px-1" @onclick="() => EliminarFotografia(foto)"
+                                        title="Eliminar">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private bool _carregant = true;
+    private bool _guardant = false;
+    private bool _modeUrl = false;
+
+    private List<PatrimoniColeccio> _coleccions = new();
+    private List<PatrimoniLocalitzacio> _localitzacions = new();
+    private List<Tag> _tags = new();
+    private List<ArxiuPatrimoni> _fotografies = new();
+    private List<ArxiuPatrimoni> _fotografiesFiltrades = new();
+
+    // Formulari nova foto
+    private int _novaColleccioId = 0;
+    private int _novaLocalitzacioId = 0;
+    private string _novaTitol = "";
+    private string? _novaDescripcio;
+    private string? _novaAutor;
+    private DateOnly? _novaData;
+    private string? _novaUrl;
+    private bool _novaVisiblePublic = true;
+    private IBrowserFile? _fitxerSeleccionat;
+    private HashSet<int> _tagsSeleccionats = new();
+
+    // Validació
+    private bool _validacioColleccio = false;
+    private bool _validacioTitol = false;
+    private bool _validacioUrl = false;
+
+    // Filtres
+    private string _filtreCerca = "";
+    private int _filtreColleccio = 0;
+    private int _filtreLocalitzacio = 0;
+    private int _filtreTag = 0;
+
+    private string? _missatgeExit;
+    private string? _missatgeError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarDades();
+    }
+
+    private async Task CarregarDades()
+    {
+        _carregant = true;
+        await using var db = await DbContextFactory.CreateDbContextAsync();
+
+        _coleccions = await db.PatrimoniColeccions.Where(c => c.Actiu).OrderBy(c => c.Nom).ToListAsync();
+        _localitzacions = await db.PatrimoniLocalitzacions.Where(l => l.Actiu).OrderBy(l => l.Nom).ToListAsync();
+        _tags = await db.Tags.Where(t => t.Actiu).OrderBy(t => t.Nom).ToListAsync();
+
+        // Carregar tipus imatge
+        var tipusImatge = await db.TipusArxius.FirstOrDefaultAsync(t => t.Nom.ToLower().Contains("imat") || t.Nom.ToLower().Contains("foto"));
+
+        _fotografies = await db.ArxiusPatrimoni
+            .Where(a => a.PatrimoniId == null && a.Actiu)
+            .Include(a => a.Colleccio)
+            .Include(a => a.Localitzacio)
+            .Include(a => a.Tags)
+            .AsSplitQuery()
+            .OrderByDescending(a => a.CreatedAt)
+            .ToListAsync();
+
+        AplicarFiltres();
+        _carregant = false;
+    }
+
+    private void AplicarFiltres()
+    {
+        _fotografiesFiltrades = _fotografies.Where(f =>
+        {
+            if (!string.IsNullOrWhiteSpace(_filtreCerca))
+            {
+                var cerca = _filtreCerca.ToLower();
+                if (!(f.Titol?.ToLower().Contains(cerca) == true ||
+                      f.Descripcio?.ToLower().Contains(cerca) == true ||
+                      f.Autor?.ToLower().Contains(cerca) == true))
+                    return false;
+            }
+            if (_filtreColleccio > 0 && f.ColleccioId != _filtreColleccio) return false;
+            if (_filtreLocalitzacio > 0 && f.LocalitzacioId != _filtreLocalitzacio) return false;
+            if (_filtreTag > 0 && !f.Tags.Any(t => t.Id == _filtreTag)) return false;
+            return true;
+        }).ToList();
+    }
+
+    private void FitxerSeleccionat(InputFileChangeEventArgs e)
+    {
+        _fitxerSeleccionat = e.File;
+    }
+
+    private void ToggleTag(int tagId)
+    {
+        if (_tagsSeleccionats.Contains(tagId))
+            _tagsSeleccionats.Remove(tagId);
+        else
+            _tagsSeleccionats.Add(tagId);
+    }
+
+    private async Task GuardarFotografia()
+    {
+        _validacioColleccio = _novaColleccioId == 0;
+        _validacioTitol = string.IsNullOrWhiteSpace(_novaTitol);
+        _validacioUrl = _modeUrl && !UrlValida(_novaUrl);
+
+        if (_validacioColleccio || _validacioTitol || _validacioUrl) return;
+        if (!_modeUrl && _fitxerSeleccionat == null)
+        {
+            _missatgeError = "Selecciona un fitxer o canvia a mode URL.";
+            return;
+        }
+
+        _guardant = true;
+        _missatgeError = null;
+
+        try
+        {
+            await using var db = await DbContextFactory.CreateDbContextAsync();
+
+            var tipusImatge = await db.TipusArxius
+                .FirstOrDefaultAsync(t => t.Nom.ToLower().Contains("imat") || t.Nom.ToLower().Contains("foto"));
+
+            if (tipusImatge == null)
+            {
+                _missatgeError = "No s'ha trobat el tipus d'arxiu 'Imatge' a la base de dades.";
+                return;
+            }
+
+            var foto = new ArxiuPatrimoni
+            {
+                PatrimoniId = null,
+                TipusArxiuId = tipusImatge.Id,
+                ColleccioId = _novaColleccioId,
+                LocalitzacioId = _novaLocalitzacioId > 0 ? _novaLocalitzacioId : null,
+                Titol = _novaTitol.Trim(),
+                Descripcio = string.IsNullOrWhiteSpace(_novaDescripcio) ? null : _novaDescripcio.Trim(),
+                Autor = string.IsNullOrWhiteSpace(_novaAutor) ? null : _novaAutor.Trim(),
+                DataFotografia = _novaData,
+                VisiblePublic = _novaVisiblePublic,
+                Actiu = true,
+                MidaBytes = 0
+            };
+
+            if (_modeUrl)
+            {
+                foto.UrlMinio = _novaUrl!.Trim();
+                foto.PathMinio = "";
+                foto.NomOriginal = _novaTitol.Trim();
+                foto.NomArxiu = "";
+            }
+            else
+            {
+                var safeName = Path.GetFileName(_fitxerSeleccionat!.Name);
+                var objectKey = $"fotografies/{DateTime.UtcNow:yyyyMMddHHmmss}_{safeName}";
+                using var stream = _fitxerSeleccionat.OpenReadStream(maxAllowedSize: 100 * 1024 * 1024);
+                await MinioStorage.UploadFileAsync(objectKey, stream, _fitxerSeleccionat.ContentType);
+
+                foto.NomOriginal = safeName;
+                foto.NomArxiu = safeName;
+                foto.PathMinio = objectKey;
+                foto.MidaBytes = _fitxerSeleccionat.Size;
+                foto.MimeType = _fitxerSeleccionat.ContentType;
+            }
+
+            db.ArxiusPatrimoni.Add(foto);
+            await db.SaveChangesAsync();
+
+            // Assignar tags
+            if (_tagsSeleccionats.Any())
+            {
+                var tagsDb = await db.Tags.Where(t => _tagsSeleccionats.Contains(t.Id)).ToListAsync();
+                var fotoDb = await db.ArxiusPatrimoni.Include(a => a.Tags).FirstAsync(a => a.Id == foto.Id);
+                foreach (var tag in tagsDb)
+                    fotoDb.Tags.Add(tag);
+                await db.SaveChangesAsync();
+            }
+
+            _missatgeExit = $"Fotografia \"{foto.Titol}\" guardada correctament.";
+            RestablirFormulari();
+            await CarregarDades();
+        }
+        catch (Exception ex)
+        {
+            _missatgeError = $"Error en guardar: {ex.Message}";
+        }
+        finally
+        {
+            _guardant = false;
+        }
+    }
+
+    private async Task EliminarFotografia(ArxiuPatrimoni foto)
+    {
+        var confirmat = await JS.InvokeAsync<bool>("confirm", $"Eliminar la fotografia \"{foto.Titol}\"?");
+        if (!confirmat) return;
+
+        await using var db = await DbContextFactory.CreateDbContextAsync();
+        var fotoDb = await db.ArxiusPatrimoni.FindAsync(foto.Id);
+        if (fotoDb == null) return;
+
+        if (!string.IsNullOrEmpty(fotoDb.PathMinio))
+        {
+            try { await MinioStorage.DeleteFileAsync(fotoDb.PathMinio); } catch { }
+        }
+
+        fotoDb.Actiu = false;
+        await db.SaveChangesAsync();
+        _missatgeExit = "Fotografia eliminada.";
+        await CarregarDades();
+    }
+
+    private void RestablirFormulari()
+    {
+        _novaColleccioId = 0;
+        _novaLocalitzacioId = 0;
+        _novaTitol = "";
+        _novaDescripcio = null;
+        _novaAutor = null;
+        _novaData = null;
+        _novaUrl = null;
+        _novaVisiblePublic = false;
+        _fitxerSeleccionat = null;
+        _tagsSeleccionats.Clear();
+        _validacioColleccio = false;
+        _validacioTitol = false;
+        _validacioUrl = false;
+        _modeUrl = false;
+    }
+
+    private bool UrlValida(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return false;
+        return Uri.TryCreate(url.Trim(), UriKind.Absolute, out var uri) &&
+               (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
+    }
+
+    private string FormatMida(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024} KB";
+        return $"{bytes / (1024 * 1024)} MB";
+    }
+}

@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:AjuntamentSantaMariaMartorelles.ViewModels"
+             xmlns:models="clr-namespace:AjuntamentSantaMariaMartorelles.Models"
+             x:Class="AjuntamentSantaMariaMartorelles.Views.CobramentsPage"
+             x:DataType="vm:CobramentsViewModel"
+             BackgroundColor="{StaticResource PageBackground}"
+             Title="Cobraments">
+
+    <Grid RowDefinitions="Auto,*" Padding="16,14,16,0" RowSpacing="12">
+
+        <VerticalStackLayout Grid.Row="0" Spacing="6">
+            <Label Text="Pendents de cobrament" Style="{StaticResource PageTitle}" />
+            <BoxView Style="{StaticResource GoldRule}" />
+            <Label Text="{Binding SubtitolText}" Style="{StaticResource Subtitle}" />
+            <Label Text="{Binding ErrorMessage}" Style="{StaticResource ErrorText}" IsVisible="{Binding HasError}" />
+        </VerticalStackLayout>
+
+        <RefreshView Grid.Row="1" IsRefreshing="{Binding IsRefreshing}" Command="{Binding RefrescaCommand}">
+            <CollectionView ItemsSource="{Binding Grups}" IsGrouped="True" SelectionMode="None">
+
+                <CollectionView.Header>
+                    <Border Style="{StaticResource ListCard}" Margin="0,0,0,4"
+                            IsVisible="{Binding Total, Converter={StaticResource IsNotNullConverter}}">
+                        <Grid ColumnDefinitions="*,*,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="2">
+                            <Label Grid.Column="0" Text="{Binding Total.LiquidatText}" FontSize="17" FontAttributes="Bold"
+                                   TextColor="{StaticResource TextPrimary}" HorizontalTextAlignment="Center" />
+                            <Label Grid.Column="1" Text="{Binding Total.CobratText}" FontSize="17" FontAttributes="Bold"
+                                   TextColor="{StaticResource Success}" HorizontalTextAlignment="Center" />
+                            <Label Grid.Column="2" Text="{Binding Total.PendentText}" FontSize="17" FontAttributes="Bold"
+                                   TextColor="{StaticResource Danger}" HorizontalTextAlignment="Center" />
+                            <Label Grid.Row="1" Grid.Column="0" Text="LIQUIDAT" Style="{StaticResource GroupHeader}" HorizontalTextAlignment="Center" />
+                            <Label Grid.Row="1" Grid.Column="1" Text="COBRAT" Style="{StaticResource GroupHeader}" HorizontalTextAlignment="Center" />
+                            <Label Grid.Row="1" Grid.Column="2" Text="PENDENT" Style="{StaticResource GroupHeader}" HorizontalTextAlignment="Center" />
+                            <Label Grid.Row="2" Grid.ColumnSpan="3" Text="{Binding Total.UltimaRemesaText}"
+                                   Style="{StaticResource ItemMeta}" Margin="0,8,0,0" />
+                        </Grid>
+                    </Border>
+                </CollectionView.Header>
+
+                <CollectionView.GroupHeaderTemplate>
+                    <DataTemplate x:DataType="vm:GrupCobraments">
+                        <Grid ColumnDefinitions="*,Auto" Margin="4,16,4,6">
+                            <Label Text="{Binding Titol}" Style="{StaticResource GroupHeader}" />
+                            <Label Grid.Column="1" Text="{Binding PendentText}" Style="{StaticResource GroupHeader}"
+                                   TextColor="{StaticResource Danger}" />
+                        </Grid>
+                    </DataTemplate>
+                </CollectionView.GroupHeaderTemplate>
+
+                <CollectionView.GroupFooterTemplate>
+                    <DataTemplate x:DataType="vm:GrupCobraments">
+                        <Border Style="{StaticResource ListCard}" Padding="14,11" IsVisible="{Binding TeMissatge}">
+                            <Label Text="{Binding MissatgeBuit}" Style="{StaticResource ItemMeta}" FontSize="14" />
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.GroupFooterTemplate>
+
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="models:PersonaInscritaDto">
+                        <Border Style="{StaticResource ListCard}" Padding="14,11" Margin="0,3">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer
+                                    Command="{Binding Source={RelativeSource AncestorType={x:Type vm:CobramentsViewModel}}, Path=ObrePersonaCommand, x:DataType=vm:CobramentsViewModel}"
+                                    CommandParameter="{Binding .}" />
+                            </Border.GestureRecognizers>
+                            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                                <VerticalStackLayout Spacing="2" VerticalOptions="Center">
+                                    <Label Text="{Binding NomComplet}" FontSize="15" TextColor="{StaticResource TextPrimary}" />
+                                    <Label Text="{Binding DetallPendentText}" Style="{StaticResource ItemMeta}" FontSize="12" />
+                                    <Label Text="{Binding DetallText}" Style="{StaticResource ItemMeta}" FontSize="12"
+                                           IsVisible="{Binding EsBaixa}" />
+                                </VerticalStackLayout>
+                                <Border Grid.Column="1" Style="{StaticResource Pill}" Margin="0"
+                                        BackgroundColor="{StaticResource DangerLight}">
+                                    <Label Text="{Binding ImportPendentText}" TextColor="{StaticResource Danger}"
+                                           Style="{StaticResource PillText}" />
+                                </Border>
+                                <Label Grid.Column="2" Text="&#x203A;" FontSize="22"
+                                       TextColor="{StaticResource TextSecondary}" VerticalOptions="Center" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+
+                <CollectionView.Footer>
+                    <BoxView HeightRequest="16" Color="Transparent" />
+                </CollectionView.Footer>
+            </CollectionView>
+        </RefreshView>
+
+        <ActivityIndicator Grid.Row="1" IsRunning="{Binding MostraCarregant}" IsVisible="{Binding MostraCarregant}"
+                           Color="{StaticResource Primary}" HorizontalOptions="Center" VerticalOptions="Start"
+                           Margin="0,40,0,0" />
+    </Grid>
+
+</ContentPage>
