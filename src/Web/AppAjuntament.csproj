@@ -24,7 +24,7 @@
     </PackageReference>
     <!-- Microsoft.Extensions.Localization i .Identity.Core ja venen amb el framework
          compartit a net10.0 (avís NU1510): no cal referenciar-los explícitament. -->
-    <PackageReference Include="Microsoft.Identity.Web" Version="3.15.1" />
+    <PackageReference Include="Microsoft.Identity.Web" Version="4.15.0" />
     <!-- Sobreescriu System.Security.Cryptography.Xml 9.0.15, que arrossega
          Microsoft.Identity.Web via Microsoft.AspNetCore.DataProtection (NU1903).
          L'avís NU1510 que dona és fals positiu per a aquest cas: sense la
