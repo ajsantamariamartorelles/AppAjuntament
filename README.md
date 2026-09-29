@@ -2,6 +2,8 @@
 
 ## Llicència i propietat
 
+Copyright © 2026 Ajuntament de Santa Maria de Martorelles.
+
 Aquest projecte ha estat desenvolupat totalment per Rodolf Casas i Bonet, amb l'assistència d'eines d'IA durant el procés de desenvolupament. La propietat del codi es cedeix a l'Ajuntament de Santa Maria de Martorelles, amb la voluntat que el projecte continuï essent un recurs públic, accessible i reutilitzable.
 
 El projecte es publica sota la llicència pública de la Unió Europea (EUPL), versió 1.2 o posterior, pensada específicament per a programari d'administracions públiques. Això vol dir que el codi pot ser utilitzat, estudiat, modificat i redistribuït, sempre que les modificacions i les redistribucions es mantinguin sota els mateixos termes de la llicència (o d'una de compatible, segons l'annex de l'EUPL) i es preservin les llibertats del programari lliure. Vegeu el fitxer [`LICENSE`](LICENSE) per al text complet.
