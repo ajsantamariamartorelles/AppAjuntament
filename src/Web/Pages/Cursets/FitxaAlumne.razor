@@ -1,0 +1,792 @@
+@page "/cursets/alumnes/nou"
+@page "/cursets/alumnes/{Id:int}"
+@using System.ComponentModel.DataAnnotations
+@using AppAjuntament.Models.Cursets.Dto
+@using AppAjuntament.Services.Cursets
+@attribute [Authorize(Policy = "EditorOrAdmin")]
+@inject ICursetsCatalogService CatalogService
+@inject ICursetsSessionsService SessionsService
+@inject ICursetsLiquidacioService LiquidacioService
+@inject IJSRuntime JSRuntime
+@inject NavigationManager Nav
+@inject AppAjuntament.Services.DatabaseLoggerService DbLogger
+
+<PageTitle>Fitxa de l'alumne</PageTitle>
+
+<div class="screen-header mb-3">
+    <h3 class="screen-title"><i class="fas fa-user me-2"></i>@(EsNou ? "Nou alumne" : "Fitxa de l'alumne")</h3>
+    <a class="btn btn-sm btn-outline-secondary" href="/cursets/alumnes">
+        <i class="fas fa-arrow-left me-1"></i>Tots els alumnes
+    </a>
+</div>
+
+@if (missatge is not null)
+{
+    <div class="alert alert-@missatgeTipus alert-dismissible">
+        @missatge
+        <button type="button" class="btn-close" @onclick="() => missatge = null"></button>
+    </div>
+}
+
+@if (carregant)
+{
+    <div class="p-4 text-center text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Carregant...</div>
+}
+else if (!EsNou && fitxa is null)
+{
+    <div class="alert alert-warning">No s'ha trobat l'alumne.</div>
+}
+else
+{
+    <!-- Capçalera fixa: dades bàsiques i fiscals editables -->
+    <div class="card mb-3">
+        <div class="card-body">
+            <EditForm EditContext="editContext" OnValidSubmit="Desar">
+                <DataAnnotationsValidator />
+                <div class="row">
+                    <div class="col-lg-8">
+                        @if (!EsNou)
+                        {
+                            <div class="h5 mb-0">@fitxa!.NomComplet</div>
+                            <div class="small text-muted mb-3">
+                                Alta @fitxa.DataAlta.ToString("dd/MM/yyyy")
+                                · @fitxa.Inscripcions.Count(i => i.Estat == "Admesa") cursos actius
+                                @{ var espera = fitxa.Inscripcions.Count(i => i.Estat == "LlistaEspera"); }
+                                @if (espera > 0) { <text> · @espera en llista d'espera</text> }
+                            </div>
+                        }
+
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <label class="form-label">Nom</label>
+                                <InputText class="form-control" @bind-Value="form.Nom" />
+                                <ValidationMessage For="() => form.Nom" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Cognoms</label>
+                                <InputText class="form-control" @bind-Value="form.Cognoms" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Telèfon</label>
+                                <InputText class="form-control" @bind-Value="form.Telefon" />
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label">Email</label>
+                                <InputText class="form-control" type="email" @bind-Value="form.Email" />
+                                <ValidationMessage For="() => form.Email" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">NIF / DNI</label>
+                                <InputText class="form-control text-uppercase" @bind-Value="form.Dni" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Adreça</label>
+                                <InputText class="form-control" @bind-Value="form.Adreca" placeholder="Carrer, número, pis" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Codi postal</label>
+                                <InputText class="form-control" @bind-Value="form.CodiPostal" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Població</label>
+                                <InputText class="form-control" @bind-Value="form.Poblacio" />
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Notes</label>
+                                <InputTextArea class="form-control" rows="2" @bind-Value="form.Notes" />
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check">
+                                    <InputCheckbox class="form-check-input" id="emp" @bind-Value="form.Empadronat" />
+                                    <label class="form-check-label" for="emp">
+                                        Empadronat/da al municipi <span class="text-muted small">(determina el preu per sessió)</span>
+                                    </label>
+                                </div>
+                            </div>
+                            @if (EsNou)
+                            {
+                                <div class="col-12">
+                                    <div class="form-check">
+                                        <InputCheckbox class="form-check-input" id="autoritzacioAlumne" @bind-Value="form.AutoritzacioTractamentSignada" />
+                                        <label class="form-check-label" for="autoritzacioAlumne">
+                                            Confirmo que la persona ha signat l'autorització de tractament de dades
+                                            per als serveis de l'Ajuntament. *
+                                        </label>
+                                    </div>
+                                    @if (mostraErrorAutoritzacio && !form.AutoritzacioTractamentSignada)
+                                    {
+                                        <div class="text-danger small mt-1">Cal confirmar-ho per poder crear l'alumne.</div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="col-lg-4">
+                        <div class="border-start ps-lg-3 mt-3 mt-lg-0 h-100 d-flex flex-column">
+                            @if (!EsNou)
+                            {
+                                <div class="mb-3">
+                                    <div class="text-muted small text-uppercase">Estat</div>
+                                    <span class="badge bg-@(fitxa!.Actiu ? "success" : "secondary")">
+                                        @(fitxa.Actiu ? "Actiu" : "De baixa")
+                                    </span>
+                                    <button type="button" class="btn btn-link btn-sm p-0 ms-2 align-baseline"
+                                            @onclick="() => CanviarEstatAlumne(!fitxa.Actiu)">
+                                        @(fitxa.Actiu ? "Donar de baixa" : "Reactivar")
+                                    </button>
+                                </div>
+                                <div class="mb-3">
+                                    <div class="text-muted small text-uppercase">Deute pendent</div>
+                                    <div class="fs-4 fw-bold @(fitxa.Deute > 0 ? "text-danger" : "")">@Eur(fitxa.Deute)</div>
+                                    <div class="small text-muted">@fitxa.Liquidacions.Count(l => l.Estat == "Emesa") liquidacions emeses</div>
+                                </div>
+                                <div class="mb-3">
+                                    <div class="text-muted small text-uppercase">Dades fiscals</div>
+                                    @if (fitxa.DadesLiquidacioFalten.Any())
+                                    {
+                                        <span class="text-warning">
+                                            <i class="fas fa-triangle-exclamation me-1"></i>Falta: @string.Join(", ", fitxa.DadesLiquidacioFalten)
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-success"><i class="fas fa-check me-1"></i>Completes</span>
+                                    }
+                                </div>
+                            }
+                            <div class="mt-auto">
+                                <button type="submit" class="btn btn-primary w-100" disabled="@(desant || (!EsNou && !dirty))">
+                                    @if (desant)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-2"></span>
+                                    }
+                                    <i class="fas fa-save me-2"></i>@(EsNou ? "Crear alumne" : "Desar canvis")
+                                </button>
+                                @if (!EsNou && !dirty)
+                                {
+                                    <div class="small text-muted text-center mt-1">S'activa en editar un camp</div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+
+    @if (!EsNou)
+    {
+        <ul class="nav nav-tabs mb-3">
+            <li class="nav-item">
+                <a class="nav-link @(TabActual == "inscripcions" ? "active" : "")" href="@TabHref("inscripcions")">
+                    Inscripcions
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link @(TabActual == "liquidacions" ? "active" : "")" href="@TabHref("liquidacions")">
+                    Liquidacions
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link @(TabActual == "assistencia" ? "active" : "")" href="@TabHref("assistencia")">
+                    Assistència
+                </a>
+            </li>
+        </ul>
+
+        @if (TabActual == "inscripcions")
+        {
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">Inscripcions (@fitxa!.Inscripcions.Count)</h6>
+                    <div class="d-flex gap-2 align-items-center">
+                        <select class="form-select form-select-sm" style="width:auto;" @bind="cursetAAfegir">
+                            <option value="0">+ Afegir a un curset…</option>
+                            @foreach (var c in cursetsDisponibles)
+                            {
+                                <option value="@c.Id">@c.TipusCursetNom - @c.Nom</option>
+                            }
+                        </select>
+                        <button class="btn btn-sm btn-outline-primary" disabled="@(cursetAAfegir == 0 || ocupat)"
+                                @onclick="AfegirInscripcio">Afegir</button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    @if (!fitxa.Inscripcions.Any())
+                    {
+                        <div class="p-4 text-center text-muted">Aquest alumne no té cap inscripció.</div>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover mb-0 align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Curset</th>
+                                        <th>Estat</th>
+                                        <th>Llista d'espera</th>
+                                        <th>Període</th>
+                                        <th>Dates</th>
+                                        <th>Origen</th>
+                                        <th class="text-end">Accions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var i in fitxa.Inscripcions)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <div>@i.CursetTitol</div>
+                                                <div class="small text-muted">
+                                                    @i.DiaHora@(string.IsNullOrWhiteSpace(i.ProfessoraNom) ? "" : $" · {i.ProfessoraNom}")
+                                                </div>
+                                            </td>
+                                            <td><span class="badge @EstatCss(i.Estat)">@EstatText(i.Estat)</span></td>
+                                            <td class="small">
+                                                @if (i.Estat == "LlistaEspera" && i.OrdreLlistaEspera.HasValue)
+                                                {
+                                                    <span><strong>@Ordinal(i.OrdreLlistaEspera.Value)</strong> <span class="text-muted">de @i.TotalLlistaEspera</span></span>
+                                                }
+                                                else if (i.Estat == "Sollicitada")
+                                                {
+                                                    <span class="text-muted">Pendent de sorteig</span>
+                                                }
+                                                else { <span class="text-muted">—</span> }
+                                            </td>
+                                            <td>
+                                                @if (i.EstatPeriode is "Oberta" or "Properament" or "Tancada")
+                                                {
+                                                    <span class="badge @PeriodeCss(i.EstatPeriode)">@(i.EstatPeriode == "Properament" ? "Properament" : i.EstatPeriode)</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted small">—</span>
+                                                }
+                                            </td>
+                                            <td class="small text-muted">
+                                                @if (i.DataSollicitud.HasValue && (i.Estat == "Sollicitada" || i.Estat == "LlistaEspera"))
+                                                {
+                                                    <div>Sol·licitud @i.DataSollicitud.Value.ToString("dd/MM/yyyy")</div>
+                                                }
+                                                @if (i.Estat == "Admesa")
+                                                {
+                                                    <div>Alta @i.DataAlta.ToString("dd/MM/yyyy")</div>
+                                                }
+                                                @if (i.DataBaixa.HasValue)
+                                                {
+                                                    <div>Baixa @i.DataBaixa.Value.ToString("dd/MM/yyyy")</div>
+                                                }
+                                            </td>
+                                            <td class="small text-muted">@(i.Origen ?? "Manual")</td>
+                                            <td class="text-end text-nowrap">
+                                                @if (i.Estat is "Sollicitada" or "LlistaEspera")
+                                                {
+                                                    <button class="btn btn-sm btn-outline-success" disabled="@ocupat"
+                                                            @onclick='() => CanviarEstatInscripcio(i, "Admesa")'>Admetre</button>
+                                                }
+                                                @if (i.Estat == "Sollicitada")
+                                                {
+                                                    <button class="btn btn-sm btn-outline-secondary" disabled="@ocupat"
+                                                            @onclick='() => CanviarEstatInscripcio(i, "LlistaEspera")'>A llista d'espera</button>
+                                                    <button class="btn btn-sm btn-outline-danger" disabled="@ocupat"
+                                                            @onclick='() => CanviarEstatInscripcio(i, "Rebutjada")'>Rebutjar</button>
+                                                }
+                                                @if (i.Estat == "Admesa")
+                                                {
+                                                    <button class="btn btn-sm btn-outline-warning" disabled="@ocupat"
+                                                            @onclick='() => CanviarEstatInscripcio(i, "Baixa")'>Donar de baixa</button>
+                                                }
+                                                @if (i.Estat is "Baixa" or "Rebutjada")
+                                                {
+                                                    <button class="btn btn-sm btn-outline-success" disabled="@ocupat"
+                                                            @onclick='() => CanviarEstatInscripcio(i, "Admesa")'>Readmetre</button>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+        else if (TabActual == "liquidacions")
+        {
+            <div class="d-flex gap-4 mb-3 small">
+                <div><span class="text-muted">Deute pendent</span> · <strong class="text-danger">@Eur(fitxa!.Deute)</strong></div>
+                <div><span class="text-muted">Cobrat</span> · <strong>@Eur(fitxa.Liquidacions.Where(l => l.Estat == "Cobrada").Sum(l => l.Import))</strong></div>
+                <div><span class="text-muted">Anul·lat</span> · <strong>@Eur(fitxa.Liquidacions.Where(l => l.Estat == "Anullada").Sum(l => l.Import))</strong></div>
+            </div>
+            <div class="card">
+                <div class="card-header"><h6 class="mb-0">Liquidacions (@fitxa.Liquidacions.Count)</h6></div>
+                <div class="card-body p-0">
+                    @if (!fitxa.Liquidacions.Any())
+                    {
+                        <div class="p-4 text-center text-muted">Aquest alumne no té cap liquidació.</div>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover mb-0 align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Número</th>
+                                        <th>Període</th>
+                                        <th>Curset</th>
+                                        <th class="text-end">Import</th>
+                                        <th>Estat</th>
+                                        <th class="text-end">Accions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var l in fitxa.Liquidacions)
+                                    {
+                                        <tr class="@(l.Estat == "Anullada" ? "text-muted" : "")">
+                                            <td class="small"><code>@l.Numero</code></td>
+                                            <td class="small">@l.PeriodeEtiqueta</td>
+                                            <td class="small">@l.CursetTitol</td>
+                                            <td class="text-end">@Eur(l.Import)</td>
+                                            <td>
+                                                @switch (l.Estat)
+                                                {
+                                                    case "Cobrada":
+                                                        <span class="badge bg-success">Cobrada @l.DataCobrament?.ToString("dd/MM/yyyy")</span>
+                                                        break;
+                                                    case "Anullada":
+                                                        <span class="badge bg-danger">Anul·lada</span>
+                                                        break;
+                                                    default:
+                                                        <span class="badge bg-warning text-dark">Emesa</span>
+                                                        break;
+                                                }
+                                            </td>
+                                            <td class="text-end text-nowrap">
+                                                <a class="btn btn-sm btn-outline-primary" href="@PdfUrl(l.Id)" target="_blank" title="PDF">
+                                                    <i class="fas fa-file-pdf"></i>
+                                                </a>
+                                                @if (l.Estat == "Emesa")
+                                                {
+                                                    <button class="btn btn-sm btn-outline-success" disabled="@ocupat"
+                                                            @onclick="() => MarcarCobrada(l)" title="Marca cobrada">
+                                                        <i class="fas fa-check"></i>
+                                                    </button>
+                                                    <button class="btn btn-sm btn-outline-danger" disabled="@ocupat"
+                                                            @onclick="() => Anullar(l)" title="Anul·la">
+                                                        <i class="fas fa-ban"></i>
+                                                    </button>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+        else if (TabActual == "assistencia")
+        {
+            <div class="card">
+                <div class="card-header"><h6 class="mb-0">Assistència</h6></div>
+                <div class="card-body">
+                    @if (assistencia is null || assistencia.TotalSessions == 0)
+                    {
+                        <div class="text-center text-muted">Encara no hi ha sessions registrades per a aquest alumne.</div>
+                    }
+                    else
+                    {
+                        <p>
+                            <strong>@assistencia.TotalPresents</strong> de <strong>@assistencia.TotalSessions</strong>
+                            sessions assistides
+                            (@(assistencia.TotalSessions == 0 ? 0 : Math.Round(100.0 * assistencia.TotalPresents / assistencia.TotalSessions))%).
+                        </p>
+                        <div class="table-responsive">
+                            <table class="table table-sm mb-0 align-middle">
+                                <thead>
+                                    <tr><th>Data</th><th>Curset</th><th class="text-center">Present</th><th>Nota</th></tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var s in assistencia.Sessions.OrderByDescending(x => x.Data))
+                                    {
+                                        <tr>
+                                            <td class="small">@s.Data.ToString("dd/MM/yyyy")</td>
+                                            <td class="small">@s.CursetNom</td>
+                                            <td class="text-center">
+                                                @if (s.Present)
+                                                {
+                                                    <i class="fas fa-check text-success"></i>
+                                                }
+                                                else
+                                                {
+                                                    <i class="fas fa-xmark text-danger"></i>
+                                                }
+                                            </td>
+                                            <td class="small text-muted">@s.Nota</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    }
+}
+
+@code {
+    [Parameter] public int? Id { get; set; }
+    [SupplyParameterFromQuery] public string? Tab { get; set; }
+
+    private bool EsNou => Id is null;
+    private string TabActual => (Tab ?? "inscripcions").ToLowerInvariant() switch
+    {
+        "liquidacions" => "liquidacions",
+        "assistencia" => "assistencia",
+        _ => "inscripcions"
+    };
+
+    private AlumneFitxaDto? fitxa;
+    private ResumAssistenciaAlumneDto? assistencia;
+    private List<CursetDto> cursetsDisponibles = new();
+    private int cursetAAfegir;
+
+    private readonly FormModel form = new();
+    private EditContext editContext = default!;
+    private bool dirty;
+
+    private bool carregant = true;
+    private bool desant;
+    private bool ocupat;
+    private string? missatge;
+    private string missatgeTipus = "success";
+
+    private int? carregatPer;
+
+    protected override void OnInitialized()
+    {
+        editContext = new EditContext(form);
+        editContext.OnFieldChanged += (_, _) => { dirty = true; StateHasChanged(); };
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (carregatPer == Id && !carregant) return;
+        carregatPer = Id;
+        await Carregar();
+    }
+
+    private async Task Carregar()
+    {
+        carregant = true;
+        try
+        {
+            cursetsDisponibles = await CatalogService.GetCursetsAsync();
+
+            if (EsNou)
+            {
+                fitxa = null;
+                CopiaAFormBuit();
+            }
+            else
+            {
+                fitxa = await CatalogService.GetAlumneFitxaAsync(Id!.Value);
+                if (fitxa is not null)
+                {
+                    CopiaAForm(fitxa);
+                    if (TabActual == "assistencia")
+                        assistencia = await SessionsService.GetAssistenciesPerAlumneAsync(Id.Value);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error carregant la fitxa d'alumne", ex, "FitxaAlumne.Carregar");
+            MostrarError("No s'ha pogut carregar la fitxa.");
+        }
+        finally
+        {
+            carregant = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Carrega l'assistència en canviar a la pestanya, si encara no s'ha carregat.
+        if (!EsNou && fitxa is not null && TabActual == "assistencia" && assistencia is null)
+        {
+            assistencia = await SessionsService.GetAssistenciesPerAlumneAsync(Id!.Value);
+            StateHasChanged();
+        }
+    }
+
+    private void CopiaAForm(AlumneFitxaDto f)
+    {
+        form.Nom = f.Nom;
+        form.Cognoms = f.Cognoms;
+        form.Dni = f.Dni;
+        form.Telefon = f.Telefon;
+        form.Email = f.Email;
+        form.Adreca = f.Adreca;
+        form.CodiPostal = f.CodiPostal;
+        form.Poblacio = f.Poblacio;
+        form.Notes = f.Notes;
+        form.Empadronat = f.Empadronat;
+        dirty = false;
+    }
+
+    private void CopiaAFormBuit()
+    {
+        form.Nom = form.Cognoms = form.Dni = form.Telefon = form.Email =
+            form.Adreca = form.CodiPostal = form.Poblacio = form.Notes = null;
+        form.Nom = string.Empty;
+        form.Empadronat = false;
+        form.AutoritzacioTractamentSignada = false;
+        dirty = false;
+    }
+
+    private bool mostraErrorAutoritzacio;
+
+    private async Task Desar()
+    {
+        if (desant) return;
+
+        if (EsNou && !form.AutoritzacioTractamentSignada)
+        {
+            mostraErrorAutoritzacio = true;
+            MostrarError("Cal confirmar que la persona ha signat l'autorització de tractament de dades.");
+            return;
+        }
+
+        desant = true;
+        try
+        {
+            if (EsNou)
+            {
+                var nou = await CatalogService.CrearAlumneAsync(new CrearAlumneRequest
+                {
+                    Nom = form.Nom ?? string.Empty,
+                    Cognoms = form.Cognoms,
+                    Dni = form.Dni,
+                    Telefon = form.Telefon,
+                    Email = form.Email,
+                    Adreca = form.Adreca,
+                    CodiPostal = form.CodiPostal,
+                    Poblacio = form.Poblacio,
+                    Notes = form.Notes,
+                    Empadronat = form.Empadronat,
+                    AutoritzacioTractamentSignada = form.AutoritzacioTractamentSignada
+                });
+                Nav.NavigateTo($"/cursets/alumnes/{nou.Id}");
+                return;
+            }
+
+            await CatalogService.ActualitzarAlumneAsync(Id!.Value, new ActualitzarAlumneRequest
+            {
+                Nom = form.Nom ?? string.Empty,
+                Cognoms = form.Cognoms,
+                Dni = form.Dni,
+                Telefon = form.Telefon,
+                Email = form.Email,
+                Adreca = form.Adreca,
+                CodiPostal = form.CodiPostal,
+                Poblacio = form.Poblacio,
+                Notes = form.Notes,
+                Empadronat = form.Empadronat,
+                CursetIds = null
+            });
+            MostrarOk("Dades desades.");
+            await Carregar();
+        }
+        catch (ArgumentException ex)
+        {
+            MostrarError(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error desant la fitxa d'alumne", ex, "FitxaAlumne.Desar");
+            MostrarError("No s'ha pogut desar.");
+        }
+        finally
+        {
+            desant = false;
+        }
+    }
+
+    private async Task CanviarEstatAlumne(bool actiu)
+    {
+        if (fitxa is null) return;
+        var accio = actiu ? "reactivar" : "donar de baixa";
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", $"Segur que vols {accio} «{fitxa.NomComplet}»?")) return;
+        try
+        {
+            await CatalogService.CanviarEstatAlumneAsync(Id!.Value, actiu);
+            await Carregar();
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error canviant estat d'alumne", ex, "FitxaAlumne.CanviarEstatAlumne");
+            MostrarError("No s'ha pogut canviar l'estat.");
+        }
+    }
+
+    private async Task AfegirInscripcio()
+    {
+        if (cursetAAfegir == 0 || ocupat) return;
+        ocupat = true;
+        try
+        {
+            await CatalogService.AfegirInscripcioAsync(Id!.Value, cursetAAfegir);
+            cursetAAfegir = 0;
+            await Carregar();
+        }
+        catch (ArgumentException ex)
+        {
+            MostrarError(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error afegint inscripció", ex, "FitxaAlumne.AfegirInscripcio");
+            MostrarError("No s'ha pogut afegir la inscripció.");
+        }
+        finally
+        {
+            ocupat = false;
+        }
+    }
+
+    private async Task CanviarEstatInscripcio(InscripcioFitxaDto i, string nouEstat)
+    {
+        if (ocupat) return;
+        if (nouEstat is "Baixa" or "Rebutjada")
+        {
+            var verb = nouEstat == "Baixa" ? "donar de baixa" : "rebutjar";
+            if (!await JSRuntime.InvokeAsync<bool>("confirm", $"Segur que vols {verb} la inscripció a «{i.CursetTitol}»?"))
+                return;
+        }
+        ocupat = true;
+        try
+        {
+            await CatalogService.CanviarEstatInscripcioAsync(Id!.Value, i.CursetId,
+                Enum.Parse<AppAjuntament.Models.Cursets.EstatInscripcio>(nouEstat));
+            await Carregar();
+        }
+        catch (ArgumentException ex)
+        {
+            MostrarError(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error canviant estat d'inscripció", ex, "FitxaAlumne.CanviarEstatInscripcio");
+            MostrarError("No s'ha pogut canviar l'estat de la inscripció.");
+        }
+        finally
+        {
+            ocupat = false;
+        }
+    }
+
+    private async Task MarcarCobrada(LiquidacioFitxaDto l)
+    {
+        if (ocupat) return;
+        var data = await JSRuntime.InvokeAsync<string>("prompt", $"Data de cobrament de {l.Numero} (dd/mm/aaaa):",
+            DateTime.Today.ToString("dd/MM/yyyy"));
+        if (string.IsNullOrWhiteSpace(data)) return;
+        if (!DateTime.TryParse(data, System.Globalization.CultureInfo.GetCultureInfo("ca-ES"),
+                System.Globalization.DateTimeStyles.None, out var d))
+        {
+            MostrarError("Data no vàlida.");
+            return;
+        }
+        ocupat = true;
+        try
+        {
+            await LiquidacioService.MarcarCobradaAsync(l.Id, d);
+            await Carregar();
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error marcant cobrada", ex, "FitxaAlumne.MarcarCobrada");
+            MostrarError("No s'ha pogut marcar com a cobrada.");
+        }
+        finally { ocupat = false; }
+    }
+
+    private async Task Anullar(LiquidacioFitxaDto l)
+    {
+        if (ocupat) return;
+        var motiu = await JSRuntime.InvokeAsync<string>("prompt", $"Motiu de l'anul·lació de {l.Numero}:");
+        if (string.IsNullOrWhiteSpace(motiu)) return;
+        ocupat = true;
+        try
+        {
+            await LiquidacioService.AnullarAsync(l.Id, motiu);
+            await Carregar();
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error anul·lant liquidació", ex, "FitxaAlumne.Anullar");
+            MostrarError("No s'ha pogut anul·lar.");
+        }
+        finally { ocupat = false; }
+    }
+
+    private string TabHref(string tab) => $"/cursets/alumnes/{Id}?tab={tab}";
+    private static string PdfUrl(int liquidacioId) => $"/api/cursets/admin/liquidacions/{liquidacioId}/pdf";
+
+    private static string Eur(decimal v) =>
+        v.ToString("#,##0.00", System.Globalization.CultureInfo.GetCultureInfo("ca-ES")) + " €";
+
+    private static string Ordinal(int n) => n switch
+    {
+        1 => "1r", 2 => "2n", 3 => "3r", 4 => "4t", _ => $"{n}è"
+    };
+
+    private static string EstatCss(string e) => e switch
+    {
+        "Admesa" => "bg-success",
+        "LlistaEspera" => "bg-warning text-dark",
+        "Sollicitada" => "bg-info text-dark",
+        _ => "bg-secondary"
+    };
+
+    private static string EstatText(string e) => e switch
+    {
+        "LlistaEspera" => "Llista d'espera",
+        "Sollicitada" => "Sol·licitada",
+        _ => e
+    };
+
+    private static string PeriodeCss(string e) => e switch
+    {
+        "Oberta" => "bg-success",
+        "Properament" => "bg-info text-dark",
+        "Tancada" => "bg-secondary",
+        _ => ""
+    };
+
+    private void MostrarOk(string t) { missatge = t; missatgeTipus = "success"; }
+    private void MostrarError(string t) { missatge = t; missatgeTipus = "danger"; }
+
+    private class FormModel
+    {
+        [Required(ErrorMessage = "El nom és obligatori.")]
+        [StringLength(255)]
+        public string? Nom { get; set; } = string.Empty;
+
+        [StringLength(255)] public string? Cognoms { get; set; }
+        [StringLength(20)] public string? Dni { get; set; }
+        [StringLength(50)] public string? Telefon { get; set; }
+        [EmailAddress(ErrorMessage = "Email no vàlid.")]
+        [StringLength(255)] public string? Email { get; set; }
+        [StringLength(300)] public string? Adreca { get; set; }
+        [StringLength(10)] public string? CodiPostal { get; set; }
+        [StringLength(120)] public string? Poblacio { get; set; }
+        [StringLength(1000)] public string? Notes { get; set; }
+        public bool Empadronat { get; set; }
+        public bool AutoritzacioTractamentSignada { get; set; }
+    }
+}

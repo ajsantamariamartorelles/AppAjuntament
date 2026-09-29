@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:AjuntamentSantaMariaMartorelles.ViewModels"
+             x:Class="AjuntamentSantaMariaMartorelles.Views.AcceptaTermesPage"
+             x:DataType="vm:AcceptaTermesViewModel"
+             Shell.NavBarIsVisible="False"
+             BackgroundColor="{StaticResource PageBackground}"
+             Title="Abans de continuar">
+
+    <ScrollView>
+        <Grid RowDefinitions="*,Auto,*" Padding="28,24">
+
+            <VerticalStackLayout Grid.Row="1" Spacing="0">
+
+                <Label Text="Abans de continuar"
+                       FontSize="20"
+                       FontAttributes="Bold"
+                       TextColor="{StaticResource TextPrimary}"
+                       HorizontalTextAlignment="Center"
+                       Margin="0,0,0,18" />
+
+                <Border Style="{StaticResource Card}">
+                    <VerticalStackLayout Spacing="14">
+
+                        <Label Text="Per fer servir aquesta app cal que llegeixis i acceptis els Termes i Condicions d'Ús i la Política de Privacitat."
+                               TextColor="{StaticResource TextSecondary}" />
+
+                        <Button Text="Llegeix els Termes i Condicions"
+                                Style="{StaticResource OutlineButton}"
+                                Command="{Binding ObreTermesCommand}" />
+
+                        <Button Text="Llegeix la Política de Privacitat"
+                                Style="{StaticResource OutlineButton}"
+                                Command="{Binding ObrePrivacitatCommand}" />
+
+                        <HorizontalStackLayout Spacing="8" Margin="0,8,0,0">
+                            <CheckBox IsChecked="{Binding Accepta}" />
+                            <Label Text="He llegit i accepto els Termes i Condicions d'Ús i la Política de Privacitat."
+                                   TextColor="{StaticResource TextPrimary}"
+                                   VerticalOptions="Center"
+                                   LineBreakMode="WordWrap" />
+                        </HorizontalStackLayout>
+
+                        <Label Text="{Binding ErrorMessage}"
+                               TextColor="#C0392B"
+                               FontSize="13"
+                               IsVisible="{Binding HasError}" />
+
+                        <Button Text="Continuar"
+                                Command="{Binding ContinuarCommand}"
+                                IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}" />
+
+                        <ActivityIndicator IsRunning="{Binding IsBusy}"
+                                           IsVisible="{Binding IsBusy}"
+                                           Color="{StaticResource Primary}"
+                                           HorizontalOptions="Center" />
+
+                    </VerticalStackLayout>
+                </Border>
+
+            </VerticalStackLayout>
+        </Grid>
+    </ScrollView>
+
+</ContentPage>

@@ -1,0 +1,23 @@
+﻿@page "/counter"
+
+<PageTitle>Counter</PageTitle>
+
+<div class="screen-header">
+    <h1 class="screen-title">Counter</h1>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <p role="status" class="mb-3">Current count: @currentCount</p>
+        <button class="btn btn-primary" @onclick="IncrementCount">Click me</button>
+    </div>
+</div>
+
+@code {
+    private int currentCount = 0;
+
+    private void IncrementCount()
+    {
+        currentCount++;
+    }
+}

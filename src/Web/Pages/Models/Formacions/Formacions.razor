@@ -1,0 +1,277 @@
+@page "/formacions"
+@using Microsoft.EntityFrameworkCore
+@inject GestorSubvencionsContext Context
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+@inject AppAjuntament.Services.DatabaseLoggerService DbLogger
+
+<PageTitle>Gestió de Formacions</PageTitle>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header screen-header">
+                    <h3 class="mb-0 screen-title">
+                        <i class="fas fa-graduation-cap me-2"></i>Gestió de Formacions
+                    </h3>
+                    <button class="btn btn-primary" @onclick="CrearFormacio">
+                        <i class="fas fa-plus me-1"></i>Nova Formació
+                    </button>
+                </div>
+                <div class="card-body">
+                    <!-- Filtres -->
+                    <div class="card mb-3 screen-filters-card">
+                        <div class="card-body">
+                            <div class="row g-3 align-items-end">
+                                <div class="col-md-4">
+                                    <label class="form-label">Cercar formació:</label>
+                                    <input type="text" class="form-control" @bind="filtreNom" @oninput="FiltrarFormacions" placeholder="Nom de la formació..." />
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Estat:</label>
+                                    <select class="form-select" @bind="filtreEstat" @bind:after="FiltrarFormacions">
+                                        <option value="">Totes</option>
+                                        <option value="activa">Actives</option>
+                                        <option value="inactiva">Inactives</option>
+                                        <option value="futura">Futures</option>
+                                        <option value="passada">Passades</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Any:</label>
+                                    <select class="form-select" @bind="filtreAny" @bind:after="FiltrarFormacions">
+                                        <option value="">Tots</option>
+                                        @for (int any = DateTime.Now.Year + 1; any >= DateTime.Now.Year - 5; any--)
+                                        {
+                                            <option value="@any">@any</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-3 d-flex justify-content-md-end">
+                                    <button class="btn btn-outline-secondary me-2" @onclick="NetejirFiltres">
+                                        <i class="fas fa-times me-1"></i>Netejar
+                                    </button>
+                                    <button class="btn btn-info" @onclick="ExportarFormacions">
+                                        <i class="fas fa-download me-1"></i>Exportar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Taula de Formacions -->
+                    @if (formacionsFiltrades.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Nom</th>
+                                        <th>Data Inici</th>
+                                        <th>Data Fi</th>
+                                        <th>Durada</th>
+                                        <th>Formador</th>
+                                        <th>Participants</th>
+                                        <th>Estat</th>
+                                        <th>Accions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var formacio in formacionsFiltrades)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <strong>@formacio.Nom</strong>
+                                                @if (!string.IsNullOrEmpty(formacio.Descripcio))
+                                                {
+                                                    <br />
+                                                    <small class="text-muted">@formacio.Descripcio.Substring(0, Math.Min(50, formacio.Descripcio.Length))@(formacio.Descripcio.Length > 50 ? "..." : "")</small>
+                                                }
+                                            </td>
+                                            <td>@formacio.DataInici.ToString("dd/MM/yyyy")</td>
+                                            <td>@(formacio.DataFi?.ToString("dd/MM/yyyy") ?? "No definida")</td>
+                                            <td>
+                                                @if (formacio.DuradaHores.HasValue)
+                                                {
+                                                    <text>@formacio.DuradaHores.Value h</text>
+                                                }
+                                                else
+                                                {
+                                                    <text>No definida</text>
+                                                }
+                                            </td>
+                                            <td>@(formacio.Formador ?? "No assignat")</td>
+                                            <td>
+                                                <span class="badge bg-info">
+                                                    @formacio.Voluntaris.Count participants
+                                                </span>
+                                            </td>
+                                            <td>
+                                                @{
+                                                    var estat = GetEstatFormacio(formacio);
+                                                    var colorClass = estat == "Activa" ? "bg-success" : 
+                                                                   estat == "Futura" ? "bg-warning" : 
+                                                                   estat == "Finalitzada" ? "bg-secondary" : "bg-danger";
+                                                }
+                                                <span class="badge @colorClass">@estat</span>
+                                            </td>
+                                            <td>
+                                                <div class="btn-group" role="group">
+                                                    <button class="btn btn-sm btn-outline-primary" @onclick="() => EditarFormacio(formacio.Id)" title="Editar">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                    <button class="btn btn-sm btn-outline-info" @onclick="() => GestionarParticipants(formacio.Id)" title="Gestionar Participants">
+                                                        <i class="fas fa-users"></i>
+                                                    </button>
+                                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => EliminarFormacio(formacio.Id)" title="Eliminar">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Paginació -->
+                        <div class="d-flex justify-content-between align-items-center mt-3">
+                            <div>
+                                <text>Mostrant @formacionsFiltrades.Count de @formacions.Count formacions</text>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-center py-5">
+                            <i class="fas fa-graduation-cap fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">No hi ha formacions disponibles</h5>
+                            <p class="text-muted">Comença creant la primera formació fent clic al botó "Nova Formació"</p>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<Formacio> formacions = new();
+    private List<Formacio> formacionsFiltrades = new();
+    
+    private string filtreNom = "";
+    private string filtreEstat = "";
+    private string filtreAny = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarFormacions();
+    }
+
+    private async Task CarregarFormacions()
+    {
+        try
+        {
+            formacions = await Context.Formacions
+                .Include(f => f.Ens)
+                .Include(f => f.Voluntaris)
+                .OrderByDescending(f => f.DataInici)
+                .ToListAsync();
+            
+            formacionsFiltrades = formacions.ToList();
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error carregant llista de formacions", ex, "CarregarFormacions");
+            await JSRuntime.InvokeVoidAsync("console.error", "Error carregant formacions: " + ex.Message);
+        }
+    }
+
+    private void FiltrarFormacions()
+    {
+        formacionsFiltrades = formacions.Where(f =>
+            f != null &&
+            (string.IsNullOrEmpty(filtreNom) || (f.Nom != null && f.Nom.Contains(filtreNom, StringComparison.OrdinalIgnoreCase))) &&
+            (string.IsNullOrEmpty(filtreEstat) || CompleixFiltreEstat(f, filtreEstat)) &&
+            (string.IsNullOrEmpty(filtreAny) || f.DataInici.Year.ToString() == filtreAny)
+        ).ToList();
+        
+        StateHasChanged();
+    }
+
+    private bool CompleixFiltreEstat(Formacio formacio, string estat)
+    {
+        var avui = DateTime.Today;
+        return estat switch
+        {
+            "activa" => formacio.Activa && formacio.DataInici <= avui && (formacio.DataFi == null || formacio.DataFi >= avui),
+            "inactiva" => !formacio.Activa,
+            "futura" => formacio.DataInici > avui,
+            "passada" => formacio.DataFi < avui,
+            _ => true
+        };
+    }
+
+    private string GetEstatFormacio(Formacio formacio)
+    {
+        if (!formacio.Activa) return "Inactiva";
+        
+        var avui = DateTime.Today;
+        if (formacio.DataInici > avui) return "Futura";
+        if (formacio.DataFi < avui) return "Finalitzada";
+        return "Activa";
+    }
+
+    private void NetejirFiltres()
+    {
+        filtreNom = "";
+        filtreEstat = "";
+        filtreAny = "";
+        FiltrarFormacions();
+    }
+
+    private void CrearFormacio()
+    {
+        NavigationManager.NavigateTo("/formacions/crear");
+    }
+
+    private void EditarFormacio(int id)
+    {
+        NavigationManager.NavigateTo($"/formacions/editar/{id}");
+    }
+
+    private void GestionarParticipants(int id)
+    {
+        NavigationManager.NavigateTo($"/formacions/{id}/participants");
+    }
+
+    private async Task EliminarFormacio(int id)
+    {
+        var confirmacio = await JSRuntime.InvokeAsync<bool>("confirm", "Estàs segur que vols eliminar aquesta formació?");
+        if (confirmacio)
+        {
+            try
+            {
+                var formacio = await Context.Formacions.FindAsync(id);
+                if (formacio != null)
+                {
+                    Context.Formacions.Remove(formacio);
+                    await Context.SaveChangesAsync();
+                    await CarregarFormacions();
+                    await JSRuntime.InvokeVoidAsync("alert", "Formació eliminada correctament.");
+                }
+            }
+            catch (Exception ex)
+            {
+                await DbLogger.LogErrorAsync($"Error eliminant formació ID={id}", ex, "EliminarFormacio", $"FormacioId={id}");
+                await JSRuntime.InvokeVoidAsync("alert", "Error eliminant la formació: " + ex.Message);
+            }
+        }
+    }
+
+    private async Task ExportarFormacions()
+    {
+        await JSRuntime.InvokeVoidAsync("alert", "Funcionalitat d'exportació en desenvolupament.");
+    }
+}

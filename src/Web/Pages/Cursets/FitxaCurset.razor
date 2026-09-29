@@ -1,0 +1,607 @@
+@page "/cursets/nou"
+@page "/cursets/{Id:int}"
+@using System.Globalization
+@using AppAjuntament.Models.Cursets.Dto
+@using AppAjuntament.Services.Cursets
+@attribute [Authorize(Policy = "EditorOrAdmin")]
+@inject ICursetsCatalogService CatalogService
+@inject ICursetsAuthService ProfessoraService
+@inject IJSRuntime JSRuntime
+@inject NavigationManager Nav
+@inject AppAjuntament.Services.DatabaseLoggerService DbLogger
+
+<PageTitle>@(EsNou ? "Nou curset" : "Fitxa del curset")</PageTitle>
+
+<div class="screen-header mb-3">
+    <h3 class="screen-title">
+        <i class="fas fa-dumbbell me-2"></i>@(EsNou ? "Nou curset" : $"Editar: {curset?.Nom}")
+    </h3>
+    <a class="btn btn-sm btn-outline-secondary" href="/cursets">
+        <i class="fas fa-arrow-left me-1"></i>Tots els cursets
+    </a>
+</div>
+
+@if (missatge is not null)
+{
+    <div class="alert alert-@missatgeTipus alert-dismissible">
+        @missatge
+        <button type="button" class="btn-close" @onclick="() => missatge = null"></button>
+    </div>
+}
+
+@if (carregant)
+{
+    <div class="p-4 text-center text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Carregant...</div>
+}
+else if (!EsNou && curset is null)
+{
+    <div class="alert alert-warning">No s'ha trobat el curset.</div>
+}
+else if (professores.Count == 0)
+{
+    <div class="alert alert-warning">
+        Cal donar d'alta almenys una <a href="/cursets/professores">professora</a> abans de crear cursets.
+    </div>
+}
+else
+{
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-body">
+                    <EditForm Model="form" OnValidSubmit="Desar">
+                        <DataAnnotationsValidator />
+
+                        <h6 class="text-muted text-uppercase small mb-3">General</h6>
+                        <div class="mb-3">
+                            <label class="form-label">Nom del curset</label>
+                            <InputText class="form-control" @bind-Value="form.Nom" placeholder="p. ex. Dilluns matí" />
+                            <ValidationMessage For="() => form.Nom" />
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Temàtica</label>
+                                <div class="input-group">
+                                    <InputSelect class="form-select" @bind-Value="form.TipusCursetId">
+                                        <option value="0">— Tria —</option>
+                                        @foreach (var t in tipus)
+                                        {
+                                            <option value="@t.Id">@t.Nom</option>
+                                        }
+                                    </InputSelect>
+                                    <button type="button" class="btn btn-outline-secondary"
+                                            @onclick="() => mostrarNovaTematica = !mostrarNovaTematica">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                </div>
+                                <ValidationMessage For="() => form.TipusCursetId" />
+                                @if (mostrarNovaTematica)
+                                {
+                                    <div class="input-group input-group-sm mt-2">
+                                        <input class="form-control" placeholder="Nova temàtica" @bind="novaTematica" />
+                                        <button type="button" class="btn btn-outline-primary" @onclick="CrearTematica">Afegir</button>
+                                    </div>
+                                }
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Professora</label>
+                                <InputSelect class="form-select" @bind-Value="form.ProfessoraId">
+                                    <option value="0">— Tria —</option>
+                                    @foreach (var p in professores)
+                                    {
+                                        <option value="@p.Id">@p.Nom</option>
+                                    }
+                                </InputSelect>
+                                <ValidationMessage For="() => form.ProfessoraId" />
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Regidor responsable <span class="text-muted small">(opcional)</span></label>
+                            <InputSelect class="form-select" @bind-Value="form.RegidorId">
+                                <option value="">— Cap —</option>
+                                @foreach (var r in regidors)
+                                {
+                                    <option value="@r.Id">@r.Nom@(string.IsNullOrEmpty(r.Carrec) ? "" : $" ({r.Carrec})")</option>
+                                }
+                            </InputSelect>
+                            <div class="form-text">
+                                Per donar accés a l'app a un regidor, ves a <a href="/cursets/regidors">Cursets › Regidors</a>.
+                            </div>
+                        </div>
+
+                        <hr />
+                        <h6 class="text-muted text-uppercase small mb-3">Horari i preus</h6>
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Dia</label>
+                                <InputSelect class="form-select" @bind-Value="form.DiaSetmana">
+                                    <option value="">—</option>
+                                    @foreach (var d in DiesSetmana)
+                                    {
+                                        <option value="@((int)d)">@NomDia(d)</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Inici</label>
+                                <input type="text" class="form-control" placeholder="HH:mm" @bind="form.HoraInici" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Fi</label>
+                                <input type="text" class="form-control" placeholder="HH:mm" @bind="form.HoraFi" />
+                            </div>
+                        </div>
+                        <div class="row g-2 mb-2">
+                            <div class="col-md-4">
+                                <label class="form-label">Preu/sessió empadronat</label>
+                                <InputNumber class="form-control" @bind-Value="form.PreuPerSessioEmpadronat" step="0.01" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Preu/sessió no empadronat</label>
+                                <InputNumber class="form-control" @bind-Value="form.PreuPerSessioNoEmpadronat" step="0.01" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Places màximes <span class="text-muted small">(opc.)</span></label>
+                                <InputNumber class="form-control" @bind-Value="form.MaxPlaces" min="0" />
+                            </div>
+                        </div>
+                        <div class="form-text mb-3">
+                            0 = curset sense cost (preu per classe impartida, no per assistència). Places: informatiu;
+                            l'adjudicació és per sorteig si hi ha més sol·licituds que places. Buit = sense límit.
+                        </div>
+
+                        <hr />
+                        <h6 class="text-muted text-uppercase small mb-3">Liquidació</h6>
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Codi de liquidació <span class="text-muted small">(opc.)</span></label>
+                                <InputText class="form-control text-uppercase" @bind-Value="form.CodiLiquidacio" placeholder="p. ex. DVT" maxlength="16" />
+                                <div class="form-text">Apareix al número de liquidació (Servei-Període-<strong>Codi</strong>-Sèrie).</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Cadència de liquidació</label>
+                                <InputSelect class="form-select" @bind-Value="form.CadenciaLiquidacio">
+                                    <option value="">— Per defecte (trimestral) —</option>
+                                    <option value="Trimestral">Trimestral</option>
+                                    <option value="Mensual">Mensual</option>
+                                    <option value="Setmanal">Setmanal</option>
+                                </InputSelect>
+                                <div class="form-text">Període que proposa la pantalla de liquidacions.</div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Ordenança / tarifa aplicable</label>
+                            <InputTextArea class="form-control" rows="2" @bind-Value="form.OrdenancaLiquidacio"
+                                           placeholder="p. ex. Ordenança fiscal núm. X, reguladora de la taxa per activitats esportives" />
+                            <div class="form-text">Surt a la secció 3 de l'autoliquidació.</div>
+                        </div>
+
+                        <hr />
+                        <h6 class="text-muted text-uppercase small mb-3">Inscripció</h6>
+                        <div class="row g-2 mb-2">
+                            <div class="col-md-6">
+                                <label class="form-label">Obertura d'inscripcions</label>
+                                <InputDate class="form-control" @bind-Value="form.InscripcioInici" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Tancament d'inscripcions</label>
+                                <InputDate class="form-control" @bind-Value="form.InscripcioFi" />
+                            </div>
+                        </div>
+                        <div class="form-text mb-3">
+                            El sistema obre i tanca la inscripció sol segons la data d'avui. Deixa-ho buit si encara no hi ha dates.
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Enllaç d'inscripció extern <span class="text-muted small">(excepció)</span></label>
+                            <InputText class="form-control" @bind-Value="form.UrlInscripcio" placeholder="https://..." maxlength="500" />
+                            <div class="form-text">
+                                <strong>Deixa-ho buit.</strong> Per defecte, la pàgina pública ofereix el formulari
+                                d'inscripció integrat d'aquesta aplicació (amb sorteig i llista d'espera).
+                                Omple-ho <strong>només</strong> si aquest curs el gestiona una entitat externa
+                                (consell comarcal, club…): llavors el botó porta a aquell enllaç i les sol·licituds
+                                <em>no</em> passen per aquí ni pel sorteig.
+                            </div>
+                        </div>
+
+                        <hr />
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary" disabled="@desant">
+                                @if (desant)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2"></span>
+                                }
+                                <i class="fas fa-save me-2"></i>@(EsNou ? "Crear curset" : "Desar canvis")
+                            </button>
+                            <a class="btn btn-outline-secondary" href="/cursets">Cancel·lar</a>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+
+        @if (!EsNou && curset is not null)
+        {
+            <div class="col-lg-4">
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <div class="text-muted small text-uppercase">Estat</div>
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <span class="badge bg-@(curset.Actiu ? "success" : "secondary")">
+                                @(curset.Actiu ? "Actiu" : "De baixa")
+                            </span>
+                            <button class="btn btn-link btn-sm p-0" @onclick="() => CanviarEstat(!curset.Actiu)">
+                                @(curset.Actiu ? "Donar de baixa" : "Reactivar")
+                            </button>
+                        </div>
+                        <div class="text-muted small text-uppercase">Alumnes admesos</div>
+                        <div class="fs-4 fw-bold">@curset.NumAlumnes</div>
+                    </div>
+                </div>
+
+                @if (sorteig is not null)
+                {
+                    <div class="card">
+                        <div class="card-header"><h6 class="mb-0">Sol·licituds i sorteig</h6></div>
+                        <div class="card-body">
+                            <div class="d-flex flex-wrap gap-3 mb-2 small">
+                                <div><span class="text-muted">Places</span> · <strong>@(sorteig.PlacesTotals?.ToString() ?? "sense límit")</strong></div>
+                                <div><span class="text-muted">Admesos</span> · <strong>@sorteig.Admesos</strong></div>
+                                <div><span class="text-muted">Pendents</span> · <strong>@sorteig.Sollicituds</strong></div>
+                                <div><span class="text-muted">En espera</span> · <strong>@sorteig.EnLlistaEspera</strong></div>
+                            </div>
+
+                            @if (sorteig.UltimSorteigNumero.HasValue)
+                            {
+                                <div class="small text-muted mb-2">
+                                    <i class="fas fa-hashtag me-1"></i>Últim sorteig: número <strong>@sorteig.UltimSorteigNumero</strong>
+                                    @if (sorteig.UltimSorteigData.HasValue)
+                                    {
+                                        <text> (@sorteig.UltimSorteigData.Value.ToString("dd/MM/yyyy"))</text>
+                                    }
+                                </div>
+                            }
+
+                            @if (sorteig.Sollicituds == 0)
+                            {
+                                <div class="text-muted small">No hi ha cap sol·licitud pendent de sortejar.</div>
+                            }
+                            else
+                            {
+                                <div class="alert alert-@(sorteig.PlacesTotals is null ? "info" : "light") py-2 small mb-2">
+                                    @if (sorteig.PlacesTotals is null)
+                                    {
+                                        <text>Sense límit de places: en fer el sorteig s'admeten totes les sol·licituds.</text>
+                                    }
+                                    else
+                                    {
+                                        <text>
+                                            Es treu a l'atzar un número de l'1 al @sorteig.Sollicituds i s'adjudiquen les
+                                            <strong>@sorteig.NAdmetria</strong> places lliures a partir d'aquella posició
+                                            (per ordre de sol·licitud, tornant al principi si cal).
+                                            Les altres <strong>@sorteig.NAEspera</strong> queden en llista d'espera.
+                                        </text>
+                                    }
+                                </div>
+                                <button class="btn btn-sm btn-primary mb-3" disabled="@sortejant" @onclick="FerSorteig">
+                                    @if (sortejant)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-2"></span>
+                                    }
+                                    <i class="fas fa-shuffle me-2"></i>Fer el sorteig
+                                </button>
+                            }
+
+                            @if (sorteig.Pendents.Any())
+                            {
+                                <div class="table-responsive">
+                                    <table class="table table-sm mb-0 align-middle">
+                                        <thead>
+                                            <tr><th>Sol·licitant</th><th class="text-center">Emp.</th><th>Estat</th></tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var p in sorteig.Pendents)
+                                            {
+                                                <tr>
+                                                    <td>
+                                                        @p.NomComplet
+                                                        <div class="small text-muted">
+                                                            @p.DataSollicitud?.ToString("dd/MM/yyyy") · @(p.Origen ?? "Manual")
+                                                        </div>
+                                                    </td>
+                                                    <td class="text-center">@if (p.Empadronat) { <i class="fas fa-check text-success"></i> }</td>
+                                                    <td>
+                                                        @if (p.Estat == "LlistaEspera")
+                                                        {
+                                                            <span class="badge bg-warning text-dark">Espera @p.OrdreLlistaEspera</span>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="badge bg-info text-dark">Sol·licitada</span>
+                                                        }
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="form-text mt-1">
+                                    Per admetre o rebutjar sol·licituds una a una, obre la
+                                    <a href="/cursets/alumnes">fitxa de l'alumne</a>.
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public int? Id { get; set; }
+
+    private static readonly DayOfWeek[] DiesSetmana =
+    {
+        DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday,
+        DayOfWeek.Friday, DayOfWeek.Saturday, DayOfWeek.Sunday
+    };
+
+    private bool EsNou => Id is null;
+
+    private CursetDto? curset;
+    private List<TipusCursetDto> tipus = new();
+    private List<ProfessoraDto> professores = new();
+    private List<RegidorVigentDto> regidors = new();
+    private SorteigEstatDto? sorteig;
+
+    private CursetForm form = new();
+    private bool carregant = true;
+    private bool desant;
+    private bool sortejant;
+    private bool mostrarNovaTematica;
+    private string novaTematica = string.Empty;
+    private string? missatge;
+    private string missatgeTipus = "success";
+    private int? carregatPer;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (carregatPer == Id && !carregant) return;
+        carregatPer = Id;
+        await Carregar();
+    }
+
+    private async Task Carregar()
+    {
+        carregant = true;
+        try
+        {
+            tipus = await CatalogService.GetTipusCursetsAsync(nomesActius: false);
+            professores = await ProfessoraService.LlistarProfessoresAsync(incloureInactives: false);
+            regidors = await ProfessoraService.GetRegidorsVigentsAsync();
+
+            if (EsNou)
+            {
+                curset = null;
+                sorteig = null;
+                form = new CursetForm();
+            }
+            else
+            {
+                curset = await CatalogService.GetCursetAsync(Id!.Value);
+                if (curset is not null)
+                {
+                    form = FormDe(curset);
+                    sorteig = await CatalogService.GetSorteigEstatAsync(curset.Id);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error carregant la fitxa del curset", ex, "FitxaCurset.Carregar");
+            MostrarError("No s'ha pogut carregar el curset.");
+        }
+        finally
+        {
+            carregant = false;
+        }
+    }
+
+    private static CursetForm FormDe(CursetDto c) => new()
+    {
+        Nom = c.Nom,
+        TipusCursetId = c.TipusCursetId,
+        ProfessoraId = c.ProfessoraId,
+        RegidorId = c.RegidorId,
+        DiaSetmana = c.DiaSetmana.HasValue ? ((int)c.DiaSetmana.Value).ToString() : null,
+        HoraInici = c.HoraInici?.ToString(@"hh\:mm"),
+        HoraFi = c.HoraFi?.ToString(@"hh\:mm"),
+        PreuPerSessioEmpadronat = c.PreuPerSessioEmpadronat,
+        PreuPerSessioNoEmpadronat = c.PreuPerSessioNoEmpadronat,
+        MaxPlaces = c.MaxPlaces,
+        CodiLiquidacio = c.CodiLiquidacio,
+        CadenciaLiquidacio = c.CadenciaLiquidacio,
+        OrdenancaLiquidacio = c.OrdenancaLiquidacio,
+        InscripcioInici = c.InscripcioInici,
+        InscripcioFi = c.InscripcioFi,
+        UrlInscripcio = c.UrlInscripcio
+    };
+
+    private async Task CrearTematica()
+    {
+        if (string.IsNullOrWhiteSpace(novaTematica)) return;
+        try
+        {
+            var t = await CatalogService.CrearTipusCursetAsync(new CrearTipusCursetRequest { Nom = novaTematica });
+            tipus = await CatalogService.GetTipusCursetsAsync(nomesActius: false);
+            form.TipusCursetId = t.Id;
+            novaTematica = string.Empty;
+            mostrarNovaTematica = false;
+        }
+        catch (ArgumentException ex)
+        {
+            MostrarError(ex.Message);
+        }
+    }
+
+    private async Task Desar()
+    {
+        if (desant) return;
+        desant = true;
+        try
+        {
+            var req = new CrearCursetRequest
+            {
+                Nom = form.Nom,
+                TipusCursetId = form.TipusCursetId,
+                ProfessoraId = form.ProfessoraId,
+                RegidorId = form.RegidorId,
+                DiaSetmana = string.IsNullOrEmpty(form.DiaSetmana) ? null : (DayOfWeek)int.Parse(form.DiaSetmana),
+                HoraInici = ParseTime(form.HoraInici),
+                HoraFi = ParseTime(form.HoraFi),
+                PreuPerSessioEmpadronat = form.PreuPerSessioEmpadronat,
+                PreuPerSessioNoEmpadronat = form.PreuPerSessioNoEmpadronat,
+                MaxPlaces = form.MaxPlaces,
+                CodiLiquidacio = form.CodiLiquidacio,
+                CadenciaLiquidacio = form.CadenciaLiquidacio,
+                OrdenancaLiquidacio = form.OrdenancaLiquidacio,
+                InscripcioInici = form.InscripcioInici,
+                InscripcioFi = form.InscripcioFi,
+                UrlInscripcio = form.UrlInscripcio
+            };
+
+            if (EsNou)
+            {
+                var nou = await CatalogService.CrearCursetAsync(req);
+                Nav.NavigateTo($"/cursets/{nou.Id}");
+                return;
+            }
+
+            await CatalogService.ActualitzarCursetAsync(Id!.Value, req);
+            MostrarOk("Canvis desats.");
+            await Carregar();
+        }
+        catch (ArgumentException ex)
+        {
+            MostrarError(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error desant curset", ex, "FitxaCurset.Desar");
+            MostrarError("No s'ha pogut desar. Torna-ho a provar.");
+        }
+        finally
+        {
+            desant = false;
+        }
+    }
+
+    private async Task CanviarEstat(bool actiu)
+    {
+        if (curset is null) return;
+        var accio = actiu ? "reactivar" : "donar de baixa";
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", $"Segur que vols {accio} «{curset.Nom}»?")) return;
+        try
+        {
+            await CatalogService.CanviarEstatCursetAsync(curset.Id, actiu);
+            await Carregar();
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error canviant estat de curset", ex, "FitxaCurset.CanviarEstat");
+            MostrarError("No s'ha pogut canviar l'estat.");
+        }
+    }
+
+    private async Task FerSorteig()
+    {
+        if (sortejant || curset is null) return;
+        if (!await JSRuntime.InvokeAsync<bool>("confirm",
+                $"Fer el sorteig de «{curset.Nom}»? S'adjudicaran les places lliures a l'atzar."))
+            return;
+        sortejant = true;
+        try
+        {
+            var res = await CatalogService.FerSorteigAsync(curset.Id);
+            MostrarOk($"Sorteig fet. Número sortejat: {res.Numero} (d'{res.TotalInscrits}). " +
+                $"{res.NAdmesos} admesos, {res.NAEspera} a la llista d'espera.");
+            await Carregar();
+        }
+        catch (ArgumentException ex)
+        {
+            MostrarError(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error fent el sorteig", ex, "FitxaCurset.FerSorteig");
+            MostrarError("No s'ha pogut fer el sorteig.");
+        }
+        finally
+        {
+            sortejant = false;
+        }
+    }
+
+    private static TimeSpan? ParseTime(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        value = value.Trim();
+        if (!value.Contains(':') && int.TryParse(value, out var hores) && hores is >= 0 and <= 23)
+            return new TimeSpan(hores, 0, 0);
+        if (TimeOnly.TryParse(value, CultureInfo.InvariantCulture, out var hora))
+            return hora.ToTimeSpan();
+        return null;
+    }
+
+    private static string NomDia(DayOfWeek d) => d switch
+    {
+        DayOfWeek.Monday => "Dilluns",
+        DayOfWeek.Tuesday => "Dimarts",
+        DayOfWeek.Wednesday => "Dimecres",
+        DayOfWeek.Thursday => "Dijous",
+        DayOfWeek.Friday => "Divendres",
+        DayOfWeek.Saturday => "Dissabte",
+        DayOfWeek.Sunday => "Diumenge",
+        _ => d.ToString()
+    };
+
+    private void MostrarOk(string t) { missatge = t; missatgeTipus = "success"; }
+    private void MostrarError(string t) { missatge = t; missatgeTipus = "danger"; }
+
+    private class CursetForm
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "El nom és obligatori.")]
+        [System.ComponentModel.DataAnnotations.StringLength(255)]
+        public string Nom { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Range(1, int.MaxValue, ErrorMessage = "Tria una temàtica.")]
+        public int TipusCursetId { get; set; }
+
+        [System.ComponentModel.DataAnnotations.Range(1, int.MaxValue, ErrorMessage = "Tria una professora.")]
+        public int ProfessoraId { get; set; }
+
+        public int? RegidorId { get; set; }
+
+        public string? DiaSetmana { get; set; }
+        public string? HoraInici { get; set; }
+        public string? HoraFi { get; set; }
+        public decimal PreuPerSessioEmpadronat { get; set; }
+        public decimal PreuPerSessioNoEmpadronat { get; set; }
+
+        [System.ComponentModel.DataAnnotations.Range(0, 10000, ErrorMessage = "Places entre 0 i 10000.")]
+        public int? MaxPlaces { get; set; }
+
+        [System.ComponentModel.DataAnnotations.StringLength(16)]
+        public string? CodiLiquidacio { get; set; }
+        public string? CadenciaLiquidacio { get; set; }
+
+        [System.ComponentModel.DataAnnotations.StringLength(400)]
+        public string? OrdenancaLiquidacio { get; set; }
+
+        public DateTime? InscripcioInici { get; set; }
+        public DateTime? InscripcioFi { get; set; }
+
+        [System.ComponentModel.DataAnnotations.StringLength(500)]
+        public string? UrlInscripcio { get; set; }
+    }
+}

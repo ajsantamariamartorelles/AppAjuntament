@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFrameworks>net10.0-android;net10.0-ios</TargetFrameworks>
+		<OutputType>Exe</OutputType>
+		<RootNamespace>AjuntamentSantaMariaMartorelles</RootNamespace>
+		<UseMaui>true</UseMaui>
+		<SingleProject>true</SingleProject>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+
+		<!-- Nom mostrat de l'app -->
+		<ApplicationTitle>Ajuntament de Santa Maria de Martorelles</ApplicationTitle>
+
+		<!-- Identificador de l'app -->
+		<ApplicationId>cat.santamariademartorelles.mobil</ApplicationId>
+
+		<!-- Versions. Puja ApplicationVersion (versionCode) a cada distribució
+		     perquè les actualitzacions s'instal·lin sobre l'anterior. -->
+		<ApplicationDisplayVersion>1.3</ApplicationDisplayVersion>
+		<ApplicationVersion>5</ApplicationVersion>
+
+		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
+		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21.0</SupportedOSPlatformVersion>
+		<TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21.0</TargetPlatformMinVersion>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">
+		<!-- Entitlements per a la memòria cau de tokens de MSAL -->
+		<CodesignEntitlements>Platforms/iOS/Entitlements.plist</CodesignEntitlements>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- Icona de l'app: escut oficial de l'Ajuntament sobre fons clar -->
+		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\escut_icona.png" Color="#F4F6F4" />
+
+		<!-- Pantalla de càrrega: escut de l'Ajuntament sobre fons clar -->
+		<MauiSplashScreen Include="Resources\Splash\escut_ajuntament.png" Color="#F6F8F6" BaseSize="200,283" />
+
+		<!-- Imatges -->
+		<MauiImage Include="Resources\Images\*" />
+
+		<!-- Tipografies personalitzades (buit per ara) -->
+		<MauiFont Include="Resources\Fonts\*" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
+		<PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
+		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.2" />
+		<PackageReference Include="Microsoft.Identity.Client" Version="4.88.0" />
+	</ItemGroup>
+
+</Project>

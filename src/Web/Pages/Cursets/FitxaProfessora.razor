@@ -1,0 +1,308 @@
+@page "/cursets/professores/nova"
+@page "/cursets/professores/{Id:int}"
+@using System.ComponentModel.DataAnnotations
+@using AppAjuntament.Models.Cursets.Dto
+@using AppAjuntament.Services.Cursets
+@attribute [Authorize(Policy = "EditorOrAdmin")]
+@inject ICursetsAuthService ProfessoraService
+@inject ICursetsCatalogService CatalogService
+@inject IJSRuntime JSRuntime
+@inject NavigationManager Nav
+@inject AppAjuntament.Services.DatabaseLoggerService DbLogger
+
+<PageTitle>@(EsNova ? "Nova professora" : "Fitxa de la professora")</PageTitle>
+
+<div class="screen-header mb-3">
+    <h3 class="screen-title">
+        <i class="fas fa-chalkboard-teacher me-2"></i>@(EsNova ? "Nova professora" : $"Editar: {professora?.Nom}")
+    </h3>
+    <a class="btn btn-sm btn-outline-secondary" href="/cursets/professores">
+        <i class="fas fa-arrow-left me-1"></i>Totes les professores
+    </a>
+</div>
+
+@if (missatge is not null)
+{
+    <div class="alert alert-@missatgeTipus alert-dismissible">
+        @missatge
+        <button type="button" class="btn-close" @onclick="() => missatge = null"></button>
+    </div>
+}
+
+@if (carregant)
+{
+    <div class="p-4 text-center text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Carregant...</div>
+}
+else if (!EsNova && professora is null)
+{
+    <div class="alert alert-warning">No s'ha trobat la professora.</div>
+}
+else
+{
+    <div class="row">
+        <div class="col-lg-5">
+            <div class="card">
+                <div class="card-body">
+                    <EditForm Model="form" OnValidSubmit="Desar">
+                        <DataAnnotationsValidator />
+
+                        @if (!EsNova)
+                        {
+                            <div class="d-flex align-items-center gap-2 mb-3">
+                                <span class="badge bg-@(professora!.Activa ? "success" : "secondary")">
+                                    @(professora.Activa ? "Activa" : "De baixa")
+                                </span>
+                                <button type="button" class="btn btn-link btn-sm p-0"
+                                        @onclick="() => CanviarEstat(!professora.Activa)">
+                                    @(professora.Activa ? "Donar de baixa" : "Donar d'alta")
+                                </button>
+                            </div>
+                        }
+
+                        <div class="mb-3">
+                            <label class="form-label">Nom i cognoms</label>
+                            <InputText class="form-control" @bind-Value="form.Nom" />
+                            <ValidationMessage For="() => form.Nom" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Email</label>
+                            <InputText class="form-control" type="email" @bind-Value="form.Email" />
+                            <ValidationMessage For="() => form.Email" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">@(EsNova ? "Contrasenya" : "Nova contrasenya (opcional)")</label>
+                            <InputText class="form-control" type="password" @bind-Value="form.Password" />
+                            <div class="form-text">
+                                @(EsNova ? "Mínim 6 caràcters." : "Deixa-ho buit per mantenir la contrasenya actual.")
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary" disabled="@desant">
+                                @if (desant)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2"></span>
+                                }
+                                <i class="fas fa-save me-2"></i>@(EsNova ? "Crear professora" : "Desar canvis")
+                            </button>
+                            <a class="btn btn-outline-secondary" href="/cursets/professores">Cancel·lar</a>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+
+            <div class="alert alert-info mt-3 small mb-0">
+                Les professores entren a l'app mòbil <strong>Cursets</strong> amb el seu email i
+                contrasenya. Donar-les de baixa els impedeix entrar-hi, però no esborra l'usuari
+                ni els cursets assignats.
+            </div>
+        </div>
+
+        @if (!EsNova)
+        {
+            <div class="col-lg-7">
+                <div class="card">
+                    <div class="card-header"><h6 class="mb-0">Cursets que imparteix (@cursets.Count)</h6></div>
+                    <div class="card-body p-0">
+                        @if (!cursets.Any())
+                        {
+                            <div class="p-4 text-center text-muted">Aquesta professora no té cap curset assignat.</div>
+                        }
+                        else
+                        {
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover mb-0 align-middle">
+                                    <thead>
+                                        <tr>
+                                            <th>Curset</th>
+                                            <th>Horari</th>
+                                            <th class="text-center">Alumnes</th>
+                                            <th class="text-end">Preu (E/NE)</th>
+                                            <th class="text-center">Estat</th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var c in cursets)
+                                        {
+                                            <tr class="@(c.Actiu ? "" : "table-secondary")" style="cursor: pointer;"
+                                                @onclick="() => Obrir(c.Id)">
+                                                <td>
+                                                    <div>@c.Nom</div>
+                                                    <div class="small text-muted">@c.TipusCursetNom</div>
+                                                </td>
+                                                <td class="small">@Horari(c)</td>
+                                                <td class="text-center">@c.NumAlumnes</td>
+                                                <td class="text-end small">
+                                                    @c.PreuPerSessioEmpadronat.ToString("0.00") / @c.PreuPerSessioNoEmpadronat.ToString("0.00")
+                                                </td>
+                                                <td class="text-center">
+                                                    <span class="badge bg-@(c.Actiu ? "success" : "secondary")">
+                                                        @(c.Actiu ? "Actiu" : "De baixa")
+                                                    </span>
+                                                </td>
+                                                <td class="text-end"><i class="fas fa-chevron-right text-muted"></i></td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public int? Id { get; set; }
+
+    private bool EsNova => Id is null;
+
+    private ProfessoraDto? professora;
+    private List<CursetDto> cursets = new();
+    private readonly Model form = new();
+
+    private bool carregant = true;
+    private bool desant;
+    private string? missatge;
+    private string missatgeTipus = "success";
+    private int? carregatPer;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (carregatPer == Id && !carregant) return;
+        carregatPer = Id;
+        await Carregar();
+    }
+
+    private async Task Carregar()
+    {
+        carregant = true;
+        try
+        {
+            if (EsNova)
+            {
+                professora = null;
+                cursets = new();
+                form.Nom = form.Email = form.Password = string.Empty;
+            }
+            else
+            {
+                var totes = await ProfessoraService.LlistarProfessoresAsync(incloureInactives: true);
+                professora = totes.FirstOrDefault(p => p.Id == Id);
+                if (professora is not null)
+                {
+                    form.Nom = professora.Nom;
+                    form.Email = professora.Email;
+                    form.Password = string.Empty;
+                    cursets = (await CatalogService.GetCursetsAdminAsync())
+                        .Where(c => c.ProfessoraId == Id)
+                        .ToList();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error carregant la fitxa de la professora", ex, "FitxaProfessora.Carregar");
+            MostrarError("No s'ha pogut carregar la professora.");
+        }
+        finally
+        {
+            carregant = false;
+        }
+    }
+
+    private async Task Desar()
+    {
+        if (desant) return;
+        desant = true;
+        try
+        {
+            if (EsNova)
+            {
+                var u = await ProfessoraService.CrearOActualitzarProfessoraAsync(form.Nom, form.Email, form.Password);
+                Nav.NavigateTo($"/cursets/professores/{u.Id}");
+                return;
+            }
+
+            await ProfessoraService.ActualitzarProfessoraAsync(Id!.Value, form.Nom, form.Email);
+            if (!string.IsNullOrWhiteSpace(form.Password))
+                await ProfessoraService.ReiniciarPasswordAsync(Id.Value, form.Password);
+            MostrarOk("Canvis desats.");
+            await Carregar();
+        }
+        catch (ArgumentException ex)
+        {
+            MostrarError(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error desant la professora", ex, "FitxaProfessora.Desar");
+            MostrarError("No s'ha pogut desar. Torna-ho a provar.");
+        }
+        finally
+        {
+            desant = false;
+        }
+    }
+
+    private async Task CanviarEstat(bool activa)
+    {
+        if (professora is null) return;
+        var accio = activa ? "donar d'alta" : "donar de baixa";
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", $"Segur que vols {accio} «{professora.Nom}»?")) return;
+        try
+        {
+            await ProfessoraService.CanviarEstatProfessoraAsync(professora.Id, activa);
+            await Carregar();
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error canviant estat de professora", ex, "FitxaProfessora.CanviarEstat");
+            MostrarError("No s'ha pogut canviar l'estat.");
+        }
+    }
+
+    private void Obrir(int cursetId) => Nav.NavigateTo($"/cursets/{cursetId}");
+
+    private static string Horari(CursetDto c)
+    {
+        if (!c.DiaSetmana.HasValue && !c.HoraInici.HasValue) return "—";
+        var dia = c.DiaSetmana.HasValue ? NomDia(c.DiaSetmana.Value) : "";
+        var hora = c.HoraInici.HasValue
+            ? $"{c.HoraInici.Value:hh\\:mm}{(c.HoraFi.HasValue ? "–" + c.HoraFi.Value.ToString(@"hh\:mm") : "")}"
+            : "";
+        return $"{dia} {hora}".Trim();
+    }
+
+    private static string NomDia(DayOfWeek d) => d switch
+    {
+        DayOfWeek.Monday => "Dilluns",
+        DayOfWeek.Tuesday => "Dimarts",
+        DayOfWeek.Wednesday => "Dimecres",
+        DayOfWeek.Thursday => "Dijous",
+        DayOfWeek.Friday => "Divendres",
+        DayOfWeek.Saturday => "Dissabte",
+        DayOfWeek.Sunday => "Diumenge",
+        _ => d.ToString()
+    };
+
+    private void MostrarOk(string t) { missatge = t; missatgeTipus = "success"; }
+    private void MostrarError(string t) { missatge = t; missatgeTipus = "danger"; }
+
+    private class Model
+    {
+        [Required(ErrorMessage = "El nom és obligatori.")]
+        [StringLength(255)]
+        public string Nom { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "L'email és obligatori.")]
+        [EmailAddress(ErrorMessage = "Email no vàlid.")]
+        [StringLength(255)]
+        public string Email { get; set; } = string.Empty;
+
+        public string Password { get; set; } = string.Empty;
+    }
+}

@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:AjuntamentSantaMariaMartorelles.ViewModels"
+             xmlns:models="clr-namespace:AjuntamentSantaMariaMartorelles.Models"
+             x:Class="AjuntamentSantaMariaMartorelles.Views.PersonaPage"
+             x:DataType="vm:PersonaViewModel"
+             BackgroundColor="{StaticResource PageBackground}"
+             Title="{Binding Nom}">
+
+    <Grid>
+        <ScrollView>
+            <VerticalStackLayout Padding="16,14,16,24" Spacing="12">
+
+                <VerticalStackLayout Spacing="6">
+                    <Label Text="{Binding Nom}" Style="{StaticResource PageTitle}" />
+                    <BoxView Style="{StaticResource GoldRule}" />
+                    <Label Text="{Binding CursetTitol}" Style="{StaticResource Subtitle}" />
+                    <Label Text="{Binding ErrorMessage}" Style="{StaticResource ErrorText}" IsVisible="{Binding HasError}" />
+                </VerticalStackLayout>
+
+                <Border Style="{StaticResource ListCard}" Padding="14,6" IsVisible="{Binding TeDades}">
+                    <VerticalStackLayout>
+                        <Grid ColumnDefinitions="*,Auto" Padding="0,8">
+                            <Label Text="Inscripció" Style="{StaticResource ItemMeta}" FontSize="14" VerticalOptions="Center" />
+                            <Border Grid.Column="1" Style="{StaticResource Pill}" Margin="0"
+                                    BackgroundColor="{Binding EtiquetaEstat.Fons}">
+                                <Label Text="{Binding EtiquetaEstat.Text}" TextColor="{Binding EtiquetaEstat.TextColor}"
+                                       Style="{StaticResource PillText}" />
+                            </Border>
+                        </Grid>
+                        <VerticalStackLayout BindableLayout.ItemsSource="{Binding Dades}">
+                            <BindableLayout.ItemTemplate>
+                                <DataTemplate x:DataType="vm:FilaDada">
+                                    <VerticalStackLayout>
+                                        <BoxView HeightRequest="1" Color="{StaticResource SurfaceBorder}" />
+                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12" Padding="0,9">
+                                            <Label Text="{Binding Etiqueta}" Style="{StaticResource ItemMeta}" FontSize="14" />
+                                            <Label Grid.Column="1" Text="{Binding Valor}" FontSize="14" FontAttributes="Bold"
+                                                   TextColor="{StaticResource TextPrimary}" HorizontalTextAlignment="End">
+                                                <Label.Triggers>
+                                                    <DataTrigger TargetType="Label" Binding="{Binding Destacat}" Value="True">
+                                                        <Setter Property="TextColor" Value="{StaticResource Danger}" />
+                                                    </DataTrigger>
+                                                </Label.Triggers>
+                                            </Label>
+                                        </Grid>
+                                    </VerticalStackLayout>
+                                </DataTemplate>
+                            </BindableLayout.ItemTemplate>
+                        </VerticalStackLayout>
+                    </VerticalStackLayout>
+                </Border>
+
+                <Label Text="LIQUIDACIONS" Style="{StaticResource GroupHeader}" Margin="4,6,0,0" IsVisible="{Binding TeDades}" />
+
+                <Label Text="Encara no se li ha emès cap liquidació en aquest curset." Style="{StaticResource Subtitle}"
+                       IsVisible="{Binding SenseLiquidacions}" />
+
+                <VerticalStackLayout BindableLayout.ItemsSource="{Binding Liquidacions}" Spacing="8">
+                    <BindableLayout.ItemTemplate>
+                        <DataTemplate x:DataType="models:LiquidacioSeguimentDto">
+                            <Border Style="{StaticResource ListCard}" Padding="14,11" Opacity="{Binding Opacitat}">
+                                <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="3">
+                                    <Label Text="{Binding PeriodeEtiqueta}" FontSize="15" FontAttributes="Bold"
+                                           TextColor="{StaticResource TextPrimary}" />
+                                    <Label Grid.Column="1" Text="{Binding ImportText}" FontSize="15" FontAttributes="Bold"
+                                           TextColor="{StaticResource TextPrimary}" TextDecorations="{Binding DecoracioImport}"
+                                           HorizontalOptions="End" />
+                                    <Label Grid.Row="1" Grid.ColumnSpan="2" Text="{Binding DetallText}" Style="{StaticResource ItemMeta}" FontSize="12" />
+                                    <Label Grid.Row="2" Text="{Binding Numero}" FontFamily="monospace" FontSize="12"
+                                           TextColor="{StaticResource TextSecondary}" VerticalOptions="Center" />
+                                    <Border Grid.Row="2" Grid.Column="1" Style="{StaticResource Pill}" Margin="0"
+                                            BackgroundColor="{Binding Etiqueta.Fons}">
+                                        <Label Text="{Binding Etiqueta.Text}" TextColor="{Binding Etiqueta.TextColor}"
+                                               Style="{StaticResource PillText}" />
+                                    </Border>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </BindableLayout.ItemTemplate>
+                </VerticalStackLayout>
+
+                <Label Text="Només lectura. Els cobraments es gestionen des de la web de l'Ajuntament."
+                       Style="{StaticResource ItemMeta}" HorizontalTextAlignment="Center" Margin="0,8,0,0"
+                       IsVisible="{Binding TeDades}" />
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}"
+                           Color="{StaticResource Primary}" HorizontalOptions="Center" VerticalOptions="Start"
+                           Margin="0,80,0,0" />
+    </Grid>
+
+</ContentPage>

@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -sS \"https://do.diba.cat/data/ds\" -H \"User-Agent: test\")",
+      "Bash(curl -sS \"https://dadesobertes.diba.cat/api/action/package_search?q=subvencions\" -H \"User-Agent: test\")"
+    ]
+  }
+}

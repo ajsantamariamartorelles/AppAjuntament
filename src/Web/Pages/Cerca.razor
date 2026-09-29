@@ -1,0 +1,651 @@
+﻿@page "/cerca"
+@using AppAjuntament.Models
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@using AppAjuntament.Services
+@inject IPatrimoniService PatrimoniService
+@inject ICatalogService CatalogService
+@inject NavigationManager Navigation
+
+<PageTitle>Cercador de Patrimoni</PageTitle>
+
+<style>
+    .cerca-header {
+        background: linear-gradient(135deg, #2E8B57, #228B22);
+        color: white;
+        padding: 40px 0;
+        margin-bottom: 30px;
+        text-align: center;
+    }
+    
+    .cerca-title {
+        font-size: 2.5rem;
+        font-weight: bold;
+        margin-bottom: 15px;
+    }
+    
+    .cerca-subtitle {
+        font-size: 1.1rem;
+        opacity: 0.9;
+    }
+    
+    .search-section {
+        background: white;
+        border-radius: 15px;
+        padding: 30px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        margin-bottom: 30px;
+    }
+    
+    .search-box {
+        position: relative;
+        margin-bottom: 25px;
+    }
+    
+    .search-input {
+        width: 100%;
+        padding: 15px 50px 15px 20px;
+        border: 2px solid #e9ecef;
+        border-radius: 25px;
+        font-size: 1rem;
+        transition: border-color 0.3s ease;
+    }
+    
+    .search-input:focus {
+        outline: none;
+        border-color: #2E8B57;
+        box-shadow: 0 0 0 3px rgba(46, 139, 87, 0.1);
+    }
+    
+    .search-btn {
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: #2E8B57;
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 35px;
+        height: 35px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .search-btn:hover {
+        background: #228B22;
+    }
+    
+    .advanced-filters {
+        border-top: 1px solid #e9ecef;
+        padding-top: 25px;
+    }
+    
+    .filter-group {
+        margin-bottom: 20px;
+    }
+    
+    .filter-label {
+        font-weight: bold;
+        margin-bottom: 8px;
+        display: block;
+        color: #495057;
+    }
+    
+    .range-input {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .range-input input {
+        flex: 1;
+    }
+    
+    .btn-search {
+        background: #2E8B57;
+        color: white;
+        border: none;
+        padding: 12px 30px;
+        border-radius: 25px;
+        font-weight: bold;
+        margin-right: 10px;
+    }
+    
+    .btn-search:hover {
+        background: #228B22;
+        color: white;
+    }
+    
+    .btn-clear {
+        background: #6c757d;
+        color: white;
+        border: none;
+        padding: 12px 30px;
+        border-radius: 25px;
+        font-weight: bold;
+    }
+    
+    .btn-clear:hover {
+        background: #5a6268;
+        color: white;
+    }
+    
+    .results-section {
+        background: white;
+        border-radius: 15px;
+        padding: 30px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+    
+    .results-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 25px;
+        padding-bottom: 15px;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .results-count {
+        font-size: 1.1rem;
+        color: #666;
+    }
+    
+    .sort-select {
+        padding: 8px 15px;
+        border: 1px solid #e9ecef;
+        border-radius: 20px;
+        background: white;
+    }
+    
+    .results-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 20px;
+    }
+    
+    .result-card {
+        background: #f8f9fa;
+        border-radius: 10px;
+        padding: 20px;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        cursor: pointer;
+        border: 1px solid #e9ecef;
+    }
+    
+    .result-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+    }
+    
+    .result-image {
+        width: 100%;
+        height: 150px;
+        object-fit: cover;
+        border-radius: 8px;
+        margin-bottom: 15px;
+        background: linear-gradient(45deg, #e9ecef, #dee2e6);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        color: #adb5bd;
+    }
+    
+    .result-type {
+        background: #2E8B57;
+        color: white;
+        padding: 4px 10px;
+        border-radius: 15px;
+        font-size: 0.75rem;
+        display: inline-block;
+        margin-bottom: 8px;
+    }
+    
+    .result-title {
+        font-size: 1.1rem;
+        font-weight: bold;
+        margin-bottom: 8px;
+        color: #333;
+    }
+    
+    .result-description {
+        color: #666;
+        font-size: 0.9rem;
+        line-height: 1.4;
+        margin-bottom: 10px;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    
+    .result-meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.8rem;
+        color: #999;
+    }
+    
+    .loading-spinner {
+        text-align: center;
+        padding: 60px;
+    }
+    
+    .no-results {
+        text-align: center;
+        padding: 60px;
+        color: #666;
+    }
+    
+    .search-suggestions {
+        background: #e7f3ff;
+        border: 1px solid #b8daff;
+        border-radius: 8px;
+        padding: 15px;
+        margin-top: 20px;
+    }
+    
+    .suggestion-chip {
+        display: inline-block;
+        background: white;
+        border: 1px solid #2E8B57;
+        color: #2E8B57;
+        padding: 5px 12px;
+        border-radius: 15px;
+        font-size: 0.85rem;
+        margin: 3px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .suggestion-chip:hover {
+        background: #2E8B57;
+        color: white;
+    }
+</style>
+
+<!-- Header -->
+<div class="cerca-header">
+    <div class="container">
+        <h1 class="cerca-title">Cercador de Patrimoni</h1>
+        <p class="cerca-subtitle">Troba elements específics del nostre patrimoni cultural</p>
+    </div>
+</div>
+
+<div class="container">
+    <!-- Secció de cerca -->
+    <div class="search-section">
+        <div class="search-box">
+            <input type="text" 
+                   class="search-input" 
+                   placeholder="Cerca per nom, descripció o història..." 
+                   @bind="textCerca" 
+                   @onkeypress="@(async (e) => { if (e.Key == "Enter") await Cercar(); })" />
+            <button class="search-btn" @onclick="Cercar">
+                <i class="bi bi-search"></i>
+            </button>
+        </div>
+
+        <!-- Filtres avançats -->
+        <div class="advanced-filters">
+            <h6 style="margin-bottom: 20px;">Filtres avançats</h6>
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="filter-group">
+                        <label class="filter-label">Tipus de Patrimoni</label>
+                        <select class="form-select" @bind="tipusSeleccionat">
+                            <option value="">Tots els tipus</option>
+                            @if (tipusPatrimoni != null)
+                            {
+                                @foreach (var tipus in tipusPatrimoni)
+                                {
+                                    <option value="@tipus.Id">@tipus.Nom</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="filter-group">
+                        <label class="filter-label">Ubicació</label>
+                        <select class="form-select" @bind="ubicacioSeleccionada">
+                            <option value="">Totes les ubicacions</option>
+                            @if (ubicacions != null)
+                            {
+                                @foreach (var ubicacio in ubicacions)
+                                {
+                                    <option value="@ubicacio.Id">@ubicacio.Nom</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="filter-group">
+                        <label class="filter-label">Estat de Conservació</label>
+                        <select class="form-select" @bind="estatSeleccionat">
+                            <option value="">Tots els estats</option>
+                            @if (estats != null)
+                            {
+                                @foreach (var estat in estats)
+                                {
+                                    <option value="@estat.Id">@estat.Nom</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="filter-group">
+                        <label class="filter-label">Valor econòmic (€)</label>
+                        <div class="range-input">
+                            <input type="number" class="form-control" placeholder="Mínim" @bind="valorMinim" />
+                            <span>-</span>
+                            <input type="number" class="form-control" placeholder="Màxim" @bind="valorMaxim" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="filter-group">
+                        <label class="filter-label">Data de construcció</label>
+                        <div class="range-input">
+                            <input type="date" class="form-control" @bind="dataInici" />
+                            <span>-</span>
+                            <input type="date" class="form-control" @bind="dataFi" />
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 d-flex align-items-end">
+                    <div class="filter-group w-100">
+                        <button class="btn btn-search" @onclick="Cercar">
+                            <i class="bi bi-search"></i> Cercar
+                        </button>
+                        <button class="btn btn-clear" @onclick="NetejrarCerca">
+                            <i class="bi bi-x-circle"></i> Netejar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Suggeriments de cerca -->
+        @if (!haCercat && suggeriments.Any())
+        {
+            <div class="search-suggestions">
+                <strong>Suggeriments de cerca:</strong><br />
+                @foreach (var suggeriment in suggeriments)
+                {
+                    <span class="suggestion-chip" @onclick="() => CercarSuggeriment(suggeriment)">
+                        @suggeriment
+                    </span>
+                }
+            </div>
+        }
+    </div>
+
+    <!-- Secció de resultats -->
+    @if (haCercat)
+    {
+        <div class="results-section">
+            @if (carregant)
+            {
+                <div class="loading-spinner">
+                    <div class="spinner-border text-primary" role="status" style="width: 2rem; height: 2rem;">
+                        <span class="visually-hidden">Cercant...</span>
+                    </div>
+                    <p class="mt-3 text-muted">Cercant elements...</p>
+                </div>
+            }
+            else
+            {
+                <div class="results-header">
+                    <div class="results-count">
+                        @if (resultats != null)
+                        {
+                            <span>S'han trobat @resultats.Count() resultats</span>
+                        }
+                    </div>
+                    <select class="sort-select" @bind="ordreSeleccionat" @bind:after="OrdenarResultats">
+                        <option value="rellevancia">Rellevància</option>
+                        <option value="nom">Nom (A-Z)</option>
+                        <option value="data">Data de construcció</option>
+                        <option value="valor">Valor econòmic</option>
+                    </select>
+                </div>
+
+                @if (resultats != null && resultats.Any())
+                {
+                    <div class="results-grid">
+                        @foreach (var element in resultats)
+                        {
+                            <div class="result-card" @onclick="() => MostrarDetall(element.Id)">
+                                <div class="result-image">
+                                    @if (element.Arxius?.FirstOrDefault() != null)
+                                    {
+                                        <img src="/imatges/@element.Arxius.First().NomArxiu" alt="@element.Nom" style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px;" />
+                                    }
+                                    else
+                                    {
+                                        <i class="bi bi-image"></i>
+                                    }
+                                </div>
+                                @if (element.TipusPatrimoni != null)
+                                {
+                                    <span class="result-type">@element.TipusPatrimoni.Nom</span>
+                                }
+                                <h6 class="result-title">@element.Nom</h6>
+                                @if (!string.IsNullOrEmpty(element.DescripcioBreu))
+                                {
+                                    <p class="result-description">@element.DescripcioBreu</p>
+                                }
+                                <div class="result-meta">
+                                    <span>
+                                        @if (element.Ubicacio != null)
+                                        {
+                                            <i class="bi bi-geo-alt"></i> @element.Ubicacio.Nom
+                                        }
+                                    </span>
+                                    @if (element.ValorTotal > 0)
+                                    {
+                                        <span>@element.ValorTotal.ToString("C0")</span>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="no-results">
+                        <i class="bi bi-search" style="font-size: 3rem; color: #ccc; margin-bottom: 20px;"></i>
+                        <h5>No s'han trobat resultats</h5>
+                        <p>Prova a canviar els termes de cerca o ajustar els filtres.</p>
+                    </div>
+                }
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private bool carregant = false;
+    private bool haCercat = false;
+    private string textCerca = "";
+    private string tipusSeleccionat = "";
+    private string ubicacioSeleccionada = "";
+    private string estatSeleccionat = "";
+    private decimal? valorMinim;
+    private decimal? valorMaxim;
+    private DateTime? dataInici;
+    private DateTime? dataFi;
+    private string ordreSeleccionat = "rellevancia";
+    
+    private IEnumerable<Patrimoni>? totPatrimoni;
+    private IEnumerable<Patrimoni>? resultats;
+    private IEnumerable<TipusPatrimoni>? tipusPatrimoni;
+    private IEnumerable<Ubicacio>? ubicacions;
+    private IEnumerable<EstatConservacio>? estats;
+    
+    private List<string> suggeriments = new()
+    {
+        "església", "castell", "monument", "plaça", "edifici històric", 
+        "escultura", "font", "pont", "torre", "museu"
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarDadesInicials();
+    }
+
+    private async Task CarregarDadesInicials()
+    {
+        try
+        {
+            totPatrimoni = await PatrimoniService.GetAllAsync();
+            tipusPatrimoni = await CatalogService.GetTipusPatrimoniAsync();
+            ubicacions = await CatalogService.GetUbicacionsAsync();
+            estats = await CatalogService.GetEstatsConservacioAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error carregant dades inicials: {ex.Message}");
+        }
+    }
+
+    private async Task Cercar()
+    {
+        carregant = true;
+        haCercat = true;
+        StateHasChanged();
+
+        try
+        {
+            await Task.Delay(500); // Simular una cerca
+            
+            if (totPatrimoni == null)
+            {
+                resultats = new List<Patrimoni>();
+                return;
+            }
+
+            resultats = totPatrimoni.Where(p => p.Actiu);
+
+            // Filtrar per text de cerca
+            if (!string.IsNullOrEmpty(textCerca))
+            {
+                var cercaLower = textCerca.ToLower();
+                resultats = resultats.Where(p => 
+                    p.Nom.ToLower().Contains(cercaLower) ||
+                    (p.DescripcioBreu?.ToLower().Contains(cercaLower) ?? false) ||
+                    (p.Historia?.ToLower().Contains(cercaLower) ?? false));
+            }
+
+            // Aplicar filtres
+            AplicarFiltres();
+            
+            // Ordenar resultats
+            await OrdenarResultats();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error en la cerca: {ex.Message}");
+            resultats = new List<Patrimoni>();
+        }
+        finally
+        {
+            carregant = false;
+            StateHasChanged();
+        }
+    }
+
+    private void AplicarFiltres()
+    {
+        if (resultats == null) return;
+
+        // Filtrar per tipus
+        if (!string.IsNullOrEmpty(tipusSeleccionat) && int.TryParse(tipusSeleccionat, out int tipusId))
+        {
+            resultats = resultats.Where(p => p.TipusPatrimoniId == tipusId);
+        }
+
+        // Filtrar per ubicació
+        if (!string.IsNullOrEmpty(ubicacioSeleccionada) && int.TryParse(ubicacioSeleccionada, out int ubicacioId))
+        {
+            resultats = resultats.Where(p => p.UbicacioId == ubicacioId);
+        }
+
+        // Filtrar per estat
+        if (!string.IsNullOrEmpty(estatSeleccionat) && int.TryParse(estatSeleccionat, out int estatId))
+        {
+            resultats = resultats.Where(p => p.EstatConservacioId == estatId);
+        }
+
+        // Filtrar per valor
+        if (valorMinim.HasValue)
+        {
+            resultats = resultats.Where(p => p.ValorTotal >= valorMinim.Value);
+        }
+        if (valorMaxim.HasValue)
+        {
+            resultats = resultats.Where(p => p.ValorTotal <= valorMaxim.Value);
+        }
+
+        // Filtrar per any
+        if (dataInici.HasValue)
+        {
+            resultats = resultats.Where(p => p.AnyConstruccio >= dataInici.Value.Year);
+        }
+        if (dataFi.HasValue)
+        {
+            resultats = resultats.Where(p => p.AnyConstruccio <= dataFi.Value.Year);
+        }
+    }
+
+    private async Task OrdenarResultats()
+    {
+        if (resultats == null) return;
+
+        resultats = ordreSeleccionat switch
+        {
+            "nom" => resultats.OrderBy(p => p.Nom),
+            "data" => resultats.OrderByDescending(p => p.AnyConstruccio),
+            "valor" => resultats.OrderByDescending(p => p.ValorTotal),
+            _ => resultats.OrderByDescending(p => p.CreatedAt) // rellevancia per defecte
+        };
+
+        StateHasChanged();
+    }
+
+    private async Task NetejrarCerca()
+    {
+        textCerca = "";
+        tipusSeleccionat = "";
+        ubicacioSeleccionada = "";
+        estatSeleccionat = "";
+        valorMinim = null;
+        valorMaxim = null;
+        dataInici = null;
+        dataFi = null;
+        ordreSeleccionat = "rellevancia";
+        haCercat = false;
+        resultats = null;
+        
+        StateHasChanged();
+    }
+
+    private async Task CercarSuggeriment(string suggeriment)
+    {
+        textCerca = suggeriment;
+        await Cercar();
+    }
+
+    private void MostrarDetall(int id)
+    {
+        Navigation.NavigateTo($"/detall/{id}");
+    }
+}

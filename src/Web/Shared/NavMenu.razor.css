@@ -1,0 +1,206 @@
+.navbar-toggler {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.nav-scrollable {
+    /* Sidebar container: vertical layout with sticky footer */
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.navbar-brand {
+    font-size: 1.1rem;
+}
+
+.oi {
+    width: 2rem;
+    font-size: 1.1rem;
+    vertical-align: text-top;
+    top: -2px;
+}
+
+.nav-item {
+    font-size: 0.9rem;
+    padding-bottom: 0.5rem;
+}
+
+    .nav-item:first-of-type {
+        padding-top: 1rem;
+    }
+
+    .nav-item:last-of-type {
+        padding-bottom: 1rem;
+    }
+
+    .nav-item ::deep a,
+    .nav-item div.nav-link {
+        color: #d7d7d7;
+        border-radius: 4px;
+        height: 3rem;
+        display: flex;
+        align-items: center;
+        line-height: 3rem;
+        background-color: #000000;
+    }
+
+.nav-item ::deep a.active {
+    background-color: rgba(255,255,255,0.2);
+    color: white;
+}
+
+.nav-item ::deep a:hover,
+.nav-item div.nav-link:hover {
+    background-color: rgba(255,255,255,0.1);
+    color: white;
+}
+
+.nav-text {
+    display: inline;
+    white-space: nowrap;
+}
+
+.sidebar.collapsed .nav-text {
+    display: none;
+}
+
+.sidebar.collapsed .navbar-brand {
+    font-size: 0;
+}
+
+.sidebar.collapsed .user-chip .name {
+    display: none;
+}
+
+@media (min-width: 641px) {
+
+    .collapse {
+        /* Never collapse the sidebar for wide screens */
+        display: block;
+    }
+}
+
+/* Dropdown inside sidebar: match dark theme */
+.dropdown-menu {
+    background: #000000;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.dropdown-item {
+    color: #d7d7d7;
+}
+
+.dropdown-item:hover,
+.dropdown-item:focus {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+}
+
+.dropdown-divider {
+    border-top-color: rgba(255, 255, 255, 0.15);
+}
+
+/* Sidebar body scroll area */
+.nav-body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+}
+
+/* Sticky footer with user chip */
+.nav-footer {
+    position: sticky;
+    bottom: 0;
+    padding: 0.75rem 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+    background: #000000;
+}
+
+.user-chip {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    color: #d7d7d7;
+    text-decoration: none;
+}
+
+.user-chip .name {
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Quan una secció està oberta, el submenú s'enganxa a la capçalera
+   (treu el padding inferior de la capçalera i el marge superior del submenú). */
+.nav-item:has(+ .nav-submenu) {
+    padding-bottom: 0;
+}
+
+/* Submenús de l'accordion: compactes, sense l'extra de :first/:last-of-type */
+.nav-submenu {
+    background-color: rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+    margin: 0 0 0.4rem;
+    padding: 0 0 0.15rem;
+}
+
+.nav-submenu .nav-item {
+    padding-top: 0;
+    padding-bottom: 0.15rem;
+}
+
+.nav-submenu .nav-item:first-of-type {
+    padding-top: 0.15rem;
+}
+
+.nav-submenu .nav-item:last-of-type {
+    padding-bottom: 0.15rem;
+}
+
+.nav-submenu .nav-item ::deep a {
+    height: 2.25rem;
+    line-height: 2.25rem;
+    font-size: 0.85rem;
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.nav-submenu .nav-item ::deep a:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.nav-submenu .nav-item ::deep a.active {
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+/* Sub-grup dins d'un submenú (p. ex. Patrimoni dins Administració) */
+
+/* Capçalera del sub-grup: idèntica a un ítem del submenú, però amb chevron.
+   Es conserva el padding horitzontal de .nav-link (1rem) perquè el text
+   alinei exactament amb els <a> germans. */
+.nav-submenu .nav-item div.nav-link {
+    height: 2.25rem;
+    line-height: 2.25rem;
+    font-size: 0.85rem;
+    padding-top: 0;
+    padding-bottom: 0;
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.nav-submenu .nav-item div.nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Ítems del sub-grup: una mica més petits i sense fons de caixa extra */
+.nav-submenu .nav-submenu {
+    background-color: transparent;
+    margin: 0;
+    padding: 0;
+}
+
+.nav-submenu .nav-submenu .nav-item ::deep a {
+    height: 2.1rem;
+    line-height: 2.1rem;
+    font-size: 0.82rem;
+}

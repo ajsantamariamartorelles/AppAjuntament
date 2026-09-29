@@ -1,0 +1,458 @@
+@page "/cursets/liquidacions"
+@using AppAjuntament.Models.Cursets.Dto
+@using AppAjuntament.Services.Cursets
+@attribute [Authorize(Policy = "EditorOrAdmin")]
+@inject ICursetsLiquidacioService LiquidacioService
+@inject NavigationManager Nav
+@inject IJSRuntime JSRuntime
+@inject AppAjuntament.Services.DatabaseLoggerService DbLogger
+
+<PageTitle>Liquidacions de cursets</PageTitle>
+
+<div class="screen-header mb-3 d-flex justify-content-between align-items-center">
+    <h3 class="screen-title"><i class="fas fa-file-invoice-dollar me-2"></i>Liquidacions de cursets</h3>
+    <a class="btn btn-sm btn-outline-secondary" href="/cursets/liquidacions/configuracio">
+        <i class="fas fa-cog me-1"></i>Configuració
+    </a>
+</div>
+
+<div class="alert alert-info">
+    Es factura <strong>per dia de classe impartit</strong> a totes les alumnes apuntades,
+    hi hagin anat o no, segons el preu d'empadronament. Cada (alumna × curset) genera una
+    <strong>autoliquidació</strong> amb número propi; el PDF és per alumna.
+</div>
+
+@if (missatge is not null)
+{
+    <div class="alert alert-@missatgeTipus alert-dismissible">
+        @missatge
+        <button type="button" class="btn-close" @onclick="() => missatge = null"></button>
+    </div>
+}
+
+<div class="card mb-4">
+    <div class="card-header"><h6 class="mb-0">Nova remesa</h6></div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">Cadència</label>
+                <select class="form-select" @bind="cadencia">
+                    <option value="Trimestral">Trimestral</option>
+                    <option value="Mensual">Mensual</option>
+                    <option value="Setmanal">Setmanal</option>
+                    <option value="Lliure">Dates lliures</option>
+                </select>
+            </div>
+
+            @if (cadencia != "Lliure")
+            {
+                <div class="col-md-2">
+                    <label class="form-label">Any</label>
+                    <input type="number" class="form-control" @bind="any" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">@PeriodeLabel</label>
+                    <select class="form-select" @bind="periode">
+                        @foreach (var (val, txt) in OpcionsPeriode())
+                        {
+                            <option value="@val">@txt</option>
+                        }
+                    </select>
+                </div>
+            }
+            else
+            {
+                <div class="col-md-3">
+                    <label class="form-label">Data inici</label>
+                    <input type="date" class="form-control" @bind="dataInici" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Data fi</label>
+                    <input type="date" class="form-control" @bind="dataFi" />
+                </div>
+            }
+
+            <div class="col-md-4">
+                <label class="form-label">Descripció <span class="text-muted small">(opcional)</span></label>
+                <input class="form-control" @bind="descripcio" placeholder="p. ex. Pilates 1r trimestre 2026" />
+            </div>
+        </div>
+
+        <div class="mt-3">
+            <button class="btn btn-outline-primary" @onclick="Previsualitza" disabled="@ocupat">
+                @if (ocupat && !emetent) { <span class="spinner-border spinner-border-sm me-2"></span> }
+                <i class="fas fa-search me-2"></i>Previsualitza
+            </button>
+        </div>
+    </div>
+</div>
+
+@if (preview is not null)
+{
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">Previsualització · @preview.PeriodeEtiqueta (@preview.DataInici.ToString("dd/MM/yyyy") – @preview.DataFi.ToString("dd/MM/yyyy"))</h6>
+            <span class="text-muted small">codi període: <code>@preview.CodiPeriode</code></span>
+        </div>
+        <div class="card-body">
+            @foreach (var av in preview.Avisos)
+            {
+                <div class="alert alert-warning py-2"><i class="fas fa-exclamation-triangle me-2"></i>@av</div>
+            }
+
+            @if (preview.CursetsSenseOrdenanca.Any())
+            {
+                <div class="alert alert-info">
+                    <div class="mb-1">
+                        <i class="fas fa-circle-info me-2"></i>
+                        Aquests cursets no tenen ordenança / tarifa; es liquidaran igualment però
+                        l'autoliquidació sortirà sense aquesta dada:
+                    </div>
+                    <ul class="mb-1">
+                        @foreach (var c in preview.CursetsSenseOrdenanca)
+                        {
+                            <li>@c</li>
+                        }
+                    </ul>
+                    <a href="/cursets" class="alert-link">Posa-la a la fitxa del curset (opcional)</a>
+                </div>
+            }
+
+            @if (preview.AlumnesIncompletes.Any())
+            {
+                <div class="alert alert-warning">
+                    <div class="fw-semibold mb-1">
+                        <i class="fas fa-triangle-exclamation me-2"></i>
+                        @preview.AlumnesIncompletes.Count @(preview.AlumnesIncompletes.Count == 1 ? "alumna" : "alumnes") sense dades per liquidar (se saltaran):
+                    </div>
+                    <ul class="mb-1">
+                        @foreach (var a in preview.AlumnesIncompletes)
+                        {
+                            <li>@a.Nom — falta: @a.DadesFalten</li>
+                        }
+                    </ul>
+                    <a href="/cursets/alumnes" class="alert-link">Completa les dades a Cursets › Alumnes</a>
+                </div>
+            }
+
+            <div class="d-flex gap-4 mb-3 flex-wrap">
+                <div><span class="badge bg-success">@preview.NumNoves</span> noves · <strong>@Eur(preview.ImportNoves)</strong></div>
+                <div><span class="badge bg-secondary">@preview.NumJaLiquidades</span> ja liquidades</div>
+                @if (preview.NumBloquejades > 0)
+                {
+                    <div><span class="badge bg-warning text-dark">@preview.NumBloquejades</span> bloquejades</div>
+                }
+            </div>
+
+            @if (!preview.Linies.Any())
+            {
+                <p class="text-muted mb-0">No hi ha res a liquidar en aquest període.</p>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>Alumna</th>
+                                <th>Curset</th>
+                                <th class="text-center">Sessions</th>
+                                <th class="text-end">Preu/sessió</th>
+                                <th class="text-end">Import</th>
+                                <th>Estat</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var l in preview.Linies)
+                            {
+                                <tr class="@((l.JaLiquidada || !l.DadesCompletes) ? "text-muted" : "")">
+                                    <td>@l.AlumneNom</td>
+                                    <td>@l.CursetTitol</td>
+                                    <td class="text-center">@l.NumSessions</td>
+                                    <td class="text-end">@Eur(l.PreuPerSessio)</td>
+                                    <td class="text-end">@Eur(l.Import)</td>
+                                    <td>
+                                        @if (!l.DadesCompletes)
+                                        {
+                                            <span class="badge bg-warning text-dark" title="Falta: @l.DadesFalten">Sense dades</span>
+                                        }
+                                        else if (l.JaLiquidada)
+                                        {
+                                            <span class="badge bg-secondary" title="@l.EstatExistent">Ja liquidada (@l.NumeroExistent)</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-success">Nova</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                @if (preview.NumJaLiquidades > 0)
+                {
+                    <div class="mb-3">
+                        <div class="form-label">Ja hi ha liquidacions en aquest període. Què vols fer?</div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="mode" id="modeNoves" value="NomesNoves"
+                                   checked="@(mode == "NomesNoves")" @onchange="@(() => mode = "NomesNoves")" />
+                            <label class="form-check-label" for="modeNoves">
+                                Emet només les <strong>@preview.NumNoves</strong> noves
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="mode" id="modeRefer" value="ReferTot"
+                                   checked="@(mode == "ReferTot")" @onchange="@(() => mode = "ReferTot")" />
+                            <label class="form-check-label" for="modeRefer">
+                                Refes-ho tot: anul·la les @preview.NumJaLiquidades existents i torna-les a emetre amb números nous
+                            </label>
+                        </div>
+                    </div>
+                }
+
+                <button class="btn btn-primary" @onclick="Emet" disabled="@(ocupat || preview.NumNoves == 0)">
+                    @if (emetent) { <span class="spinner-border spinner-border-sm me-2"></span> }
+                    <i class="fas fa-file-export me-2"></i>Emet remesa
+                </button>
+            }
+        </div>
+    </div>
+}
+
+@if (resultat is not null)
+{
+    <div class="card mb-4 border-success">
+        <div class="card-body">
+            <h6 class="text-success"><i class="fas fa-check-circle me-2"></i>Remesa emesa</h6>
+            <p class="mb-2">
+                <strong>@resultat.NumEmeses</strong> liquidacions emeses (@Eur(resultat.ImportTotal))
+                @if (resultat.NumAnullades > 0) { <text> · @resultat.NumAnullades anul·lades</text> }
+                @if (resultat.NumOmeses > 0) { <text> · @resultat.NumOmeses ja existents</text> }
+                @if (resultat.NumBloquejades > 0) { <text> · <span class="text-warning fw-semibold">@resultat.NumBloquejades saltades</span></text> }
+            </p>
+            @if (resultat.CursetsSenseOrdenanca.Any())
+            {
+                <div class="alert alert-info py-2">
+                    <div>Liquidat sense ordenança / tarifa (no la tenien definida):</div>
+                    <ul class="mb-1">
+                        @foreach (var c in resultat.CursetsSenseOrdenanca)
+                        {
+                            <li>@c</li>
+                        }
+                    </ul>
+                    <a href="/cursets" class="alert-link">Fitxa del curset</a>
+                </div>
+            }
+            @if (resultat.AlumnesIncompletes.Any())
+            {
+                <div class="alert alert-warning py-2">
+                    <div class="fw-semibold">Alumnes sense dades (cal completar i tornar a emetre):</div>
+                    <ul class="mb-1">
+                        @foreach (var a in resultat.AlumnesIncompletes)
+                        {
+                            <li>@a.Nom — falta: @a.DadesFalten</li>
+                        }
+                    </ul>
+                    <a href="/cursets/alumnes" class="alert-link">Cursets › Alumnes</a>
+                </div>
+            }
+            @if (resultat.RemesaId > 0)
+            {
+                <a class="btn btn-primary" href="/cursets/liquidacions/remeses/@resultat.RemesaId">
+                    <i class="fas fa-folder-open me-2"></i>Obre la remesa
+                </a>
+            }
+        </div>
+    </div>
+}
+
+<div class="card">
+    <div class="card-header"><h6 class="mb-0">Remeses anteriors (@remeses.Count)</h6></div>
+    <div class="card-body p-0">
+        @if (!remeses.Any())
+        {
+            <div class="p-4 text-center text-muted">Encara no s'ha emès cap remesa.</div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0 align-middle">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Descripció</th>
+                            <th>Període</th>
+                            <th>Expedient</th>
+                            <th class="text-center">Liquidacions</th>
+                            <th class="text-end">Import</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in remeses)
+                        {
+                            <tr>
+                                <td>@r.DataCreacio.ToString("dd/MM/yyyy HH:mm")</td>
+                                <td>@r.Descripcio</td>
+                                <td>@r.PeriodeEtiqueta</td>
+                                <td class="small"><code>@r.Expedient</code></td>
+                                <td class="text-center">@r.NumLiquidacions</td>
+                                <td class="text-end">@Eur(r.ImportTotal)</td>
+                                <td class="text-end">
+                                    <a class="btn btn-sm btn-outline-primary" href="/cursets/liquidacions/remeses/@r.Id">
+                                        <i class="fas fa-folder-open me-1"></i>Obre
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private string cadencia = "Trimestral";
+    private int any = DateTime.Today.Year;
+    private int periode = (DateTime.Today.Month - 1) / 3 + 1;
+    private DateTime? dataInici = DateTime.Today.AddMonths(-3);
+    private DateTime? dataFi = DateTime.Today;
+    private string descripcio = string.Empty;
+    private string mode = "NomesNoves";
+
+    private PreviewRemesaDto? preview;
+    private EmetreRemesaResultDto? resultat;
+    private List<RemesaDto> remeses = new();
+    private bool ocupat;
+    private bool emetent;
+    private string? missatge;
+    private string missatgeTipus = "success";
+
+    private string PeriodeLabel => cadencia switch
+    {
+        "Mensual" => "Mes",
+        "Setmanal" => "Setmana",
+        _ => "Trimestre"
+    };
+
+    protected override async Task OnInitializedAsync() => await CarregarRemeses();
+
+    private IEnumerable<(int, string)> OpcionsPeriode()
+    {
+        switch (cadencia)
+        {
+            case "Mensual":
+                for (var m = 1; m <= 12; m++)
+                    yield return (m, System.Globalization.CultureInfo.GetCultureInfo("ca-ES").DateTimeFormat.GetMonthName(m));
+                break;
+            case "Setmanal":
+                for (var w = 1; w <= 53; w++)
+                    yield return (w, $"Setmana {w}");
+                break;
+            default:
+                yield return (1, "1r trimestre (gen–mar)");
+                yield return (2, "2n trimestre (abr–jun)");
+                yield return (3, "3r trimestre (jul–set)");
+                yield return (4, "4t trimestre (oct–des)");
+                break;
+        }
+    }
+
+    private PeriodeLiquidacioRequest BuildRequest() => new()
+    {
+        Cadencia = cadencia,
+        Any = any,
+        Periode = cadencia == "Lliure" ? null : periode,
+        DataInici = cadencia == "Lliure" ? dataInici : null,
+        DataFi = cadencia == "Lliure" ? dataFi : null
+    };
+
+    private async Task Previsualitza()
+    {
+        if (ocupat) return;
+        ocupat = true;
+        missatge = null;
+        resultat = null;
+        try
+        {
+            preview = await LiquidacioService.PreviewRemesaAsync(BuildRequest());
+            mode = "NomesNoves";
+        }
+        catch (ArgumentException ex)
+        {
+            MostrarError(ex.Message);
+            preview = null;
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error previsualitzant liquidacions", ex, "Liquidacions.Previsualitza");
+            MostrarError("No s'ha pogut previsualitzar.");
+            preview = null;
+        }
+        finally
+        {
+            ocupat = false;
+        }
+    }
+
+    private async Task Emet()
+    {
+        if (ocupat || preview is null) return;
+        var msg = mode == "ReferTot"
+            ? $"Anul·lar {preview.NumJaLiquidades} liquidacions i tornar-les a emetre amb {preview.Linies.Count} de noves?"
+            : $"Emetre {preview.NumNoves} liquidacions noves?";
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", msg)) return;
+
+        ocupat = true;
+        emetent = true;
+        try
+        {
+            var req = new EmetreRemesaRequest
+            {
+                Cadencia = cadencia,
+                Any = any,
+                Periode = cadencia == "Lliure" ? null : periode,
+                DataInici = cadencia == "Lliure" ? dataInici : null,
+                DataFi = cadencia == "Lliure" ? dataFi : null,
+                Descripcio = descripcio,
+                Mode = mode
+            };
+            var res = await LiquidacioService.EmetreRemesaAsync(req, null);
+            resultat = res;
+            preview = null;
+            await CarregarRemeses();
+            if (res.RemesaId == 0 && res.NumBloquejades == 0)
+                MostrarError("No s'ha emès cap liquidació (res de nou al període).");
+        }
+        catch (ArgumentException ex)
+        {
+            MostrarError(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error emetent remesa de liquidacions", ex, "Liquidacions.Emet");
+            MostrarError("No s'ha pogut emetre la remesa.");
+        }
+        finally
+        {
+            ocupat = false;
+            emetent = false;
+        }
+    }
+
+    private async Task CarregarRemeses()
+    {
+        try { remeses = await LiquidacioService.GetRemesesAsync(); }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error carregant remeses", ex, "Liquidacions.CarregarRemeses");
+        }
+    }
+
+    private static string Eur(decimal v) => v.ToString("#,##0.00", System.Globalization.CultureInfo.GetCultureInfo("ca-ES")) + " €";
+
+    private void MostrarError(string t) { missatge = t; missatgeTipus = "danger"; }
+}

@@ -1,0 +1,289 @@
+﻿@page "/subvencions/nova"
+@using Microsoft.EntityFrameworkCore
+@inject GestorSubvencionsContext Context
+@inject NavigationManager NavigationManager
+
+@if (!carregat)
+{
+    <div class="alert alert-info">Carregant dades...</div>
+}
+else
+{
+    <div class="screen-header">
+        <h3 class="screen-title"><i class="fas fa-euro-sign me-2"></i>Nova Subvenció</h3>
+        <button type="button" @onclick="Tornar" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Tornar
+        </button>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <EditForm Model="@novaSubvencio" OnValidSubmit="Guardar">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+
+    <div class="form-group mb-3">
+        <label>Subvenció</label>
+        <InputText @bind-Value="novaSubvencio.Subvencio" class="form-control" />
+    </div>
+
+    <div class="form-group mb-3">
+        <label>Actuació</label>
+        <InputText @bind-Value="novaSubvencio.Actuacio" class="form-control" />
+    </div>
+
+    <div class="row mb-3">
+        <div class="form-group col-md-3">
+            <label>Any</label>
+            <InputSelect @bind-Value="novaSubvencio.AnyId" class="form-control">
+                <option value="">Selecciona un any</option>
+                @foreach (var any in anys)
+                {
+                    <option value="@any.Id">@any.Any</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="form-group col-md-3">
+            <label>Àrea</label>
+            <InputSelect @bind-Value="novaSubvencio.AreaId" class="form-control">
+                <option value="">Selecciona una àrea</option>
+                @foreach (var area in arees)
+                {
+                    <option value="@area.Id">@area.Nom</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="form-group col-md-3">
+            <label>Entitat</label>
+            <InputSelect @bind-Value="novaSubvencio.EntitatId" class="form-control">
+                <option value="">Selecciona una entitat</option>
+                @foreach (var entitat in entitats)
+                {
+                    <option value="@entitat.Id">@entitat.Nom</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="form-group col-md-3">
+            <label>Estat</label>
+            <InputSelect @bind-Value="novaSubvencio.EstatId" class="form-control">
+                <option value="">Selecciona un estat</option>
+                @foreach (var estat in estats)
+                {
+                    <option value="@estat.Id">@estat.Nom</option>
+                }
+            </InputSelect>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="form-group col-md-4">
+            <label>Regidors</label>
+            <div class="border p-2" style="max-height: 200px; overflow-y: auto;">
+                @foreach (var regidor in regidors)
+                {
+                    <div class="form-check">
+                        <input type="checkbox" 
+                               checked="@selectedRegidors[regidor.Id]" 
+                               @onchange="e => selectedRegidors[regidor.Id] = (bool)e.Value!" 
+                               class="form-check-input" />
+                        <label class="form-check-label">@regidor.Nom</label>
+                    </div>
+                }
+            </div>
+        </div>
+        <div class="form-group col-md-4">
+            <label>Ens</label>
+            <InputSelect @bind-Value="novaSubvencio.EnsId" class="form-control">
+                <option value="">Selecciona un ens</option>
+                @foreach (var ens in ensList)
+                {
+                    <option value="@ens.Id">@ens.Nom</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="form-group col-md-4">
+            <label>Import Atorgat</label>
+            <InputText @bind-Value="importAtorgatFormatted" class="form-control text-end" @onblur="OnImportAtorgatBlur" />
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="form-group col-md-12">
+            <label>Expedients</label>
+            @foreach (var (expedient, index) in expedients.Select((e, i) => (e, i)))
+            {
+                <div class="input-group mb-2">
+                    <input type="text" @bind="expedient.NumeroExpedient" class="form-control" placeholder="Ex: 9999/AAAA" maxlength="20" />
+                    <button type="button" class="btn btn-outline-danger" @onclick="() => EsborrarExpedient(index)">
+                        <span>✕</span>
+                    </button>
+                </div>
+            }
+            <button type="button" class="btn btn-outline-primary btn-sm" @onclick="AfegirExpedient">
+                + Afegir Expedient
+            </button>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="form-group col-md-12">
+            <label>Pagaments</label>
+            @foreach (var (pagament, index) in pagaments.Select((p, i) => (p, i)))
+            {
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-2">
+                                <label class="form-label">Import</label>
+                                <InputNumber @bind-Value="pagament.Amount" class="form-control" step="0.01" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Data</label>
+                                <InputDate @bind-Value="pagament.Date" class="form-control" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Comentari</label>
+                                <InputText @bind-Value="pagament.Comment" class="form-control" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Sense Pagament</label>
+                                <InputCheckbox @bind-Value="pagament.IsNoPayment" class="form-check-input ms-2" />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Descripció Servei</label>
+                                <InputText @bind-Value="pagament.ServiceDescription" class="form-control" />
+                            </div>
+                            <div class="col-md-1">
+                                <label class="form-label">&nbsp;</label>
+                                <button type="button" class="btn btn-outline-danger btn-sm w-100" @onclick="async () => await EsborrarPagament(index)">
+                                    <span>✕</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+            <button type="button" class="btn btn-outline-primary btn-sm" @onclick="AfegirPagament">
+                + Afegir Pagament
+            </button>
+        </div>
+    </div>
+
+            <div class="d-flex justify-content-end gap-2">
+                <button type="button" @onclick="Tornar" class="btn btn-outline-secondary">Cancel·lar</button>
+                <button type="submit" class="btn btn-primary">Crear</button>
+            </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    private Subvencio_ novaSubvencio = new();
+    private List<Any_> anys = new();
+    private List<Area> arees = new();
+    private List<Entitat> entitats = new();
+    private List<Estat> estats = new();
+    private List<Regidor> regidors = new();
+    private List<Ens> ensList = new();
+
+    private Dictionary<int, bool> selectedRegidors = new();
+    private List<Expedient> expedients = new() { new Expedient { NumeroExpedient = "" } };
+    private List<Pagament> pagaments = new();
+
+    private string importAtorgatFormatted = string.Empty;
+    private bool carregat = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        anys = await Context.Anys.ToListAsync();
+        arees = await Context.Arees.ToListAsync();
+        entitats = await Context.Entitats.ToListAsync();
+        estats = await Context.Estats.ToListAsync();
+        regidors = await Context.Regidors.ToListAsync();
+        ensList = await Context.Ens.ToListAsync();
+
+        selectedRegidors = regidors.ToDictionary(r => r.Id, r => false);
+
+        carregat = true;
+    }
+
+    private void AfegirExpedient()
+    {
+        expedients.Add(new Expedient { NumeroExpedient = "" });
+    }
+
+    private void EsborrarExpedient(int index)
+    {
+        if (expedients.Count > 1)
+        {
+            expedients.RemoveAt(index);
+        }
+    }
+
+    private void AfegirPagament()
+    {
+        pagaments.Add(new Pagament());
+    }
+
+    private async Task EsborrarPagament(int index)
+    {
+        pagaments.RemoveAt(index);
+        StateHasChanged();
+    }
+
+    private async Task Guardar()
+    {
+        var selectedRegidorIds = selectedRegidors.Where(kv => kv.Value).Select(kv => kv.Key).ToList();
+
+        // Afegir regidors seleccionats
+        foreach (var regidorId in selectedRegidorIds)
+        {
+            novaSubvencio.RegidorsSubvencions.Add(new RegidorsSubvencions { RegidorId = regidorId });
+        }
+
+        Context.Subvencions.Add(novaSubvencio);
+        await Context.SaveChangesAsync();
+
+        // Afegir expedients (només els que no estan buits)
+        foreach (var expedient in expedients.Where(e => !string.IsNullOrWhiteSpace(e.NumeroExpedient)))
+        {
+            expedient.SubvencioId = novaSubvencio.Id;
+            Context.Expedients.Add(expedient);
+        }
+
+        // Afegir pagaments
+        foreach (var pagament in pagaments)
+        {
+            pagament.SubvencioId = novaSubvencio.Id;
+            Context.Pagaments.Add(pagament);
+        }
+        
+        await Context.SaveChangesAsync();
+        NavigationManager.NavigateTo("/subvencions");
+    }
+
+    private void Tornar()
+    {
+        NavigationManager.NavigateTo("/subvencions");
+    }
+
+    private string FormatImport(decimal value)
+    {
+        return value.ToString("N2", System.Globalization.CultureInfo.GetCultureInfo("ca-ES"));
+    }
+
+    private void OnImportAtorgatBlur()
+    {
+        if (decimal.TryParse(importAtorgatFormatted, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.GetCultureInfo("ca-ES"), out var result))
+        {
+            novaSubvencio.ImportAtorgat = result;
+            importAtorgatFormatted = FormatImport(result);
+        }
+        else
+        {
+            importAtorgatFormatted = string.Empty;
+            novaSubvencio.ImportAtorgat = null;
+        }
+    }
+}

@@ -1,0 +1,197 @@
+@page "/cursets/liquidacions/configuracio"
+@using AppAjuntament.Models.Cursets.Dto
+@using AppAjuntament.Services.Cursets
+@attribute [Authorize(Policy = "EditorOrAdmin")]
+@inject ICursetsLiquidacioService LiquidacioService
+@inject ICursetsCatalogService CatalogService
+@inject AppAjuntament.Services.DatabaseLoggerService DbLogger
+
+<PageTitle>Configuració de liquidacions</PageTitle>
+
+<div class="screen-header mb-3 d-flex justify-content-between align-items-center">
+    <h3 class="screen-title"><i class="fas fa-cog me-2"></i>Configuració de liquidacions</h3>
+    <a class="btn btn-sm btn-outline-secondary" href="/cursets/liquidacions">
+        <i class="fas fa-arrow-left me-1"></i>Liquidacions
+    </a>
+</div>
+
+@if (missatge is not null)
+{
+    <div class="alert alert-@missatgeTipus alert-dismissible">
+        @missatge
+        <button type="button" class="btn-close" @onclick="() => missatge = null"></button>
+    </div>
+}
+
+@if (config is null)
+{
+    <div class="p-4 text-center text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Carregant...</div>
+}
+else
+{
+    <div class="card mb-4">
+        <div class="card-header"><h6 class="mb-0">Codis de servei (temàtiques)</h6></div>
+        <div class="card-body">
+            <p class="text-muted small">És el primer tros del número de liquidació (p. ex. <code>PTES</code> per a Pilates).</p>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead><tr><th>Temàtica</th><th style="width:160px">Codi</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var t in tipus)
+                        {
+                            <tr>
+                                <td>@t.Nom</td>
+                                <td>
+                                    <input class="form-control form-control-sm text-uppercase" maxlength="16"
+                                           @bind="codis[t.Id]" />
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" @onclick="() => DesarCodi(t)" disabled="@ocupat">
+                                        <i class="fas fa-save me-1"></i>Desa
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <EditForm Model="config" OnValidSubmit="Desar">
+        <div class="card mb-4">
+            <div class="card-header"><h6 class="mb-0">Números i concepte</h6></div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Patró del número d'expedient</label>
+                    <InputText class="form-control" @bind-Value="config.ExpedientPatro" />
+                    <div class="form-text">Tokens: <code>{ANY}</code>, <code>{PERIODE}</code>, <code>{PERIODE_ETIQUETA}</code>.</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Patró del concepte / activitat</label>
+                    <InputText class="form-control" @bind-Value="config.ConceptePatro" />
+                    <div class="form-text">Tokens: <code>{TIPUS}</code>, <code>{CURSET}</code>, <code>{PERIODE_ETIQUETA}</code>, <code>{ANY}</code>.</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Ordenança / tarifa per defecte</label>
+                    <InputTextArea class="form-control" rows="2" @bind-Value="config.OrdenancaTarifa" />
+                    <div class="form-text">
+                        S'usa quan el curset no en té una de pròpia. L'ordenança per curset es posa a la
+                        <a href="/cursets">fitxa del curset</a>.
+                    </div>
+                </div>
+                <div class="mb-0">
+                    <label class="form-label">Nom a la capçalera del document</label>
+                    <InputText class="form-control" @bind-Value="config.CapcaleraMunicipi" />
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header"><h6 class="mb-0">Textos del document</h6></div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">6. Entitats col·laboradores i mitjans de pagament</label>
+                    <InputTextArea class="form-control" rows="2" @bind-Value="config.EntitatsColaboradoresText" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">6. Pagament a les oficines municipals</label>
+                    <InputTextArea class="form-control" rows="2" @bind-Value="config.MitjansPagamentText" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">7. Instruccions de recursos</label>
+                    <InputTextArea class="form-control" rows="3" @bind-Value="config.TextRecursos" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">8. Important</label>
+                    <InputTextArea class="form-control" rows="3" @bind-Value="config.TextImportant" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">9. Terminis cobratoris</label>
+                    <InputTextArea class="form-control" rows="3" @bind-Value="config.TextTerminis" />
+                </div>
+                <div class="mb-0">
+                    <label class="form-label">10. Oficina cobratòria</label>
+                    <InputTextArea class="form-control" rows="2" @bind-Value="config.OficinaCobratoriaText" />
+                </div>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary" disabled="@ocupat">
+            @if (ocupat) { <span class="spinner-border spinner-border-sm me-2"></span> }
+            <i class="fas fa-save me-2"></i>Desa la configuració
+        </button>
+    </EditForm>
+}
+
+@code {
+    private LiquidacioConfigDto? config;
+    private List<TipusCursetDto> tipus = new();
+    private Dictionary<int, string> codis = new();
+    private bool ocupat;
+    private string? missatge;
+    private string missatgeTipus = "success";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            config = await LiquidacioService.GetConfigAsync();
+            tipus = await CatalogService.GetTipusCursetsAsync(nomesActius: false);
+            codis = tipus.ToDictionary(t => t.Id, t => t.CodiLiquidacio ?? string.Empty);
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error carregant configuració de liquidacions", ex, "LiquidacionsConfig.OnInit");
+            MostrarError("No s'ha pogut carregar la configuració.");
+        }
+    }
+
+    private async Task DesarCodi(TipusCursetDto t)
+    {
+        if (ocupat) return;
+        ocupat = true;
+        try
+        {
+            await CatalogService.ActualitzarTipusCursetAsync(t.Id, new ActualitzarTipusCursetRequest
+            {
+                Nom = t.Nom,
+                CodiLiquidacio = codis.TryGetValue(t.Id, out var c) ? c : null
+            });
+            tipus = await CatalogService.GetTipusCursetsAsync(nomesActius: false);
+            codis = tipus.ToDictionary(x => x.Id, x => x.CodiLiquidacio ?? string.Empty);
+            MostrarOk($"Codi de «{t.Nom}» desat.");
+        }
+        catch (ArgumentException ex)
+        {
+            MostrarError(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error desant codi de temàtica", ex, "LiquidacionsConfig.DesarCodi");
+            MostrarError("No s'ha pogut desar el codi.");
+        }
+        finally { ocupat = false; }
+    }
+
+    private async Task Desar()
+    {
+        if (ocupat || config is null) return;
+        ocupat = true;
+        try
+        {
+            await LiquidacioService.DesarConfigAsync(config);
+            config = await LiquidacioService.GetConfigAsync();
+            MostrarOk("Configuració desada.");
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error desant configuració de liquidacions", ex, "LiquidacionsConfig.Desar");
+            MostrarError("No s'ha pogut desar la configuració.");
+        }
+        finally { ocupat = false; }
+    }
+
+    private void MostrarOk(string t) { missatge = t; missatgeTipus = "success"; }
+    private void MostrarError(string t) { missatge = t; missatgeTipus = "danger"; }
+}

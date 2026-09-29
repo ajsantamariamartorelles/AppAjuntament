@@ -1,0 +1,11 @@
+## .NET / MAUI
+bin/
+obj/
+*.user
+*.userosscache
+*.suo
+.vs/
+
+## macOS / Windows
+.DS_Store
+Thumbs.db

@@ -1,0 +1,390 @@
+@page "/taules-auxiliar/ambits"
+@inject GestorSubvencionsContext DbContext
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+@inject AppAjuntament.Services.DatabaseLoggerService DbLogger
+@using Microsoft.EntityFrameworkCore
+
+<PageTitle>Gestió d'Àmbits i Subàmbit</PageTitle>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/taules-auxiliar">Taules Auxiliar</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Àmbits / Subàmbit</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-12 d-flex justify-content-between align-items-center">
+            <h1 class="h3 mb-0">Gestió d'Àmbits i Subàmbit</h1>
+            <div>
+                <button @onclick="ShowCreateAmbitModal" class="btn btn-success me-2">
+                    <i class="fas fa-plus me-2"></i>Crear Àmbit
+                </button>
+                <button @onclick="ShowCreateSubambitModal" class="btn btn-primary">
+                    <i class="fas fa-plus me-2"></i>Crear Subàmbit
+                </button>
+            </div>
+        </div>
+    </div>
+
+    @if (AmbitsList == null)
+    {
+        <div class="text-center">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Carregant...</span>
+            </div>
+        </div>
+    }
+    else if (!AmbitsList.Any())
+    {
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>No hi ha àmbits definits.
+        </div>
+    }
+    else
+    {
+        @foreach (var ambit in AmbitsList.OrderBy(a => a.Nom))
+        {
+            <div class="card mb-4">
+                <div class="card-header screen-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-layer-group me-2 text-primary"></i>
+                        @ambit.Nom
+                        @if (!string.IsNullOrEmpty(ambit.Descripcio))
+                        {
+                            <small class="text-muted ms-2">@ambit.Descripcio</small>
+                        }
+                    </h5>
+                    <div>
+                        <button @onclick="() => EditAmbit(ambit)" class="btn btn-sm btn-outline-primary me-2">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button @onclick="() => DeleteAmbit(ambit)" class="btn btn-sm btn-outline-danger">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    @if (ambit.Subambits != null && ambit.Subambits.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Subàmbit</th>
+                                        <th>Descripció</th>
+                                        <th>Accions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var subambit in ambit.Subambits.OrderBy(s => s.Nom))
+                                    {
+                                        <tr>
+                                            <td>@subambit.Nom</td>
+                                            <td>@subambit.Descripcio</td>
+                                            <td>
+                                                <button @onclick="() => EditSubambit(subambit)" class="btn btn-sm btn-outline-primary me-2">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                <button @onclick="() => DeleteSubambit(subambit)" class="btn btn-sm btn-outline-danger">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted mb-0">No hi ha subàmbits definits per aquest àmbit.</p>
+                    }
+                </div>
+            </div>
+        }
+    }
+</div>
+
+<!-- Modal per crear/editar àmbit -->
+<div class="modal fade @ModalAmbitClass" id="modalAmbit" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">@(EditingAmbit?.Id > 0 ? "Editar Àmbit" : "Crear Àmbit")</h5>
+                <button type="button" class="btn-close" @onclick="CloseAmbitModal"></button>
+            </div>
+            <div class="modal-body">
+                @if (EditingAmbit != null)
+                {
+                    <EditForm Model="EditingAmbit" OnValidSubmit="SaveAmbit">
+                        <DataAnnotationsValidator />
+                        <div class="mb-3">
+                            <label class="form-label">Nom *</label>
+                            <InputText @bind-Value="EditingAmbit!.Nom" class="form-control" />
+                            <ValidationMessage For="() => EditingAmbit!.Nom" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Descripció</label>
+                            <InputTextArea @bind-Value="EditingAmbit!.Descripcio" class="form-control" rows="3" />
+                        </div>
+                        <div class="mb-3 form-check">
+                            <InputCheckbox @bind-Value="EditingAmbit!.PotSerEnllacAjuntament" class="form-check-input" />
+                            <label class="form-check-label">Pot ser enllaç ajuntament</label>
+                        </div>
+                        <div class="mb-3 form-check">
+                            <InputCheckbox @bind-Value="EditingAmbit!.PotSerCoordinador" class="form-check-input" />
+                            <label class="form-check-label">Pot ser coordinador</label>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" @onclick="CloseAmbitModal">Cancel·lar</button>
+                            <button type="submit" class="btn btn-primary">Guardar</button>
+                        </div>
+                    </EditForm>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal per crear/editar subàmbit -->
+<div class="modal fade @ModalSubambitClass" id="modalSubambit" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">@(EditingSubambit?.Id > 0 ? "Editar Subàmbit" : "Crear Subàmbit")</h5>
+                <button type="button" class="btn-close" @onclick="CloseSubambitModal"></button>
+            </div>
+            <div class="modal-body">
+                @if (EditingSubambit != null)
+                {
+                    <EditForm Model="EditingSubambit" OnValidSubmit="SaveSubambit">
+                        <DataAnnotationsValidator />
+                        <div class="mb-3">
+                            <label class="form-label">Àmbit *</label>
+                            <InputSelect @bind-Value="EditingSubambit!.AmbitVoluntariId" class="form-select">
+                                <option value="">Selecciona un àmbit...</option>
+                                @foreach (var ambit in AmbitsList?.OrderBy(a => a?.Nom) ?? Enumerable.Empty<AmbitVoluntari>())
+                                {
+                                    <option value="@ambit?.Id">@ambit?.Nom</option>
+                                }
+                            </InputSelect>
+                            <ValidationMessage For="() => EditingSubambit!.AmbitVoluntariId" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Nom *</label>
+                            <InputText @bind-Value="EditingSubambit!.Nom" class="form-control" />
+                            <ValidationMessage For="() => EditingSubambit!.Nom" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Descripció</label>
+                            <InputTextArea @bind-Value="EditingSubambit!.Descripcio" class="form-control" rows="3" />
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" @onclick="CloseSubambitModal">Cancel·lar</button>
+                            <button type="submit" class="btn btn-primary">Guardar</button>
+                        </div>
+                    </EditForm>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<AmbitVoluntari>? AmbitsList { get; set; }
+    private AmbitVoluntari? EditingAmbit { get; set; }
+    private SubambitVoluntari? EditingSubambit { get; set; }
+    private string ModalAmbitClass => EditingAmbit != null ? "show d-block" : "";
+    private string ModalSubambitClass => EditingSubambit != null ? "show d-block" : "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAmbits();
+    }
+
+    private async Task LoadAmbits()
+    {
+        AmbitsList = await DbContext.AmbitsVoluntaris
+            .Include(a => a.Subambits)
+            .OrderBy(a => a.Nom)
+            .ToListAsync();
+    }
+
+    private void ShowCreateAmbitModal()
+    {
+        EditingAmbit = new AmbitVoluntari
+        {
+            PotSerEnllacAjuntament = false,
+            PotSerCoordinador = false,
+            Actiu = true,
+            DataCreacio = DateTime.Now
+        };
+        StateHasChanged();
+    }
+
+    private void ShowCreateSubambitModal()
+    {
+        EditingSubambit = new SubambitVoluntari
+        {
+            Actiu = true,
+            DataCreacio = DateTime.Now
+        };
+        StateHasChanged();
+    }
+
+    private void EditAmbit(AmbitVoluntari ambit)
+    {
+        EditingAmbit = new AmbitVoluntari
+        {
+            Id = ambit.Id,
+            Nom = ambit.Nom,
+            Descripcio = ambit.Descripcio,
+            PotSerEnllacAjuntament = ambit.PotSerEnllacAjuntament,
+            PotSerCoordinador = ambit.PotSerCoordinador,
+            Actiu = ambit.Actiu,
+            DataCreacio = ambit.DataCreacio
+        };
+        StateHasChanged();
+    }
+
+    private void EditSubambit(SubambitVoluntari subambit)
+    {
+        EditingSubambit = new SubambitVoluntari
+        {
+            Id = subambit.Id,
+            Nom = subambit.Nom,
+            Descripcio = subambit.Descripcio,
+            AmbitVoluntariId = subambit.AmbitVoluntariId,
+            Actiu = subambit.Actiu,
+            DataCreacio = subambit.DataCreacio
+        };
+        StateHasChanged();
+    }
+
+    private async Task SaveAmbit()
+    {
+        if (EditingAmbit == null) return;
+
+        try
+        {
+            if (EditingAmbit.Id == 0)
+            {
+                // Crear nou àmbit
+                DbContext.AmbitsVoluntaris.Add(EditingAmbit);
+            }
+            else
+            {
+                // Actualitzar àmbit existent
+                var existing = await DbContext.AmbitsVoluntaris.FindAsync(EditingAmbit.Id);
+                if (existing != null)
+                {
+                    existing.Nom = EditingAmbit.Nom;
+                    existing.Descripcio = EditingAmbit.Descripcio;
+                    existing.PotSerEnllacAjuntament = EditingAmbit.PotSerEnllacAjuntament;
+                    existing.PotSerCoordinador = EditingAmbit.PotSerCoordinador;
+                    existing.Actiu = EditingAmbit.Actiu;
+                }
+            }
+
+            await DbContext.SaveChangesAsync();
+            await LoadAmbits();
+            await CloseAmbitModal();
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error: {ex.Message}");
+        }
+    }
+
+    private async Task SaveSubambit()
+    {
+        if (EditingSubambit == null) return;
+
+        try
+        {
+            if (EditingSubambit.Id == 0)
+            {
+                // Crear nou subàmbit
+                DbContext.SubambitsVoluntaris.Add(EditingSubambit);
+            }
+            else
+            {
+                // Actualitzar subàmbit existent
+                var existing = await DbContext.SubambitsVoluntaris.FindAsync(EditingSubambit.Id);
+                if (existing != null)
+                {
+                    existing.Nom = EditingSubambit.Nom;
+                    existing.Descripcio = EditingSubambit.Descripcio;
+                    existing.AmbitVoluntariId = EditingSubambit.AmbitVoluntariId;
+                    existing.Actiu = EditingSubambit.Actiu;
+                }
+            }
+
+            await DbContext.SaveChangesAsync();
+            await LoadAmbits();
+            await CloseSubambitModal();
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync($"Error guardant subàmbit: {EditingSubambit?.Nom ?? "NOU"}, AmbitId={EditingSubambit?.AmbitVoluntariId}", ex, "SaveSubambit", $"SubambitId={EditingSubambit?.Id.ToString() ?? "NULL"}, AmbitId={EditingSubambit?.AmbitVoluntariId}");
+            await JSRuntime.InvokeVoidAsync("alert", $"Error: {ex.Message}");
+        }
+    }
+
+    private async Task DeleteAmbit(AmbitVoluntari ambit)
+    {
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", $"Esteu segur que voleu eliminar l'àmbit '{ambit.Nom}'? Aquesta acció no es pot desfer."))
+            return;
+
+        try
+        {
+            DbContext.AmbitsVoluntaris.Remove(ambit);
+            await DbContext.SaveChangesAsync();
+            await LoadAmbits();
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync($"Error eliminant àmbit ID={ambit.Id}, Nom={ambit.Nom}", ex, "DeleteAmbit", $"AmbitId={ambit.Id}");
+            await JSRuntime.InvokeVoidAsync("alert", $"Error eliminant àmbit: {ex.Message}");
+        }
+    }
+
+    private async Task DeleteSubambit(SubambitVoluntari subambit)
+    {
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", $"Esteu segur que voleu eliminar el subàmbit '{subambit.Nom}'? Aquesta acció no es pot desfer."))
+            return;
+
+        try
+        {
+            DbContext.SubambitsVoluntaris.Remove(subambit);
+            await DbContext.SaveChangesAsync();
+            await LoadAmbits();
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync($"Error eliminant subàmbit ID={subambit.Id}, Nom={subambit.Nom}, AmbitId={subambit.AmbitVoluntariId}", ex, "DeleteSubambit", $"SubambitId={subambit.Id}, AmbitId={subambit.AmbitVoluntariId}");
+            await JSRuntime.InvokeVoidAsync("alert", $"Error eliminant subàmbit: {ex.Message}");
+        }
+    }
+
+    private Task CloseAmbitModal()
+    {
+        EditingAmbit = null;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private Task CloseSubambitModal()
+    {
+        EditingSubambit = null;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+}

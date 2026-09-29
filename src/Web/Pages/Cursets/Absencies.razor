@@ -1,0 +1,218 @@
+@page "/cursets/absencies"
+@using AppAjuntament.Models.Cursets.Dto
+@using AppAjuntament.Services.Cursets
+@attribute [Authorize(Policy = "EditorOrAdmin")]
+@inject ICursetsSessionsService SessionsService
+@inject IJSRuntime JSRuntime
+@inject AppAjuntament.Services.DatabaseLoggerService DbLogger
+
+<PageTitle>Absències consecutives</PageTitle>
+
+<div class="screen-header mb-3 d-flex justify-content-between align-items-center">
+    <h3 class="screen-title"><i class="fas fa-user-clock me-2"></i>Absències consecutives</h3>
+    <a class="btn btn-sm btn-outline-secondary" href="/cursets/absencies/configuracio">
+        <i class="fas fa-cog me-1"></i>Configuració del correu
+    </a>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">Mínim d'absències consecutives</label>
+                <input type="number" min="1" class="form-control" @bind="minim" @bind:event="oninput" />
+            </div>
+            <div class="col-md-8 text-muted small">
+                Sessions tancades més recents en què l'alumne ha faltat de manera seguida, sense
+                cap assistència pel mig. Només es mostren inscripcions actives (Admesa).
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (carregant)
+{
+    <div class="text-center py-4 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Carregant...</div>
+}
+else if (!totes.Any())
+{
+    <div class="alert alert-info">No hi ha cap alumne amb absències consecutives registrades.</div>
+}
+else
+{
+    @if (!string.IsNullOrWhiteSpace(missatgeResultat))
+    {
+        <div class="alert alert-@(errorsResultat ? "warning" : "success") alert-dismissible">
+            @missatgeResultat
+            <button type="button" class="btn-close" @onclick="() => missatgeResultat = null"></button>
+        </div>
+    }
+
+    @if (!Filtrades.Any())
+    {
+        <div class="alert alert-secondary">Cap alumne arriba a @minim absències consecutives.</div>
+    }
+    else
+    {
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                    <div>
+                        <strong>@seleccio.Count</strong> seleccionats de @Filtrades.Count
+                        <button class="btn btn-link btn-sm p-0 ms-2" @onclick="SeleccionarTots">Selecciona-ho tot</button>
+                        <button class="btn btn-link btn-sm p-0 ms-2" @onclick="() => seleccio.Clear()">Neteja</button>
+                    </div>
+                    <button class="btn btn-danger btn-sm" disabled="@(seleccio.Count == 0 || processant)" @onclick="ConfirmarBaixes">
+                        @if (processant)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        <i class="fas fa-user-slash me-1"></i>Donar de baixa i avisar per correu
+                    </button>
+                </div>
+                <div class="mb-0">
+                    <label class="form-label small">Missatge addicional al correu (opcional)</label>
+                    <textarea class="form-control form-control-sm" rows="2" @bind="missatgeCorreu"
+                              placeholder="p. ex. Si vols reprendre el curset, contacta amb nosaltres."></textarea>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th style="width: 2rem;"></th>
+                        <th>Alumne</th>
+                        <th>Curset</th>
+                        <th class="text-center">Absències consecutives</th>
+                        <th>Última sessió</th>
+                        <th>Última presència</th>
+                        <th>Email</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var f in Filtrades)
+                    {
+                        var clau = Clau(f);
+                        <tr>
+                            <td>
+                                <input type="checkbox" class="form-check-input" checked="@seleccio.Contains(clau)"
+                                       @onchange="e => Marcar(clau, (bool)e.Value!)" />
+                            </td>
+                            <td><a href="/cursets/alumnes/@f.AlumneId">@f.NomComplet</a></td>
+                            <td>@f.CursetTitol</td>
+                            <td class="text-center"><span class="badge bg-danger">@f.AbsenciesConsecutives</span></td>
+                            <td>@f.DataUltimaSessio.ToString("dd/MM/yyyy")</td>
+                            <td>@(f.DataUltimaPresencia?.ToString("dd/MM/yyyy") ?? "Mai")</td>
+                            <td>
+                                @if (string.IsNullOrWhiteSpace(f.Email))
+                                {
+                                    <span class="text-danger small"><i class="fas fa-exclamation-triangle me-1"></i>Sense email</span>
+                                }
+                                else
+                                {
+                                    @f.Email
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+@code {
+    private int minim = 3;
+    private List<AbsenciaAlumneDto> totes = new();
+    private readonly HashSet<string> seleccio = new();
+    private string missatgeCorreu = string.Empty;
+    private string? missatgeResultat;
+    private bool errorsResultat;
+    private bool carregant;
+    private bool processant;
+
+    private List<AbsenciaAlumneDto> Filtrades => totes.Where(f => f.AbsenciesConsecutives >= Math.Max(1, minim)).ToList();
+
+    protected override async Task OnInitializedAsync() => await Carregar();
+
+    private async Task Carregar()
+    {
+        carregant = true;
+        try
+        {
+            totes = await SessionsService.GetAbsenciesConsecutivesAsync();
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error carregant absències consecutives", ex, "Absencies.Carregar");
+        }
+        finally
+        {
+            carregant = false;
+        }
+    }
+
+    private static string Clau(AbsenciaAlumneDto f) => $"{f.AlumneId}-{f.CursetId}";
+
+    private void Marcar(string clau, bool marcat)
+    {
+        if (marcat) seleccio.Add(clau);
+        else seleccio.Remove(clau);
+    }
+
+    private void SeleccionarTots()
+    {
+        foreach (var f in Filtrades)
+            seleccio.Add(Clau(f));
+    }
+
+    private async Task ConfirmarBaixes()
+    {
+        var n = seleccio.Count;
+        if (n == 0) return;
+
+        if (!await JSRuntime.InvokeAsync<bool>("confirm",
+            $"Segur que vols donar de baixa {n} inscripcions i avisar per correu als alumnes?"))
+            return;
+
+        processant = true;
+        missatgeResultat = null;
+        try
+        {
+            var items = Filtrades
+                .Where(f => seleccio.Contains(Clau(f)))
+                .Select(f => new BaixaPerAbsenciesItem { AlumneId = f.AlumneId, CursetId = f.CursetId })
+                .ToList();
+
+            var resultat = await SessionsService.DonarBaixaPerAbsenciesAsync(items,
+                string.IsNullOrWhiteSpace(missatgeCorreu) ? null : missatgeCorreu.Trim());
+
+            var parts = new List<string>
+            {
+                $"{resultat.NumBaixes} de {n} inscripcions donades de baixa",
+                $"{resultat.NumEmailsEnviats} correus enviats"
+            };
+            if (resultat.NumSenseEmail > 0)
+                parts.Add($"{resultat.NumSenseEmail} sense email registrat");
+            errorsResultat = resultat.NumSenseEmail > 0 || resultat.Errors.Count > 0;
+            missatgeResultat = string.Join(" · ", parts) +
+                (resultat.Errors.Count > 0 ? ". Errors: " + string.Join("; ", resultat.Errors) : ".");
+
+            seleccio.Clear();
+            missatgeCorreu = string.Empty;
+            await Carregar();
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error donant de baixa per absències", ex, "Absencies.ConfirmarBaixes");
+            errorsResultat = true;
+            missatgeResultat = "Hi ha hagut un error donant les baixes. Torna-ho a provar.";
+        }
+        finally
+        {
+            processant = false;
+        }
+    }
+}

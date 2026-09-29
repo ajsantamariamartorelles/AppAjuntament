@@ -1,0 +1,224 @@
+@page "/cursets/liquidacions/remeses/{Id:int}"
+@using AppAjuntament.Models.Cursets.Dto
+@using AppAjuntament.Services.Cursets
+@attribute [Authorize(Policy = "EditorOrAdmin")]
+@inject ICursetsLiquidacioService LiquidacioService
+@inject IJSRuntime JSRuntime
+@inject AppAjuntament.Services.DatabaseLoggerService DbLogger
+
+<PageTitle>Remesa de liquidacions</PageTitle>
+
+<div class="screen-header mb-3 d-flex justify-content-between align-items-center">
+    <h3 class="screen-title"><i class="fas fa-folder-open me-2"></i>Remesa de liquidacions</h3>
+    <a class="btn btn-sm btn-outline-secondary" href="/cursets/liquidacions">
+        <i class="fas fa-arrow-left me-1"></i>Totes les remeses
+    </a>
+</div>
+
+@if (missatge is not null)
+{
+    <div class="alert alert-@missatgeTipus alert-dismissible">
+        @missatge
+        <button type="button" class="btn-close" @onclick="() => missatge = null"></button>
+    </div>
+}
+
+@if (carregant)
+{
+    <div class="p-4 text-center text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Carregant...</div>
+}
+else if (detall is null)
+{
+    <div class="alert alert-warning">No s'ha trobat la remesa.</div>
+}
+else
+{
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3"><div class="small text-muted">Descripció</div><div>@detall.Remesa.Descripcio</div></div>
+                <div class="col-md-3"><div class="small text-muted">Període</div><div>@detall.Remesa.PeriodeEtiqueta</div></div>
+                <div class="col-md-3"><div class="small text-muted">Expedient</div><div><code>@detall.Remesa.Expedient</code></div></div>
+                <div class="col-md-3"><div class="small text-muted">Data</div><div>@detall.Remesa.DataCreacio.ToString("dd/MM/yyyy HH:mm")</div></div>
+            </div>
+            <hr />
+            <div class="d-flex gap-4 align-items-center">
+                <div><strong>@detall.Remesa.NumLiquidacions</strong> liquidacions · <strong>@Eur(detall.Remesa.ImportTotal)</strong></div>
+                <a class="btn btn-success btn-sm" href="@ZipUrl" target="_blank">
+                    <i class="fas fa-file-archive me-2"></i>Descarrega tot (ZIP)
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header"><h6 class="mb-0">PDF per alumna (@detall.Alumnes.Count)</h6></div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0 align-middle">
+                    <thead>
+                        <tr><th>Alumna</th><th class="text-center">Fulls</th><th class="text-end">Import</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var a in detall.Alumnes)
+                        {
+                            <tr>
+                                <td>@a.Nom</td>
+                                <td class="text-center">@a.NumFulls</td>
+                                <td class="text-end">@Eur(a.Import)</td>
+                                <td class="text-end">
+                                    <a class="btn btn-sm btn-outline-primary" href="@PdfAlumnaUrl(a.AlumneId)" target="_blank">
+                                        <i class="fas fa-file-pdf me-1"></i>PDF
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header"><h6 class="mb-0">Liquidacions (@detall.Liquidacions.Count)</h6></div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0 align-middle">
+                    <thead>
+                        <tr>
+                            <th>Número</th>
+                            <th>Alumna</th>
+                            <th>Curset</th>
+                            <th class="text-end">Import</th>
+                            <th>Estat</th>
+                            <th class="text-end">Accions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var l in detall.Liquidacions)
+                        {
+                            <tr class="@(l.Estat == "Anullada" ? "text-muted" : "")">
+                                <td class="small"><code>@l.Numero</code></td>
+                                <td>@l.AlumneNom</td>
+                                <td>@l.CursetTitol</td>
+                                <td class="text-end">@Eur(l.Import)</td>
+                                <td>
+                                    @switch (l.Estat)
+                                    {
+                                        case "Cobrada":
+                                            <span class="badge bg-success">Cobrada @l.DataCobrament?.ToString("dd/MM/yyyy")</span>
+                                            break;
+                                        case "Anullada":
+                                            <span class="badge bg-danger" title="@l.MotiuAnullacio">Anul·lada</span>
+                                            break;
+                                        default:
+                                            <span class="badge bg-warning text-dark">Emesa</span>
+                                            break;
+                                    }
+                                </td>
+                                <td class="text-end">
+                                    <a class="btn btn-sm btn-outline-primary" href="@PdfLiquidacioUrl(l.Id)" target="_blank" title="PDF">
+                                        <i class="fas fa-file-pdf"></i>
+                                    </a>
+                                    @if (l.Estat == "Emesa")
+                                    {
+                                        <button class="btn btn-sm btn-outline-success" @onclick="() => MarcarCobrada(l)" disabled="@ocupat" title="Marca cobrada">
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                    }
+                                    @if (l.Estat != "Anullada")
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => Anullar(l)" disabled="@ocupat" title="Anul·la">
+                                            <i class="fas fa-ban"></i>
+                                        </button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private RemesaDetallDto? detall;
+    private bool carregant = true;
+    private bool ocupat;
+    private string? missatge;
+    private string missatgeTipus = "success";
+
+    private string ZipUrl => $"/api/cursets/admin/liquidacions/remeses/{Id}/zip";
+    private string PdfAlumnaUrl(int alumneId) => $"/api/cursets/admin/liquidacions/remeses/{Id}/alumnes/{alumneId}/pdf";
+    private string PdfLiquidacioUrl(int liquidacioId) => $"/api/cursets/admin/liquidacions/{liquidacioId}/pdf";
+
+    protected override async Task OnParametersSetAsync() => await Carregar();
+
+    private async Task Carregar()
+    {
+        carregant = true;
+        try
+        {
+            detall = await LiquidacioService.GetRemesaAsync(Id);
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error carregant remesa", ex, "LiquidacioDetall.Carregar");
+            MostrarError("No s'ha pogut carregar la remesa.");
+        }
+        finally
+        {
+            carregant = false;
+        }
+    }
+
+    private async Task MarcarCobrada(LiquidacioDto l)
+    {
+        if (ocupat) return;
+        var data = await JSRuntime.InvokeAsync<string>("prompt", "Data de cobrament (dd/mm/aaaa):", DateTime.Today.ToString("dd/MM/yyyy"));
+        if (string.IsNullOrWhiteSpace(data)) return;
+        if (!DateTime.TryParse(data, System.Globalization.CultureInfo.GetCultureInfo("ca-ES"), System.Globalization.DateTimeStyles.None, out var d))
+        {
+            MostrarError("Data no vàlida.");
+            return;
+        }
+        ocupat = true;
+        try
+        {
+            await LiquidacioService.MarcarCobradaAsync(l.Id, d);
+            await Carregar();
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error marcant cobrada", ex, "LiquidacioDetall.MarcarCobrada");
+            MostrarError("No s'ha pogut marcar com a cobrada.");
+        }
+        finally { ocupat = false; }
+    }
+
+    private async Task Anullar(LiquidacioDto l)
+    {
+        if (ocupat) return;
+        var motiu = await JSRuntime.InvokeAsync<string>("prompt", $"Motiu de l'anul·lació de {l.Numero}:");
+        if (string.IsNullOrWhiteSpace(motiu)) return;
+        ocupat = true;
+        try
+        {
+            await LiquidacioService.AnullarAsync(l.Id, motiu);
+            await Carregar();
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error anul·lant liquidació", ex, "LiquidacioDetall.Anullar");
+            MostrarError("No s'ha pogut anul·lar.");
+        }
+        finally { ocupat = false; }
+    }
+
+    private static string Eur(decimal v) => v.ToString("#,##0.00", System.Globalization.CultureInfo.GetCultureInfo("ca-ES")) + " €";
+
+    private void MostrarError(string t) { missatge = t; missatgeTipus = "danger"; }
+}

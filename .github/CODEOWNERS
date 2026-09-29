@@ -1,0 +1,7 @@
+# Qui ha de revisar cada canvi. Vegeu AGENTS.md: només els responsables del
+# repositori poden aprovar una PR i, en particular, modificar AGENTS.md.
+
+* @rodolfcasas
+
+# AGENTS.md només el poden canviar els responsables del repositori (AGENTS.md, capçalera).
+/AGENTS.md @rodolfcasas

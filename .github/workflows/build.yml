@@ -1,0 +1,35 @@
+name: Build i tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  build-i-test:
+    runs-on: windows-latest
+    steps:
+      - name: Clona el repositori
+        uses: actions/checkout@v4
+
+      - name: Instal·la .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restaura els paquets
+        run: dotnet restore AppAjuntament.slnx
+
+      - name: Compila (Release)
+        run: dotnet build AppAjuntament.slnx --configuration Release --no-restore
+
+      - name: Executa els tests
+        run: dotnet test AppAjuntament.slnx --configuration Release --no-build --logger "trx;LogFileName=resultats.trx"
+
+      - name: Puja els resultats dels tests
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resultats-tests
+          path: "**/resultats.trx"

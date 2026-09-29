@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:AjuntamentSantaMariaMartorelles.ViewModels"
+             x:Class="AjuntamentSantaMariaMartorelles.Views.ComptePage"
+             x:DataType="vm:CompteViewModel"
+             BackgroundColor="{StaticResource PageBackground}"
+             Title="El meu compte">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="20,18" Spacing="16">
+
+            <Label Text="El meu compte" Style="{StaticResource PageTitle}" />
+            <BoxView Style="{StaticResource GoldRule}" />
+
+            <Border Style="{StaticResource Card}">
+                <VerticalStackLayout Spacing="10">
+                    <VerticalStackLayout Spacing="2">
+                        <Label Text="Nom" Style="{StaticResource ItemMeta}" />
+                        <Label Text="{Binding Nom}" Style="{StaticResource ItemTitle}" />
+                    </VerticalStackLayout>
+                    <VerticalStackLayout Spacing="2">
+                        <Label Text="Perfil" Style="{StaticResource ItemMeta}" />
+                        <Label Text="{Binding RolText}" Style="{StaticResource ItemTitle}" />
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+
+            <Label Text="Seguretat" Style="{StaticResource Subtitle}"
+                   IsVisible="{Binding TeContrasenya}" />
+
+            <Button Text="Canvia la contrasenya"
+                    Style="{StaticResource OutlineButton}"
+                    Command="{Binding ObreCanviPasswordCommand}"
+                    IsVisible="{Binding MostraBotoCanviPassword}"
+                    HorizontalOptions="Fill" />
+
+            <Border Style="{StaticResource Card}" IsVisible="{Binding FormPasswordObert}">
+                <VerticalStackLayout Spacing="14">
+
+                    <Label Text="Canvia la contrasenya"
+                           FontAttributes="Bold"
+                           TextColor="{StaticResource TextPrimary}" />
+
+                    <Border Style="{StaticResource FieldFrame}">
+                        <Entry Placeholder="Contrasenya actual"
+                               Text="{Binding PasswordActual}"
+                               IsPassword="True"
+                               ReturnType="Next"
+                               IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}" />
+                    </Border>
+
+                    <Border Style="{StaticResource FieldFrame}">
+                        <Entry Placeholder="Contrasenya nova"
+                               Text="{Binding PasswordNova}"
+                               IsPassword="True"
+                               ReturnType="Next"
+                               IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}" />
+                    </Border>
+
+                    <Label Text="Mínim 8 caràcters, amb majúscules, minúscules, números i signes (per exemple ! ? # $ %)."
+                           FontSize="12"
+                           TextColor="{StaticResource TextSecondary}" />
+
+                    <Border Style="{StaticResource FieldFrame}">
+                        <Entry Placeholder="Repeteix la contrasenya nova"
+                               Text="{Binding PasswordConfirma}"
+                               IsPassword="True"
+                               ReturnType="Go"
+                               ReturnCommand="{Binding CanviaPasswordCommand}"
+                               IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}" />
+                    </Border>
+
+                    <Label Text="{Binding ErrorMessage}"
+                           TextColor="#C0392B"
+                           FontSize="13"
+                           IsVisible="{Binding HasError}" />
+
+                    <Button Text="Desa la contrasenya"
+                            Command="{Binding CanviaPasswordCommand}"
+                            IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}" />
+
+                    <Button Text="Cancel·la"
+                            Style="{StaticResource OutlineButton}"
+                            Command="{Binding CancelaCanviPasswordCommand}"
+                            IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}" />
+
+                    <ActivityIndicator IsRunning="{Binding IsBusy}"
+                                       IsVisible="{Binding IsBusy}"
+                                       Color="{StaticResource Primary}"
+                                       HorizontalOptions="Center" />
+
+                </VerticalStackLayout>
+            </Border>
+
+            <Label Text="Sessió" Style="{StaticResource Subtitle}" />
+
+            <Button Text="Tanca la sessió"
+                    Style="{StaticResource OutlineButton}"
+                    Command="{Binding TancaSessioCommand}"
+                    HorizontalOptions="Fill" />
+
+        </VerticalStackLayout>
+    </ScrollView>
+
+</ContentPage>

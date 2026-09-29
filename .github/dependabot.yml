@@ -1,0 +1,24 @@
+version: 2
+updates:
+  - package-ecosystem: "nuget"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      microsoft-aspnet-i-efcore:
+        patterns:
+          - "Microsoft.AspNetCore.*"
+          - "Microsoft.EntityFrameworkCore*"
+          - "Microsoft.Extensions.*"
+    # EF Core i Pomelo es queden a la línia 9.x fins que Pomelo tregui suport
+    # per EF Core 10 (vegeu AGENTS.md, regla 1): Dependabot no ha de proposar
+    # saltar a EF Core 10 tot sol.
+    ignore:
+      - dependency-name: "Microsoft.EntityFrameworkCore*"
+        versions: ["10.x"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

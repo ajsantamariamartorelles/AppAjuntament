@@ -1,0 +1,89 @@
+@page "/ingressos-externs"
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@using System.Globalization
+@using AppAjuntament.Models.IngressosExterns
+@using AppAjuntament.Services
+@inject IngressosExternsService IngressosService
+@inject ILogger<IngressosExterns> Logger
+
+<PageTitle>Ingressos d'altres ens</PageTitle>
+
+<div class="container-fluid">
+    <div class="screen-header">
+        <div>
+            <h1 class="h3 mb-0"><i class="fas fa-coins me-2 text-primary"></i>Ingressos d'altres ens</h1>
+            <p class="text-muted mb-0 mt-1">Transferències, fons i ajuts rebuts d'altres administracions públiques.</p>
+        </div>
+        <button class="btn btn-outline-primary" @onclick="Carregar" disabled="@isLoading">
+            <i class="fas @(isLoading ? "fa-spinner fa-spin" : "fa-sync-alt") me-2"></i>Actualitzar
+        </button>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5"><div class="spinner-border text-primary"></div><p class="mt-3">Carregant dades de cooperació local...</p></div>
+    }
+    else if (hasError || dashboard?.Municipi == null)
+    {
+        <div class="alert alert-warning"><i class="fas fa-exclamation-triangle me-2"></i>No s'han pogut carregar les dades del Fons de Cooperació Local per a aquest municipi.</div>
+    }
+    else
+    {
+        var municipi = dashboard.Municipi;
+        <div class="alert alert-light border mb-4">
+            <i class="fas fa-info-circle text-primary me-2"></i>
+            Les dades disponibles actualment corresponen al <strong>Fons de Cooperació Local de Catalunya</strong> de l'exercici @dashboard.Exercici. S'hi afegiran noves fonts a mesura que s'integrin.
+        </div>
+
+        <h5 class="text-muted text-uppercase fw-semibold mb-3" style="font-size:.8rem;letter-spacing:.08em;">Generalitat de Catalunya · Fons de Cooperació Local</h5>
+        <div class="row g-3 mb-4">
+            <div class="col-12 col-md-6 col-xl-3"><div class="card shadow-sm border-0 h-100"><div class="card-body"><div class="text-muted small">Import base FCLC</div><div class="h3 mb-1 text-primary">@Euros(municipi.Import)</div><div class="small text-muted">Exercici @dashboard.Exercici</div></div></div></div>
+            <div class="col-12 col-md-6 col-xl-3"><div class="card shadow-sm border-0 h-100"><div class="card-body"><div class="text-muted small">Import complementari</div><div class="h3 mb-1 text-primary">@Euros(municipi.ImportComplementari)</div><div class="small text-muted">Component extraordinari/supramunicipal</div></div></div></div>
+            <div class="col-12 col-md-6 col-xl-3"><div class="card shadow-sm border-0 h-100"><div class="card-body"><div class="text-muted small">Total rebut</div><div class="h3 mb-1 text-primary">@Euros(municipi.Total)</div><div class="small text-muted">Import per habitant: @Euros(municipi.ImportPerHabitant)</div></div></div></div>
+            <div class="col-12 col-md-6 col-xl-3"><div class="card shadow-sm border-0 h-100"><div class="card-body"><div class="text-muted small">Mitjana municipis similars</div><div class="h3 mb-1">@Euros(dashboard.MedianaMunicipisSimilarsPerHabitant)</div><div class="small text-muted">@dashboard.MunicipisComparables municipis amb població similar</div></div></div></div>
+            <div class="col-12 col-md-6 col-xl-3"><div class="card shadow-sm border-0 h-100"><div class="card-body"><div class="text-muted small">Posició relativa</div><div class="h3 mb-1">@Percentil(dashboard.PosicioPercentil)</div><div class="small text-muted">Dins el grup de municipis similars</div></div></div></div>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <div class="col-12 col-lg-5"><div class="card shadow-sm h-100"><div class="card-header bg-white"><strong>Evolució de l'import rebut</strong></div><div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>Exercici</th><th class="text-end">Base</th><th class="text-end">Complementari</th><th class="text-end">Total</th></tr></thead><tbody>@foreach (var item in dashboard.Historic.OrderByDescending(h => h.Exercici)) { <tr><td>@item.Exercici</td><td class="text-end">@Euros(item.Import)</td><td class="text-end">@Euros(item.ImportComplementari)</td><td class="text-end fw-semibold">@Euros(item.Total)</td></tr> }</tbody></table></div></div></div>
+            <div class="col-12 col-lg-7"><div class="card shadow-sm h-100"><div class="card-header bg-white"><strong>Context de la comparativa</strong></div><div class="card-body"><p class="mb-2"><strong>@municipi.Municipi</strong> rep @Euros(municipi.ImportPerHabitant) per habitant.</p><p class="mb-2">La mitjana de la comarca (@municipi.Comarca) és de <strong>@Euros(dashboard.MedianaComarcaPerHabitant)</strong> per habitant.</p><p class="mb-0 text-muted small">El grup comparable inclou municipis amb una població entre la meitat i el doble de la del municipi. La població prové d'Idescat i l'import del Portal de Dades Obertes de Catalunya.</p></div></div></div>
+        </div>
+
+        <div class="card shadow-sm mb-4"><div class="card-header bg-white d-flex justify-content-between align-items-center"><strong>Comparativa amb municipis de població similar</strong><span class="badge bg-light text-dark border">@dashboard.MunicipisComparables municipis</span></div><div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead><tr><th>Municipi</th><th class="d-none d-md-table-cell">Comarca</th><th class="text-end">Habitants</th><th class="text-end">Base</th><th class="text-end">Complementari</th><th class="text-end">Total</th><th class="text-end">€/hab.</th></tr></thead><tbody>@foreach (var item in dashboard.MunicipisSimilars) { <tr class="@(item.EsMunicipiActual ? "table-primary" : string.Empty)"><td class="fw-semibold">@item.Municipi @if (item.EsMunicipiActual) { <span class="badge bg-primary ms-1">El municipi</span> }</td><td class="d-none d-md-table-cell">@item.Comarca</td><td class="text-end">@Number(item.Poblacio)</td><td class="text-end">@Euros(item.Import)</td><td class="text-end">@Euros(item.ImportComplementari)</td><td class="text-end">@Euros(item.Total)</td><td class="text-end fw-semibold">@Euros(item.ImportPerHabitant)</td></tr> }</tbody></table></div></div>
+
+        @if (dashboard.PagamentsPendents.Any())
+        {
+            <div class="card shadow-sm mb-4 border-warning">
+                <div class="card-header bg-warning-subtle d-flex justify-content-between align-items-center">
+                    <strong><i class="fas fa-hourglass-half me-2"></i>Pagaments pendents de cobrament (Generalitat)</strong>
+                    <span class="badge bg-light text-dark border">@dashboard.PagamentsPendents.Count registres</span>
+                </div>
+                <div class="card-body pb-2">
+                    <p class="text-muted small mb-0"><i class="fas fa-info-circle me-1"></i>Aquests imports són obligacions <strong>reconegudes però encara no cobrades</strong> per la Generalitat (Secretaria de Governs Locals). No estan inclosos en cap total d'ingressos rebuts.</p>
+                </div>
+                <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0"><thead><tr><th>Tipus d'ajut</th><th class="text-end">Exercici</th><th class="text-end">Import</th><th>Estat</th><th>Última publicació</th></tr></thead><tbody>@foreach (var item in dashboard.PagamentsPendents) { <tr><td>@item.TipusAjut</td><td class="text-end">@item.Exercici</td><td class="text-end fw-semibold">@Euros(item.Import)</td><td>@if (item.Retingut) { <span class="badge bg-danger-subtle text-danger border">Pagament retingut</span> } else { <span class="badge bg-warning-subtle text-warning-emphasis border">Pendent</span> }</td><td>@(item.DataPublicacio?.ToString("dd/MM/yyyy") ?? "–")</td></tr> }</tbody></table></div>
+            </div>
+        }
+
+        <div class="card border-dashed text-muted" style="border:2px dashed #dee2e6;"><div class="card-body"><i class="fas fa-plus-circle me-2"></i><strong>Properes fonts:</strong> transferències de l'Estat, Diputació, fons europeus i altres ens.</div></div>
+    }
+</div>
+
+@code {
+    private IngressosExternsDashboard? dashboard;
+    private bool isLoading = true;
+    private bool hasError;
+
+    protected override Task OnInitializedAsync() => Carregar();
+
+    private async Task Carregar()
+    {
+        try { isLoading = true; hasError = false; dashboard = await IngressosService.ObtenirFonsCooperacioAsync(); }
+        catch (Exception ex) { Logger.LogError(ex, "Error carregant ingressos d'altres ens"); hasError = true; }
+        finally { isLoading = false; }
+    }
+
+    private static string Euros(decimal? value) => value.HasValue ? value.Value.ToString("N2", CultureInfo.GetCultureInfo("ca-ES")) + " €" : "–";
+    private static string Number(int value) => value.ToString("N0", CultureInfo.GetCultureInfo("ca-ES"));
+    private static string Percentil(decimal? value) => value.HasValue ? $"Percentil {value.Value:N0}" : "–";
+}

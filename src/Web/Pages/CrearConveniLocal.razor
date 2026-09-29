@@ -1,0 +1,230 @@
+@page "/crear-conveni-local"
+@attribute [Authorize(Policy = "EditorOrAdmin")]
+@using AppAjuntament.Models
+@using AppAjuntament.Services
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Web
+@inject ConvenisLocalsService _convenisLocalsService
+@inject NavigationManager NavigationManager
+@inject ILogger<CrearConveniLocal> Logger
+
+<PageTitle>Crear Conveni Local</PageTitle>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="screen-header">
+                <h1 class="h3 mb-0">
+                    <i class="fas fa-plus me-2 text-primary"></i>
+                    Crear Conveni Local
+                </h1>
+                <button class="btn btn-outline-secondary" @onclick="Cancel">
+                    <i class="fas fa-arrow-left me-1"></i>
+                    Tornar
+                </button>
+            </div>
+
+            <EditForm Model="@conveni" OnValidSubmit="@HandleValidSubmit" class="needs-validation">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Informació del Conveni</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="titol" class="form-label">Títol del Conveni *</label>
+                                    <InputText id="titol" class="form-control" @bind-Value="conveni.TITOL_CONVENI" required />
+                                    <ValidationMessage For="@(() => conveni.TITOL_CONVENI)" />
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="materia" class="form-label">Matèria</label>
+                                    <InputText id="materia" class="form-control" @bind-Value="conveni.MATERIA" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row align-items-center">
+                            <div class="col-auto">
+                                <div class="mb-3 d-flex align-items-center">
+                                    <label for="anySignatura" class="form-label me-3 mb-0">Any d'aplicació inicial</label>
+                                    <div style="width: 120px;">
+                                        <InputNumber id="anySignatura" class="form-control" @bind-Value="conveni.ANY_SIGNATURA" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col">
+                                <div class="mb-3 d-flex align-items-center">
+                                    <label for="dataSignatura" class="form-label me-2 mb-0">Data Signatura</label>
+                                    <div style="width: 120px;">
+                                        <InputDate id="dataSignatura" class="form-control" @bind-Value="conveni.DATA_SIGNATURA" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col">
+                                <div class="mb-3 d-flex align-items-center">
+                                    <label for="dataVigencia" class="form-label me-3 mb-0">Data Finalització</label>
+                                    <div style="width: 120px;">
+                                        <InputDate id="dataVigencia" class="form-control" @bind-Value="conveni.DATA_VIGENCIA" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-auto">
+                                <div class="mb-3 d-flex align-items-center">
+                                    <label for="prorrogable" class="form-label me-2 mb-0">Prorrogable</label>
+                                    <div style="width: 120px;">
+                                        <select id="prorrogable" class="form-select" value="@conveni.PRORROGABLE" @onchange="HandleProrrogableChange">
+                                            <option value="S">Sí</option>
+                                            <option value="N">No</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-auto">
+                                <div class="mb-3 d-flex align-items-center">
+                                    <label for="prorroguesPermeses" class="form-label me-2 mb-0">Pròrrogues</label>
+                                    <div style="width: 120px;">
+                                        <InputNumber id="prorroguesPermeses" class="form-control" @bind-Value="conveni.ProrroguesPermeses" min="@(conveni.PRORROGABLE == "S" ? 1 : 0)" max="3" disabled="@(conveni.PRORROGABLE == "N")" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="objecte" class="form-label">Objecte</label>
+                            <InputTextArea id="objecte" class="form-control" rows="3" @bind-Value="conveni.OBJECTE" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Organismes Signants ENS Locals</label>
+                            <div class="border rounded p-3" style="max-height: 200px; overflow-y: auto;">
+                                @foreach (var ens in allEns.Where(e => !string.IsNullOrEmpty(e.Nom)))
+                                {
+                                    <div class="form-check">
+                                        <input type="checkbox" class="form-check-input" id="ens-@ens.Id" checked="@selectedOrganismes.Contains(ens.Nom ?? "")" @onchange="() => ToggleOrganisme(ens)" />
+                                        <label class="form-check-label" for="ens-@ens.Id">@(ens.Nom ?? "")</label>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="aportacionsEnsLocals" class="form-label">Aportacions Ens Locals</label>
+                                    <InputNumber id="aportacionsEnsLocals" class="form-control" @bind-Value="conveni.APORTACIONS_PREVISTES_ENS_LOCALS" step="0.01" />
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="totalAportacions" class="form-label">Total Aportacions Previstes</label>
+                                    <InputNumber id="totalAportacions" class="form-control" @bind-Value="conveni.TOTAL_APORTACIONS_PREVISTES" step="0.01" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="notes" class="form-label">Notes</label>
+                            <InputTextArea id="notes" class="form-control" rows="3" @bind-Value="conveni.Notes" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="pdfConveni" class="form-label">URL PDF del Conveni</label>
+                            <InputText id="pdfConveni" class="form-control" @bind-Value="conveni.PDF_CONVENI" />
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <button type="submit" class="btn btn-success" disabled="@isSubmitting">
+                            <i class="@submitButtonIcon"></i>
+                            @submitButtonText
+                        </button>
+                        <button type="button" class="btn btn-secondary ms-2" @onclick="Cancel">Cancel·lar</button>
+                    </div>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+</div>
+
+@code {
+    private ConvenisLocals conveni = new ConvenisLocals();
+    private bool isSubmitting = false;
+    private List<Ens> allEns = new();
+    private List<string> selectedOrganismes = new();
+
+    private string submitButtonText => isSubmitting ? "Creant" : "Crear Conveni";
+    private string submitButtonIcon => isSubmitting ? "fas fa-spinner fa-spin me-2" : "fas fa-save me-1";
+
+    protected override async Task OnInitializedAsync()
+    {
+        conveni.VIGENT = "S"; // Per defecte vigent
+        conveni.IsLocal = true;
+        allEns = await _convenisLocalsService.GetAllEnsAsync();
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        try
+        {
+            isSubmitting = true;
+
+            conveni.ORGANISMES_SIGNANTS_ENS_LOCALS = string.Join(", ", selectedOrganismes);
+
+            await _convenisLocalsService.AddConveniLocalAsync(conveni);
+
+            Logger.LogInformation($"Conveni local creat correctament: {conveni.TITOL_CONVENI}");
+
+            NavigationManager.NavigateTo("/convenis");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error en crear el conveni local");
+            // Aquí podríem mostrar un missatge d'error
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private void Cancel()
+    {
+        NavigationManager.NavigateTo("/convenis");
+    }
+
+    private void OnProrrogableChanged(string value)
+    {
+        conveni.PRORROGABLE = value;
+        if (value == "N")
+        {
+            conveni.ProrroguesPermeses = 0;
+        }
+        else if (value == "S" && (conveni.ProrroguesPermeses ?? 0) <= 0)
+        {
+            conveni.ProrroguesPermeses = 1;
+        }
+    }
+
+    private void HandleProrrogableChange(ChangeEventArgs e)
+    {
+        OnProrrogableChanged(e.Value?.ToString() ?? "");
+    }
+
+    private void ToggleOrganisme(Ens ens)
+    {
+        var nom = ens.Nom ?? "";
+        if (selectedOrganismes.Contains(nom))
+        {
+            selectedOrganismes.Remove(nom);
+        }
+        else
+        {
+            selectedOrganismes.Add(nom);
+        }
+        StateHasChanged();
+    }
+}

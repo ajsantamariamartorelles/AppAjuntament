@@ -1,0 +1,292 @@
+@page "/cursos/{CursetId:int}/inscripcio"
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@using System.ComponentModel.DataAnnotations
+@using AppAjuntament.Models.Cursets.Dto
+@using AppAjuntament.Services.Cursets
+@inject ICursetsCatalogService CatalogService
+@inject NavigationManager Nav
+@inject AppAjuntament.Services.DatabaseLoggerService DbLogger
+
+<PageTitle>Inscripció a un curs</PageTitle>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12 col-lg-8 col-xl-6">
+
+            <div class="screen-header">
+                <h1 class="h3 mb-0">
+                    <i class="fas fa-pen-to-square me-2 text-primary"></i>
+                    Sol·licitud d'inscripció
+                </h1>
+            </div>
+
+            @if (carregant)
+            {
+                <div class="p-4 text-center text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Carregant...</div>
+            }
+            else if (curs is null)
+            {
+                <div class="alert alert-warning">No s'ha trobat el curs.</div>
+                <a href="/cursos" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left me-1"></i>Tornar als cursos</a>
+            }
+            else if (curs.EstatInscripcio != "Oberta")
+            {
+                <div class="alert alert-info">
+                    La inscripció a <strong>@curs.Titol</strong> no està oberta en aquest moment.
+                </div>
+                <a href="/cursos" class="btn btn-outline-secondary btn-sm"><i class="fas fa-arrow-left me-1"></i>Tornar als cursos</a>
+            }
+            else if (enviada)
+            {
+                <div class="alert alert-success">
+                    <h5 class="alert-heading">Hem rebut la teva sol·licitud</h5>
+                    <p class="mb-2">
+                        Gràcies, @nomEnviat. Has sol·licitat plaça a <strong>@curs.Titol</strong>.
+                    </p>
+                    <p class="mb-0 small">
+                        Les places s'adjudiquen per sorteig quan s'acaba el termini d'inscripció
+                        @(curs.InscripcioFi.HasValue ? $"(el {curs.InscripcioFi.Value:dd/MM/yyyy})" : "").
+                        Si hi ha més sol·licituds que places, la resta queden en llista d'espera.
+                        L'Ajuntament es posarà en contacte amb tu.
+                    </p>
+                </div>
+                <a href="/cursos" class="btn btn-primary btn-sm"><i class="fas fa-arrow-left me-1"></i>Tornar als cursos</a>
+            }
+            else
+            {
+                <p class="text-muted">
+                    Curs: <strong>@curs.Titol</strong>@(string.IsNullOrWhiteSpace(Horari()) ? "" : $" · {Horari()}").<br />
+                    Preu per sessió: @Eur(curs.PreuPerSessioEmpadronat) (empadronats/des) / @Eur(curs.PreuPerSessioNoEmpadronat) (no empadronats/des).
+                </p>
+
+                @if (error is not null)
+                {
+                    <div class="alert alert-danger">@error</div>
+                }
+
+                <EditForm Model="form" OnValidSubmit="Enviar">
+                    <DataAnnotationsValidator />
+
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Nom *</label>
+                                    <InputText class="form-control" @bind-Value="form.Nom" />
+                                    <ValidationMessage For="() => form.Nom" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Cognoms *</label>
+                                    <InputText class="form-control" @bind-Value="form.Cognoms" />
+                                    <ValidationMessage For="() => form.Cognoms" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">DNI / NIF *</label>
+                                    <InputText class="form-control text-uppercase" @bind-Value="form.Dni" />
+                                    <ValidationMessage For="() => form.Dni" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Telèfon *</label>
+                                    <InputText class="form-control" @bind-Value="form.Telefon" />
+                                    <ValidationMessage For="() => form.Telefon" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Email *</label>
+                                    <InputText class="form-control" type="email" @bind-Value="form.Email" />
+                                    <ValidationMessage For="() => form.Email" />
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Adreça *</label>
+                                    <InputText class="form-control" @bind-Value="form.Adreca" placeholder="Carrer, número, pis" />
+                                    <ValidationMessage For="() => form.Adreca" />
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Codi postal *</label>
+                                    <InputText class="form-control" @bind-Value="form.CodiPostal" />
+                                    <ValidationMessage For="() => form.CodiPostal" />
+                                </div>
+                                <div class="col-md-9">
+                                    <label class="form-label">Població *</label>
+                                    <InputText class="form-control" @bind-Value="form.Poblacio" />
+                                    <ValidationMessage For="() => form.Poblacio" />
+                                </div>
+
+                                <div class="col-12">
+                                    <div class="form-check">
+                                        <InputCheckbox class="form-check-input" id="emp" @bind-Value="form.DeclaraEmpadronat" />
+                                        <label class="form-check-label" for="emp">
+                                            Em declaro empadronat/da a Santa Maria de Martorelles
+                                            <span class="text-muted small">(l'Ajuntament ho comprovarà; determina el preu per sessió)</span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="col-12">
+                                    <div class="form-check">
+                                        <InputCheckbox class="form-check-input" id="rgpd" @bind-Value="form.ConsentimentRgpd" />
+                                        <label class="form-check-label" for="rgpd">
+                                            Accepto que l'Ajuntament tracti les meves dades per a la gestió dels
+                                            seus serveis municipals, incloent-hi aquesta inscripció, d'acord amb la
+                                            <a href="/data-privacy" target="_blank">Política de Privacitat</a>. *
+                                        </label>
+                                    </div>
+                                    <ValidationMessage For="() => form.ConsentimentRgpd" />
+                                </div>
+
+                                @* camp trampa anti-bot: amagat per a persones *@
+                                <div style="position:absolute; left:-9999px;" aria-hidden="true">
+                                    <label>No omplir</label>
+                                    <input tabindex="-1" autocomplete="off" @bind="form.Honeypot" />
+                                </div>
+                            </div>
+
+                            <hr />
+                            <div class="d-flex gap-2">
+                                <button type="submit" class="btn btn-primary" disabled="@enviant">
+                                    @if (enviant)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-2"></span>
+                                    }
+                                    <i class="fas fa-paper-plane me-2"></i>Enviar la sol·licitud
+                                </button>
+                                <a href="/cursos" class="btn btn-outline-secondary">Cancel·lar</a>
+                            </div>
+                        </div>
+                    </div>
+                </EditForm>
+
+                <p class="small text-muted mt-3">
+                    Apuntar-se no garanteix plaça: si hi ha més sol·licituds que places es fa un sorteig
+                    i la resta de persones queden en llista d'espera.
+                </p>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public int CursetId { get; set; }
+
+    private CursetPublicDto? curs;
+    private bool carregant = true;
+    private bool enviant;
+    private bool enviada;
+    private string? error;
+    private string nomEnviat = string.Empty;
+    private readonly Model form = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var tots = await CatalogService.GetCursetsPublicsAsync();
+            curs = tots.FirstOrDefault(c => c.Id == CursetId);
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error carregant el curs per inscripció", ex, "InscripcioPublica.OnInit");
+        }
+        finally
+        {
+            carregant = false;
+        }
+    }
+
+    private async Task Enviar()
+    {
+        if (enviant) return;
+        enviant = true;
+        error = null;
+        try
+        {
+            nomEnviat = await CatalogService.CrearSollicitudPublicaAsync(new SollicitudInscripcioPublicaRequest
+            {
+                CursetId = CursetId,
+                Nom = form.Nom,
+                Cognoms = form.Cognoms,
+                Dni = form.Dni,
+                Telefon = form.Telefon,
+                Email = form.Email,
+                Adreca = form.Adreca,
+                CodiPostal = form.CodiPostal,
+                Poblacio = form.Poblacio,
+                DeclaraEmpadronat = form.DeclaraEmpadronat,
+                ConsentimentRgpd = form.ConsentimentRgpd,
+                Honeypot = form.Honeypot
+            });
+            enviada = true;
+        }
+        catch (ArgumentException ex)
+        {
+            error = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error enviant sol·licitud d'inscripció", ex, "InscripcioPublica.Enviar");
+            error = "No s'ha pogut enviar la sol·licitud. Torna-ho a provar d'aquí una estona.";
+        }
+        finally
+        {
+            enviant = false;
+        }
+    }
+
+    private static readonly string[] Dies =
+        { "Diumenge", "Dilluns", "Dimarts", "Dimecres", "Dijous", "Divendres", "Dissabte" };
+
+    private string Horari()
+    {
+        if (curs is null) return string.Empty;
+        var dia = curs.DiaSetmana.HasValue ? Dies[(int)curs.DiaSetmana.Value] : null;
+        string? hora = curs.HoraInici.HasValue && curs.HoraFi.HasValue
+            ? $"{curs.HoraInici.Value:hh\\:mm}–{curs.HoraFi.Value:hh\\:mm}"
+            : curs.HoraInici?.ToString(@"hh\:mm");
+        return string.Join(", ", new[] { dia, hora }.Where(s => !string.IsNullOrWhiteSpace(s)));
+    }
+
+    private static string Eur(decimal v) =>
+        v.ToString("#,##0.00", System.Globalization.CultureInfo.GetCultureInfo("ca-ES")) + " €";
+
+    private class Model
+    {
+        [Required(ErrorMessage = "El nom és obligatori.")]
+        [StringLength(255)]
+        public string Nom { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Els cognoms són obligatoris.")]
+        [StringLength(255)]
+        public string Cognoms { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "El DNI/NIF és obligatori.")]
+        [StringLength(20)]
+        public string Dni { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "El telèfon és obligatori.")]
+        [StringLength(50)]
+        public string Telefon { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "L'email és obligatori.")]
+        [EmailAddress(ErrorMessage = "Email no vàlid.")]
+        [StringLength(255)]
+        public string Email { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "L'adreça és obligatòria.")]
+        [StringLength(300)]
+        public string Adreca { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "El codi postal és obligatori.")]
+        [StringLength(10)]
+        public string CodiPostal { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "La població és obligatòria.")]
+        [StringLength(120)]
+        public string Poblacio { get; set; } = string.Empty;
+
+        public bool DeclaraEmpadronat { get; set; }
+
+        [Range(typeof(bool), "true", "true", ErrorMessage = "Cal acceptar el tractament de dades per continuar.")]
+        public bool ConsentimentRgpd { get; set; }
+
+        public string? Honeypot { get; set; }
+    }
+}

@@ -1,0 +1,400 @@
+﻿@page "/voluntaris/tipologies"
+@using Microsoft.EntityFrameworkCore
+@using System.Threading
+@inject GestorSubvencionsContext Context
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+@inject AppAjuntament.Services.DatabaseLoggerService DbLogger
+@implements IDisposable
+
+<div class="screen-header">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/voluntaris">Voluntaris</a></li>
+            <li class="breadcrumb-item active">Àmbits</li>
+        </ol>
+    </nav>
+    <div>
+        <button @onclick="@(() => NavigationManager.NavigateTo("/voluntaris"))" class="btn btn-outline-secondary me-2">
+            <i class="fas fa-arrow-left me-2"></i>Tornar
+        </button>
+        <button @onclick="IniciarNovaTipologia" class="btn btn-primary">
+            <i class="fas fa-plus me-2"></i>Nou Àmbit
+        </button>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-tags me-2"></i>Tipologies de Voluntaris</h5>
+            </div>
+            <div class="card-body">
+                @if (tipologies?.Any() == true)
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Nom</th>
+                                    <th>Descripció</th>
+                                    <th>Permisos</th>
+                                    <th>Voluntaris</th>
+                                    <th>Estat</th>
+                                    <th>Accions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var tipologia in tipologies)
+                                {
+                                    <tr class="@(tipologia.Actiu ? "" : "table-secondary")">
+                                        <td>
+                                            <strong>@tipologia.Nom</strong>
+                                        </td>
+                                        <td>
+                                            <small class="text-muted">@tipologia.Descripcio</small>
+                                        </td>
+                                        <td>
+                                            @if (tipologia.PotSerCoordinador)
+                                            {
+                                                <span class="badge bg-warning text-dark me-1">Coordinador</span>
+                                            }
+                                            @if (tipologia.PotSerEnllacAjuntament)
+                                            {
+                                                <span class="badge bg-info">Enllaó</span>
+                                            }
+                                            @if (!tipologia.PotSerCoordinador && !tipologia.PotSerEnllacAjuntament)
+                                            {
+                                                <span class="text-muted">-</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-secondary">@tipologia.VoluntarisAmbits.Count()</span>
+                                        </td>
+                                        <td>
+                                            @if (tipologia.Actiu)
+                                            {
+                                                <span class="badge bg-success">Actiu</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-secondary">Inactiu</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <button @onclick="() => EditarTipologia(tipologia)" class="btn btn-outline-primary" title="Editar">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                @if (tipologia.VoluntarisAmbits.Count() == 0)
+                                                {
+                                                    <button @onclick="() => EliminarTipologia(tipologia.Id)" class="btn btn-outline-danger" title="Eliminar">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                }
+                                                else
+                                                {
+                                                    <button @onclick="() => CanviarEstatTipologia(tipologia)" class="btn btn-outline-warning" title="@(tipologia.Actiu ? "Desactivar" : "Activar")">
+                                                        <i class="fas fa-toggle-@(tipologia.Actiu ? "off" : "on")"></i>
+                                                    </button>
+                                                }
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center py-4">
+                        <i class="fas fa-tags fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">No hi ha tipologies definides</p>
+                        <button @onclick="NovaTipologia" class="btn btn-primary">
+                            <i class="fas fa-plus me-2"></i>Crear Primera Tipologia
+                        </button>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    @if (tipologiaEditant == null)
+                    {
+                        <text><i class="fas fa-plus me-2"></i>Nova Tipologia</text>
+                    }
+                    else
+                    {
+                        <text><i class="fas fa-edit me-2"></i>Editar Tipologia</text>
+                    }
+                </h6>
+            </div>
+            <div class="card-body">
+                <EditForm Model="tipologiaModel" OnValidSubmit="GuardarTipologia">
+                    <DataAnnotationsValidator />
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Nom *</label>
+                        <InputText @bind-Value="tipologiaModel.Nom" class="form-control" />
+                        <ValidationMessage For="@(() => tipologiaModel.Nom)" />
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Descripció</label>
+                        <InputTextArea @bind-Value="tipologiaModel.Descripcio" class="form-control" rows="3" />
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Permisos</label>
+                        <div class="form-check">
+                            <InputCheckbox @bind-Value="tipologiaModel.PotSerCoordinador" class="form-check-input" id="coordinador" />
+                            <label class="form-check-label" for="coordinador">
+                                Pot ser coordinador de voluntaris
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <InputCheckbox @bind-Value="tipologiaModel.PotSerEnllacAjuntament" class="form-check-input" id="enllac" />
+                            <label class="form-check-label" for="enllac">
+                                Pot ser enllaó amb l'ajuntament
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <InputCheckbox @bind-Value="tipologiaModel.Actiu" class="form-check-input" id="actiu" />
+                            <label class="form-check-label" for="actiu">
+                                Tipologia activa
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary" disabled="@estaGuardant">
+                            @if (estaGuardant)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                            }
+                            @if (tipologiaEditant == null)
+                            {
+                                <text><i class="fas fa-plus me-2"></i>Crear</text>
+                            }
+                            else
+                            {
+                                <text><i class="fas fa-save me-2"></i>Guardar</text>
+                            }
+                        </button>
+                        @if (tipologiaEditant != null)
+                        {
+                            <button type="button" @onclick="CancelarEdicio" class="btn btn-outline-secondary">
+                                <i class="fas fa-times me-2"></i>Cancelólar
+                            </button>
+                        }
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Informació</h6>
+            </div>
+            <div class="card-body">
+                <small class="text-muted">
+                    <p><strong>Coordinador:</strong> Pot coordinar altres voluntaris del mateix ens.</p>
+                    <p><strong>Enllaó:</strong> Actua com a intermediari entre els voluntaris i l'ajuntament.</p>
+                    <p><strong>Nota:</strong> No es poden eliminar tipologies que tinguin voluntaris assignats.</p>
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<AmbitVoluntari> tipologies = new();
+    private AmbitVoluntari tipologiaModel = new() { Nom = "" };
+    private AmbitVoluntari? tipologiaEditant = null;
+    
+    private bool estaGuardant = false;
+    private bool _disposedValue;
+    private CancellationTokenSource _cts = new CancellationTokenSource();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarTipologies();
+        IniciarNovaTipologia();
+    }
+
+    private async Task CarregarTipologies()
+    {
+        try
+        {
+            tipologies = await Context.AmbitsVoluntaris
+                .Include(a => a.VoluntarisAmbits).ThenInclude(va => va.Voluntari)
+                .OrderBy(a => a.Nom)
+                .ToListAsync(_cts.Token);
+                
+            StateHasChanged();
+        }
+        catch (OperationCanceledException)
+        {
+            // Operació cancelólada
+        }
+    }
+
+    private void NovaTipologia()
+    {
+        IniciarNovaTipologia();
+    }
+
+    private void IniciarNovaTipologia()
+    {
+        tipologiaEditant = null;
+        tipologiaModel = new AmbitVoluntari 
+        { 
+            Nom = "",
+            Actiu = true,
+            DataCreacio = DateTime.Now
+        };
+    }
+
+    private void EditarTipologia(AmbitVoluntari tipologia)
+    {
+        tipologiaEditant = tipologia;
+        tipologiaModel = new AmbitVoluntari
+        {
+            Id = tipologia.Id,
+            Nom = tipologia.Nom,
+            Descripcio = tipologia.Descripcio,
+            PotSerCoordinador = tipologia.PotSerCoordinador,
+            PotSerEnllacAjuntament = tipologia.PotSerEnllacAjuntament,
+            Actiu = tipologia.Actiu,
+            DataCreacio = tipologia.DataCreacio
+        };
+    }
+
+    private async Task GuardarTipologia()
+    {
+        if (estaGuardant) return;
+
+        estaGuardant = true;
+        try
+        {
+            if (tipologiaEditant == null)
+            {
+                // Nova tipologia
+                Context.AmbitsVoluntaris.Add(tipologiaModel);
+            }
+            else
+            {
+                // Editar tipologia existent
+                var tipologiaDB = await Context.AmbitsVoluntaris.FindAsync(tipologiaEditant.Id);
+                if (tipologiaDB != null)
+                {
+                    tipologiaDB.Nom = tipologiaModel.Nom;
+                    tipologiaDB.Descripcio = tipologiaModel.Descripcio;
+                    tipologiaDB.PotSerCoordinador = tipologiaModel.PotSerCoordinador;
+                    tipologiaDB.PotSerEnllacAjuntament = tipologiaModel.PotSerEnllacAjuntament;
+                    tipologiaDB.Actiu = tipologiaModel.Actiu;
+                }
+            }
+
+            await Context.SaveChangesAsync(_cts.Token);
+            await CarregarTipologies();
+            IniciarNovaTipologia();
+        }
+        catch (OperationCanceledException)
+        {
+            // Operació cancelólada
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync($"Error al guardar subàmbit voluntari: {tipologiaEditant?.Nom ?? "NOU"}", ex, "GuardarTipologia");
+            await JSRuntime.InvokeVoidAsync("alert", $"Error al guardar: {ex.Message}");
+        }
+        finally
+        {
+            estaGuardant = false;
+            StateHasChanged();
+        }
+    }
+
+    private void CancelarEdicio()
+    {
+        IniciarNovaTipologia();
+    }
+
+    private async Task EliminarTipologia(int id)
+    {
+        var confirmat = await JSRuntime.InvokeAsync<bool>("confirm", "Esteu segur que voleu eliminar aquesta tipologia?");
+        if (!confirmat) return;
+
+        try
+        {
+            var tipologia = await Context.AmbitsVoluntaris.FindAsync(id);
+            if (tipologia != null)
+            {
+                Context.AmbitsVoluntaris.Remove(tipologia);
+                await Context.SaveChangesAsync(_cts.Token);
+                await CarregarTipologies();
+                
+                if (tipologiaEditant?.Id == id)
+                {
+                    IniciarNovaTipologia();
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Operació cancelólada
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error al eliminar: {ex.Message}");
+        }
+    }
+
+    private async Task CanviarEstatTipologia(AmbitVoluntari tipologia)
+    {
+        try
+        {
+            tipologia.Actiu = !tipologia.Actiu;
+            Context.AmbitsVoluntaris.Update(tipologia);
+            await Context.SaveChangesAsync(_cts.Token);
+            await CarregarTipologies();
+        }
+        catch (OperationCanceledException)
+        {
+            // Operació cancelólada
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error al canviar l'estat: {ex.Message}");
+        }
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!_disposedValue)
+        {
+            if (disposing)
+            {
+                _cts.Cancel();
+                _cts.Dispose();
+            }
+            _disposedValue = true;
+        }
+    }
+}

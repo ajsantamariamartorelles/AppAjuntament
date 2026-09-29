@@ -1,0 +1,296 @@
+@page "/cursets/regidors"
+@using AppAjuntament.Models.Cursets.Dto
+@using AppAjuntament.Services.Cursets
+@attribute [Authorize(Policy = "EditorOrAdmin")]
+@inject ICursetsAuthService AuthService
+@inject IJSRuntime JSRuntime
+@inject AppAjuntament.Services.DatabaseLoggerService DbLogger
+
+<PageTitle>Regidors i accés a l'app</PageTitle>
+
+<div class="screen-header mb-3">
+    <h3 class="screen-title"><i class="fas fa-user-tie me-2"></i>Regidors i accés a l'app</h3>
+</div>
+
+<div class="alert alert-info">
+    Els regidors del mandat actual poden entrar a l'app <strong>Cursets</strong> en mode
+    <strong>supervisió (només lectura)</strong> amb el seu email i una contrasenya. Un cop
+    tenen accés, veuen els cursets on estan assignats com a <em>regidor responsable</em>
+    (l'assignació es fa des de la fitxa de cada curset).
+</div>
+
+@if (missatge is not null)
+{
+    <div class="alert alert-@missatgeTipus alert-dismissible">
+        @missatge
+        <button type="button" class="btn-close" @onclick="() => missatge = null"></button>
+    </div>
+}
+
+<div class="row">
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-header"><h6 class="mb-0">Regidors del mandat actual (@regidors.Count)</h6></div>
+            <div class="card-body p-0">
+                @if (carregant)
+                {
+                    <div class="p-4 text-center text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Carregant...</div>
+                }
+                else if (!regidors.Any())
+                {
+                    <div class="p-4 text-center text-muted">No hi ha regidors del mandat actual a la base de dades.</div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0 align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Regidor</th>
+                                    <th>Email</th>
+                                    <th class="text-center">Cursets</th>
+                                    <th class="text-center">Accés app</th>
+                                    <th class="text-end">Accions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var r in regidors)
+                                {
+                                    <tr class="@(seleccionat?.Id == r.Id ? "table-active" : "")">
+                                        <td>
+                                            <div>@r.Nom</div>
+                                            <div class="small text-muted">@r.Carrec</div>
+                                        </td>
+                                        <td class="small">@(string.IsNullOrEmpty(r.Email) ? "—" : r.Email)</td>
+                                        <td class="text-center">@r.NumCursets</td>
+                                        <td class="text-center">
+                                            <span class="badge bg-@(r.TeAcces ? "success" : "secondary")">
+                                                @(r.TeAcces ? "Sí" : "No")
+                                            </span>
+                                        </td>
+                                        <td class="text-end">
+                                            <button class="btn btn-sm btn-outline-primary" @onclick="() => Selecciona(r)">
+                                                <i class="fas fa-key me-1"></i>Gestionar accés
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    @(seleccionat is null ? "Accés a l'app" : $"Accés a l'app: {seleccionat.Nom}")
+                </h6>
+            </div>
+            <div class="card-body">
+                @if (seleccionat is null)
+                {
+                    <p class="text-muted mb-0">Tria un regidor de la llista per donar-li o treure-li l'accés a l'app.</p>
+                }
+                else
+                {
+                    <EditForm Model="form" OnValidSubmit="Desar">
+                        <DataAnnotationsValidator />
+
+                        <div class="mb-2">
+                            <span class="badge bg-@(seleccionat.TeAcces ? "success" : "secondary")">
+                                @(seleccionat.TeAcces ? "Té accés a l'app" : "Sense accés")
+                            </span>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Email</label>
+                            <InputText class="form-control" type="email" @bind-Value="form.Email" />
+                            <div class="form-text">
+                                És l'usuari amb què el regidor entrarà a l'app. Deixa'l buit i desa per treure-li l'email i l'accés.
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">
+                                @(seleccionat.TeAcces ? "Nova contrasenya" : "Contrasenya")
+                            </label>
+                            <InputText class="form-control" type="password" @bind-Value="form.Password" />
+                            <div class="form-text">Mínim 6 caràcters.</div>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary" disabled="@ocupat">
+                                @if (ocupat)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2"></span>
+                                }
+                                <i class="fas fa-save me-2"></i>@(seleccionat.TeAcces ? "Actualitzar" : "Donar accés")
+                            </button>
+                            @if (seleccionat.TeAcces)
+                            {
+                                <button type="button" class="btn btn-outline-danger" @onclick="TreureAcces" disabled="@ocupat">
+                                    <i class="fas fa-user-slash me-2"></i>Treure accés
+                                </button>
+                            }
+                            @if (!string.IsNullOrEmpty(seleccionat.Email))
+                            {
+                                <button type="button" class="btn btn-outline-danger" @onclick="EliminarEmail" disabled="@ocupat">
+                                    <i class="fas fa-trash me-2"></i>Eliminar email
+                                </button>
+                            }
+                            <button type="button" class="btn btn-outline-secondary" @onclick="() => seleccionat = null">
+                                Tanca
+                            </button>
+                        </div>
+                    </EditForm>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<RegidorVigentDto> regidors = new();
+    private RegidorVigentDto? seleccionat;
+    private AccesForm form = new();
+    private bool carregant = true;
+    private bool ocupat;
+    private string? missatge;
+    private string missatgeTipus = "success";
+
+    protected override async Task OnInitializedAsync() => await Carregar();
+
+    private async Task Carregar()
+    {
+        carregant = true;
+        try
+        {
+            regidors = await AuthService.GetRegidorsVigentsAsync();
+            if (seleccionat is not null)
+                seleccionat = regidors.FirstOrDefault(r => r.Id == seleccionat.Id);
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error carregant regidors de cursets", ex, "Regidors.Carregar");
+            MostrarError("No s'han pogut carregar els regidors.");
+        }
+        finally
+        {
+            carregant = false;
+        }
+    }
+
+    private void Selecciona(RegidorVigentDto r)
+    {
+        seleccionat = r;
+        form = new AccesForm { Email = r.Email ?? string.Empty, Password = string.Empty };
+        missatge = null;
+    }
+
+    private async Task Desar()
+    {
+        if (seleccionat is null || ocupat) return;
+
+        // Email buit = treure email + accés (si en tenia).
+        if (string.IsNullOrWhiteSpace(form.Email))
+        {
+            if (seleccionat.TeAcces || !string.IsNullOrEmpty(seleccionat.Email))
+            {
+                await EliminarEmail();
+            }
+            else
+            {
+                MostrarError("Cal un email per donar accés a l'app.");
+            }
+            return;
+        }
+
+        ocupat = true;
+        try
+        {
+            await AuthService.DonarOActualitzarAccesAsync(seleccionat.Id, form.Email, form.Password);
+            MostrarOk($"Accés desat per a «{seleccionat.Nom}».");
+            await Carregar();
+            if (seleccionat is not null)
+                form = new AccesForm { Email = seleccionat.Email ?? string.Empty };
+        }
+        catch (ArgumentException ex)
+        {
+            MostrarError(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error donant accés a regidor", ex, "Regidors.Desar");
+            MostrarError("No s'ha pogut desar l'accés.");
+        }
+        finally
+        {
+            ocupat = false;
+        }
+    }
+
+    private async Task TreureAcces()
+    {
+        if (seleccionat is null || ocupat) return;
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", $"Treure l'accés a l'app de «{seleccionat.Nom}»?")) return;
+        ocupat = true;
+        try
+        {
+            await AuthService.TreureAccesAsync(seleccionat.Id);
+            MostrarOk($"Accés tret per a «{seleccionat.Nom}».");
+            await Carregar();
+            if (seleccionat is not null)
+                form = new AccesForm { Email = seleccionat.Email ?? string.Empty };
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error traient accés a regidor", ex, "Regidors.TreureAcces");
+            MostrarError("No s'ha pogut treure l'accés.");
+        }
+        finally
+        {
+            ocupat = false;
+        }
+    }
+
+    private async Task EliminarEmail()
+    {
+        if (seleccionat is null || ocupat) return;
+        if (!await JSRuntime.InvokeAsync<bool>("confirm",
+                $"Eliminar l'email de «{seleccionat.Nom}»? Perdrà l'accés a l'app.")) return;
+        ocupat = true;
+        try
+        {
+            await AuthService.EliminarEmailAsync(seleccionat.Id);
+            MostrarOk($"Email eliminat per a «{seleccionat.Nom}».");
+            await Carregar();
+            form = new AccesForm();
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error eliminant email de regidor", ex, "Regidors.EliminarEmail");
+            MostrarError("No s'ha pogut eliminar l'email.");
+        }
+        finally
+        {
+            ocupat = false;
+        }
+    }
+
+    private void MostrarOk(string t) { missatge = t; missatgeTipus = "success"; }
+    private void MostrarError(string t) { missatge = t; missatgeTipus = "danger"; }
+
+    private class AccesForm
+    {
+        [System.ComponentModel.DataAnnotations.StringLength(255)]
+        public string Email { get; set; } = string.Empty;
+
+        // Validació (email obligatori per donar accés, contrasenya ≥ 6) feta
+        // al servidor / a Desar(); un email buit vol dir "treure email + accés".
+        public string Password { get; set; } = string.Empty;
+    }
+}

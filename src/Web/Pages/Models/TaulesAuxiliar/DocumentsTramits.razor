@@ -1,0 +1,519 @@
+@page "/taules-auxiliar/documents-tramits"
+@using Microsoft.EntityFrameworkCore
+@using AppAjuntament.Models.Documents
+@inject IDbContextFactory<GestorSubvencionsContext> DbContextFactory
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Documents i Tràmits</PageTitle>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/taules-auxiliar">Taules Auxiliar</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Documents i Tràmits</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-12 d-flex justify-content-between align-items-center">
+            <h1 class="h3 mb-0">Manteniment de Documents i Tràmits</h1>
+            <button class="btn btn-outline-secondary" @onclick="LoadData">
+                <i class="fas fa-sync-alt me-2"></i>Refrescar
+            </button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(errorMsg))
+    {
+        <div class="alert alert-danger">@errorMsg</div>
+    }
+
+    @if (loading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border" role="status"><span class="visually-hidden">Carregant...</span></div>
+        </div>
+    }
+    else
+    {
+        <div class="row">
+            <div class="col-lg-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header screen-header">
+                        <h5 class="mb-0"><i class="fas fa-project-diagram me-2"></i>Aux_Tramit</h5>
+                        <button class="btn btn-sm btn-success" @onclick="NewTramit">
+                            <i class="fas fa-plus me-1"></i>Nou
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <EditForm Model="tramitForm" OnValidSubmit="SaveTramit">
+                            <DataAnnotationsValidator />
+                            <div class="row g-2 mb-3">
+                                <div class="col-md-4">
+                                    <InputText @bind-Value="tramitForm.Codi" class="form-control form-control-sm" placeholder="Codi" />
+                                </div>
+                                <div class="col-md-4">
+                                    <InputText @bind-Value="tramitForm.Nom" class="form-control form-control-sm" placeholder="Nom" />
+                                </div>
+                                <div class="col-md-4">
+                                    <InputText @bind-Value="tramitForm.Descripcio" class="form-control form-control-sm" placeholder="Descripció" />
+                                </div>
+                                <div class="col-md-6 form-check ms-1">
+                                    <InputCheckbox @bind-Value="tramitForm.Actiu" class="form-check-input" id="tramitActiu" />
+                                    <label class="form-check-label" for="tramitActiu">Actiu</label>
+                                </div>
+                                <div class="col-md-6 text-end">
+                                    <button type="submit" class="btn btn-sm btn-primary me-2">Guardar</button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="NewTramit">Netejar</button>
+                                </div>
+                            </div>
+                        </EditForm>
+
+                        <div class="table-responsive" style="max-height: 320px; overflow-y: auto;">
+                            <table class="table table-sm table-hover">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th>Codi</th>
+                                        <th>Nom</th>
+                                        <th>Actiu</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var item in tramits.OrderBy(t => t.Codi))
+                                    {
+                                        <tr>
+                                            <td>@item.Codi</td>
+                                            <td>@item.Nom</td>
+                                            <td>
+                                                @if (item.Actiu)
+                                                {
+                                                    <span class="badge bg-success">Sí</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-secondary">No</span>
+                                                }
+                                            </td>
+                                            <td class="text-end">
+                                                <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => EditTramit(item)"><i class="fas fa-edit"></i></button>
+                                                <button class="btn btn-sm btn-outline-warning" @onclick="() => ToggleTramit(item)"><i class="fas fa-power-off"></i></button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header screen-header">
+                        <h5 class="mb-0"><i class="fas fa-file-alt me-2"></i>Aux_TipusDocument</h5>
+                        <button class="btn btn-sm btn-success" @onclick="NewTipusDocument">
+                            <i class="fas fa-plus me-1"></i>Nou
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <EditForm Model="tipusForm" OnValidSubmit="SaveTipusDocument">
+                            <DataAnnotationsValidator />
+                            <div class="row g-2 mb-3">
+                                <div class="col-md-4">
+                                    <InputText @bind-Value="tipusForm.Nom" class="form-control form-control-sm" placeholder="Nom" />
+                                </div>
+                                <div class="col-md-4">
+                                    <InputText @bind-Value="tipusForm.Descripcio" class="form-control form-control-sm" placeholder="Descripció" />
+                                </div>
+                                <div class="col-md-2 form-check ms-1">
+                                    <InputCheckbox @bind-Value="tipusForm.Actiu" class="form-check-input" id="tipusActiu" />
+                                    <label class="form-check-label" for="tipusActiu">Actiu</label>
+                                </div>
+                                <div class="col-md-12 text-end">
+                                    <button type="submit" class="btn btn-sm btn-primary me-2">Guardar</button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="NewTipusDocument">Netejar</button>
+                                </div>
+                            </div>
+                        </EditForm>
+
+                        <div class="table-responsive" style="max-height: 320px; overflow-y: auto;">
+                            <table class="table table-sm table-hover">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th>Nom</th>
+                                        <th>Actiu</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var item in tipusDocuments.OrderBy(t => t.Nom))
+                                    {
+                                        <tr>
+                                            <td>@item.Nom</td>
+                                            <td>
+                                                @if (item.Actiu)
+                                                {
+                                                    <span class="badge bg-success">Sí</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-secondary">No</span>
+                                                }
+                                            </td>
+                                            <td class="text-end">
+                                                <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => EditTipusDocument(item)"><i class="fas fa-edit"></i></button>
+                                                <button class="btn btn-sm btn-outline-warning" @onclick="() => ToggleTipusDocument(item)"><i class="fas fa-power-off"></i></button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header screen-header">
+                        <h5 class="mb-0"><i class="fas fa-link me-2"></i>Rel_TramitTipusDocument</h5>
+                        <button class="btn btn-sm btn-success" @onclick="NewRelacio">
+                            <i class="fas fa-plus me-1"></i>Nova
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <EditForm Model="relacioForm" OnValidSubmit="SaveRelacio">
+                            <div class="row g-2 mb-3">
+                                <div class="col-md-3">
+                                    <InputSelect @bind-Value="relacioForm.TramitId" class="form-select form-select-sm">
+                                        <option value="0">-- Tràmit --</option>
+                                        @foreach (var t in tramits.OrderBy(x => x.Codi))
+                                        {
+                                            <option value="@t.Id">@t.Codi</option>
+                                        }
+                                    </InputSelect>
+                                </div>
+                                <div class="col-md-3">
+                                    <InputSelect @bind-Value="relacioForm.TipusDocumentId" class="form-select form-select-sm">
+                                        <option value="0">-- Tipus document --</option>
+                                        @foreach (var td in tipusDocuments.OrderBy(x => x.Nom))
+                                        {
+                                            <option value="@td.Id">@td.Nom</option>
+                                        }
+                                    </InputSelect>
+                                </div>
+                                <div class="col-md-2">
+                                    <InputNumber @bind-Value="relacioForm.Ordre" class="form-control form-control-sm" placeholder="Ordre" />
+                                </div>
+                                <div class="col-md-2 form-check ms-1">
+                                    <InputCheckbox @bind-Value="relacioForm.EsObligatori" class="form-check-input" id="obligatori" />
+                                    <label class="form-check-label" for="obligatori">Obligatori</label>
+                                </div>
+                                <div class="col-md-1 form-check ms-1">
+                                    <InputCheckbox @bind-Value="relacioForm.Actiu" class="form-check-input" id="relActiu" />
+                                    <label class="form-check-label" for="relActiu">Actiu</label>
+                                </div>
+                                <div class="col-md-12 text-end">
+                                    <button type="submit" class="btn btn-sm btn-primary me-2">Guardar</button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="NewRelacio">Netejar</button>
+                                </div>
+                            </div>
+                        </EditForm>
+
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Tràmit</th>
+                                        <th>Tipus document</th>
+                                        <th>Ordre</th>
+                                        <th>Obligatori</th>
+                                        <th>Actiu</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var r in relacions.OrderBy(x => x.TramitCodi).ThenBy(x => x.Ordre).ThenBy(x => x.TipusNom))
+                                    {
+                                        <tr>
+                                            <td>@r.TramitCodi</td>
+                                            <td>@r.TipusNom</td>
+                                            <td>@r.Ordre</td>
+                                            <td>@(r.EsObligatori ? "Sí" : "No")</td>
+                                            <td>@(r.Actiu ? "Sí" : "No")</td>
+                                            <td class="text-end">
+                                                <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => EditRelacio(r)"><i class="fas fa-edit"></i></button>
+                                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteRelacio(r.Id)"><i class="fas fa-trash"></i></button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool loading = true;
+    private string? errorMsg;
+
+    private List<Tramit> tramits = new();
+    private List<TipusDocument> tipusDocuments = new();
+    private List<RelacioRow> relacions = new();
+
+    private Tramit tramitForm = new() { Actiu = true };
+    private TipusDocument tipusForm = new() { Actiu = true };
+    private TramitTipusDocument relacioForm = new() { Actiu = true, Ordre = 100 };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        loading = true;
+        errorMsg = null;
+        try
+        {
+            await using var db = await DbContextFactory.CreateDbContextAsync();
+
+            tramits = await db.Tramits.AsNoTracking().OrderBy(t => t.Codi).ToListAsync();
+            tipusDocuments = await db.TipusDocuments.AsNoTracking().OrderBy(t => t.Nom).ToListAsync();
+
+            relacions = await db.TramitTipusDocuments
+                .Join(db.Tramits, r => r.TramitId, t => t.Id, (r, t) => new { r, t })
+                .Join(db.TipusDocuments, x => x.r.TipusDocumentId, td => td.Id, (x, td) => new RelacioRow
+                {
+                    Id = x.r.Id,
+                    TramitId = x.r.TramitId,
+                    TipusDocumentId = x.r.TipusDocumentId,
+                    TramitCodi = x.t.Codi,
+                    TipusNom = td.Nom,
+                    EsObligatori = x.r.EsObligatori,
+                    Ordre = x.r.Ordre,
+                    Actiu = x.r.Actiu
+                })
+                .AsNoTracking()
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMsg = ex.Message;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private void NewTramit() => tramitForm = new Tramit { Actiu = true };
+
+    private void EditTramit(Tramit item)
+    {
+        tramitForm = new Tramit
+        {
+            Id = item.Id,
+            Codi = item.Codi,
+            Nom = item.Nom,
+            Descripcio = item.Descripcio,
+            Actiu = item.Actiu
+        };
+    }
+
+    private async Task SaveTramit()
+    {
+        if (string.IsNullOrWhiteSpace(tramitForm.Codi) || string.IsNullOrWhiteSpace(tramitForm.Nom))
+        {
+            errorMsg = "Codi i Nom del tràmit són obligatoris.";
+            return;
+        }
+
+        await using var db = await DbContextFactory.CreateDbContextAsync();
+
+        if (tramitForm.Id == 0)
+        {
+            db.Tramits.Add(tramitForm);
+        }
+        else
+        {
+            var entity = await db.Tramits.FindAsync(tramitForm.Id);
+            if (entity != null)
+            {
+                entity.Codi = tramitForm.Codi.Trim();
+                entity.Nom = tramitForm.Nom.Trim();
+                entity.Descripcio = tramitForm.Descripcio;
+                entity.Actiu = tramitForm.Actiu;
+            }
+        }
+
+        await db.SaveChangesAsync();
+        NewTramit();
+        await LoadData();
+    }
+
+    private async Task ToggleTramit(Tramit item)
+    {
+        await using var db = await DbContextFactory.CreateDbContextAsync();
+        var entity = await db.Tramits.FindAsync(item.Id);
+        if (entity != null)
+        {
+            entity.Actiu = !entity.Actiu;
+            await db.SaveChangesAsync();
+            await LoadData();
+        }
+    }
+
+    private void NewTipusDocument() => tipusForm = new TipusDocument { Actiu = true };
+
+    private void EditTipusDocument(TipusDocument item)
+    {
+        tipusForm = new TipusDocument
+        {
+            Id = item.Id,
+            Nom = item.Nom,
+            Descripcio = item.Descripcio,
+            Actiu = item.Actiu
+        };
+    }
+
+    private async Task SaveTipusDocument()
+    {
+        if (string.IsNullOrWhiteSpace(tipusForm.Nom))
+        {
+            errorMsg = "El Nom del tipus de document és obligatori.";
+            return;
+        }
+
+        await using var db = await DbContextFactory.CreateDbContextAsync();
+
+        if (tipusForm.Id == 0)
+        {
+            db.TipusDocuments.Add(tipusForm);
+        }
+        else
+        {
+            var entity = await db.TipusDocuments.FindAsync(tipusForm.Id);
+            if (entity != null)
+            {
+                entity.Nom = tipusForm.Nom.Trim();
+                entity.Descripcio = tipusForm.Descripcio;
+                entity.Actiu = tipusForm.Actiu;
+            }
+        }
+
+        await db.SaveChangesAsync();
+        NewTipusDocument();
+        await LoadData();
+    }
+
+    private async Task ToggleTipusDocument(TipusDocument item)
+    {
+        await using var db = await DbContextFactory.CreateDbContextAsync();
+        var entity = await db.TipusDocuments.FindAsync(item.Id);
+        if (entity != null)
+        {
+            entity.Actiu = !entity.Actiu;
+            await db.SaveChangesAsync();
+            await LoadData();
+        }
+    }
+
+    private void NewRelacio() => relacioForm = new TramitTipusDocument { Actiu = true, Ordre = 100 };
+
+    private void EditRelacio(RelacioRow item)
+    {
+        relacioForm = new TramitTipusDocument
+        {
+            Id = item.Id,
+            TramitId = item.TramitId,
+            TipusDocumentId = item.TipusDocumentId,
+            EsObligatori = item.EsObligatori,
+            Ordre = item.Ordre,
+            Actiu = item.Actiu
+        };
+    }
+
+    private async Task SaveRelacio()
+    {
+        if (relacioForm.TramitId <= 0 || relacioForm.TipusDocumentId <= 0)
+        {
+            errorMsg = "Selecciona tràmit i tipus de document.";
+            return;
+        }
+
+        await using var db = await DbContextFactory.CreateDbContextAsync();
+
+        var duplicated = await db.TramitTipusDocuments
+            .AnyAsync(r => r.TramitId == relacioForm.TramitId
+                        && r.TipusDocumentId == relacioForm.TipusDocumentId
+                        && r.Id != relacioForm.Id);
+        if (duplicated)
+        {
+            errorMsg = "Ja existeix aquesta relació tràmit-tipus document.";
+            return;
+        }
+
+        if (relacioForm.Id == 0)
+        {
+            db.TramitTipusDocuments.Add(relacioForm);
+        }
+        else
+        {
+            var entity = await db.TramitTipusDocuments.FindAsync(relacioForm.Id);
+            if (entity != null)
+            {
+                entity.TramitId = relacioForm.TramitId;
+                entity.TipusDocumentId = relacioForm.TipusDocumentId;
+                entity.EsObligatori = relacioForm.EsObligatori;
+                entity.Ordre = relacioForm.Ordre;
+                entity.Actiu = relacioForm.Actiu;
+            }
+        }
+
+        await db.SaveChangesAsync();
+        NewRelacio();
+        await LoadData();
+    }
+
+    private async Task DeleteRelacio(int id)
+    {
+        var confirm = await JSRuntime.InvokeAsync<bool>("confirm", "Vols eliminar aquesta relació?");
+        if (!confirm)
+        {
+            return;
+        }
+
+        await using var db = await DbContextFactory.CreateDbContextAsync();
+        var entity = await db.TramitTipusDocuments.FindAsync(id);
+        if (entity != null)
+        {
+            db.TramitTipusDocuments.Remove(entity);
+            await db.SaveChangesAsync();
+            await LoadData();
+        }
+    }
+
+    private class RelacioRow
+    {
+        public int Id { get; set; }
+        public int TramitId { get; set; }
+        public int TipusDocumentId { get; set; }
+        public string TramitCodi { get; set; } = string.Empty;
+        public string TipusNom { get; set; } = string.Empty;
+        public bool EsObligatori { get; set; }
+        public int Ordre { get; set; }
+        public bool Actiu { get; set; }
+    }
+}

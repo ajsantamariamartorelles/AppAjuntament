@@ -1,0 +1,588 @@
+﻿@page "/"
+@using AppAjuntament.Models
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@using AppAjuntament.Services
+
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ICachedMunicipiService CachedMunicipiService
+@inject EntitatDigitalApiService EntitatDigitalApiService
+@inject AppAjuntament.Services.DatabaseLoggerService DbLogger
+
+<PageTitle>Ajuntament de Santa Maria de Martorelles</PageTitle>
+
+<style>
+    .hero-section {
+        position: relative;
+        margin-bottom: 30px;
+        border-radius: 15px;
+        overflow: hidden;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+    
+    .hero-image {
+        width: 100%;
+        height: 400px;
+        object-fit: cover;
+        display: block;
+    }
+    
+    .hero-overlay {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: linear-gradient(transparent, rgba(0,0,0,0.7));
+        color: white;
+        padding: 30px;
+        pointer-events: none;
+    }
+    
+    .municipi-title {
+        font-size: 2.5rem;
+        font-weight: bold;
+        margin-bottom: 10px;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+    }
+    
+    .escut-bandera {
+        display: flex;
+        gap: 20px;
+        justify-content: center;
+        margin: 30px 0;
+    }
+    
+    .escut-bandera img {
+        height: 80px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    }
+    
+    .info-card {
+        background: #f8f9fa;
+        border-radius: 15px;
+        padding: 25px;
+        margin-bottom: 20px;
+        border-left: 5px solid #007bff;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .info-card h4 {
+        color: #007bff;
+        margin-bottom: 15px;
+        font-weight: bold;
+    }
+    
+    .info-row {
+        display: flex;
+        margin-bottom: 10px;
+        align-items: center;
+    }
+    
+    .info-label {
+        font-weight: bold;
+        color: #495057;
+        min-width: 140px;
+        display: inline-block;
+    }
+    
+    .info-value {
+        color: #212529;
+        flex: 1;
+    }
+    
+    .loading-spinner {
+        text-align: center;
+        padding: 50px;
+    }
+    
+    .error-message {
+        background: #f8d7da;
+        color: #721c24;
+        padding: 15px;
+        border-radius: 8px;
+        margin: 20px 0;
+    }
+    
+    .coordenades {
+        font-family: monospace;
+        background: #e9ecef;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.9em;
+    }
+</style>
+
+@if (carregant)
+{
+    <div class="d-flex justify-content-center align-items-center" style="min-height: 300px;">
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                <span class="visually-hidden">Carregant...</span>
+            </div>
+            <p class="mt-3 text-muted">Carregant informació del municipi...</p>
+        </div>
+    </div>
+}
+else if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-warning d-flex align-items-center" role="alert">
+        <i class="fas fa-exclamation-triangle me-3" style="font-size: 1.5rem;"></i>
+        <div class="flex-grow-1">
+            <h5 class="alert-heading mb-2">Problema de connexió</h5>
+            <p class="mb-2">@errorMessage</p>
+            <button class="btn btn-outline-warning btn-sm" @onclick="RetryCarregarDades" disabled="@carregant">
+                <i class="fas fa-redo me-1"></i>
+                Tornar a intentar
+            </button>
+        </div>
+    </div>
+}
+else if (municipi == null)
+{
+    <div class="alert alert-danger">
+        <h5 class="alert-heading">
+            <i class="fas fa-times-circle me-2"></i>
+            Error carregant dades
+        </h5>
+        <p>No s'ha pogut carregar la informació del municipi. Torna-ho a intentar més tard.</p>
+        <button class="btn btn-outline-danger btn-sm" @onclick="RetryCarregarDades" disabled="@carregant">
+            <i class="fas fa-redo me-1"></i>
+            Tornar a intentar
+        </button>
+    </div>
+}
+else
+{
+    <!-- Imatge principal del municipi -->
+    @if (!string.IsNullOrEmpty(municipi.municipi_vista))
+    {
+        @if (isPlaceholderImage)
+        {
+            <!-- Fallback amb gradient quan és placeholder -->
+            <div class="hero-section" style="background: linear-gradient(135deg, #007bff, #0056b3); color: white; padding: 60px 30px; text-align: center;">
+                <h1 class="municipi-title">@municipi.municipi_nom</h1>
+                <p class="lead">@municipi.grup_comarca?.comarca_nom, @municipi.grup_provincia?.provincia_nom</p>
+                <small class="opacity-75">Vista del municipi no disponible</small>
+            </div>
+        }
+        else
+        {
+            <div class="hero-section">
+                <img src="/api/proxy/image?url=@Uri.EscapeDataString(municipi.municipi_vista)" 
+                     alt="Vista de @municipi.municipi_nom" 
+                     class="hero-image"
+                     @onerror="OnImageError"
+                     @onload="OnImageLoad" />
+                <div class="hero-overlay">
+                    <h1 class="municipi-title">@municipi.municipi_nom</h1>
+                    <p class="lead">@municipi.grup_comarca?.comarca_nom, @municipi.grup_provincia?.provincia_nom</p>
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        <!-- Fallback sense imatge -->
+        <div class="hero-section" style="background: linear-gradient(135deg, #007bff, #0056b3); color: white; padding: 60px 30px; text-align: center;">
+            <h1 class="municipi-title">@municipi.municipi_nom</h1>
+            <p class="lead">@municipi.grup_comarca?.comarca_nom, @municipi.grup_provincia?.provincia_nom</p>
+        </div>
+    }
+
+    <!-- Escut i bandera -->
+    <div class="escut-bandera">
+        @if (!string.IsNullOrEmpty(municipi.municipi_escut))
+        {
+            <img src="/api/proxy/image?url=@Uri.EscapeDataString(municipi.municipi_escut)" alt="Escut de @municipi.municipi_nom" title="Escut" />
+        }
+        @if (!string.IsNullOrEmpty(municipi.municipi_bandera))
+        {
+            <img src="/api/proxy/image?url=@Uri.EscapeDataString(municipi.municipi_bandera)" alt="Bandera de @municipi.municipi_nom" title="Bandera" />
+        }
+    </div>
+
+    <div class="row">
+        <!-- Informació general -->
+        <div class="col-md-6">
+            <div class="info-card">
+                <h4><i class="fas fa-info-circle me-2"></i>Informació General</h4>
+                
+                <div class="info-row">
+                    <span class="info-label">Nom:</span>
+                    <span class="info-value">@municipi.municipi_nom</span>
+                </div>
+                
+                @if (!string.IsNullOrEmpty(municipi.municipi_nom_curt) && municipi.municipi_nom_curt != municipi.municipi_nom)
+                {
+                    <div class="info-row">
+                        <span class="info-label">Nom curt:</span>
+                        <span class="info-value">@municipi.municipi_nom_curt</span>
+                    </div>
+                }
+                
+                <div class="info-row">
+                    <span class="info-label">INE:</span>
+                    <span class="info-value">@municipi.ine</span>
+                </div>
+                
+                <div class="info-row">
+                    <span class="info-label">Comarca:</span>
+                    <span class="info-value">@municipi.grup_comarca?.comarca_nom</span>
+                </div>
+                
+                <div class="info-row">
+                    <span class="info-label">Província:</span>
+                    <span class="info-value">@municipi.grup_provincia?.provincia_nom</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dades demogràfiques i geogràfiques -->
+        <div class="col-md-6">
+            <div class="info-card">
+                <h4><i class="fas fa-chart-bar me-2"></i>Dades Demogràfiques i Geogràfiques</h4>
+                
+                @if (!string.IsNullOrEmpty(municipi.nombre_habitants))
+                {
+                    <div class="info-row">
+                        <span class="info-label">Habitants:</span>
+                        <span class="info-value">@municipi.nombre_habitants</span>
+                    </div>
+                }
+                
+                @if (!string.IsNullOrEmpty(municipi.extensio))
+                {
+                    <div class="info-row">
+                        <span class="info-label">Extensió:</span>
+                        <span class="info-value">@municipi.extensio km²</span>
+                    </div>
+                }
+                
+                @if (!string.IsNullOrEmpty(municipi.altitud))
+                {
+                    <div class="info-row">
+                        <span class="info-label">Altitud:</span>
+                        <span class="info-value">@municipi.altitud m</span>
+                    </div>
+                }
+                
+                @if (!string.IsNullOrEmpty(municipi.centre_municipal))
+                {
+                    <div class="info-row">
+                        <span class="info-label">Coordenades:</span>
+                        <span class="info-value coordenades">@municipi.centre_municipal</span>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Informació de l'Ajuntament -->
+    @if (municipi.grup_ajuntament != null)
+    {
+        <div class="info-card">
+            <h4><i class="fas fa-building me-2"></i>Ajuntament</h4>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    @if (!string.IsNullOrEmpty(municipi.grup_ajuntament.adreca_completa))
+                    {
+                        <div class="info-row">
+                            <span class="info-label">Adreça:</span>
+                            <span class="info-value">@municipi.grup_ajuntament.adreca_completa</span>
+                        </div>
+                    }
+                    
+                    @if (!string.IsNullOrEmpty(municipi.grup_ajuntament.telefon_contacte))
+                    {
+                        <div class="info-row">
+                            <span class="info-label">Telèfon:</span>
+                            <span class="info-value">
+                                <a href="tel:@municipi.grup_ajuntament.telefon_contacte">@municipi.grup_ajuntament.telefon_contacte</a>
+                            </span>
+                        </div>
+                    }
+                    
+                    @if (!string.IsNullOrEmpty(municipi.grup_ajuntament.fax))
+                    {
+                        <div class="info-row">
+                            <span class="info-label">Fax:</span>
+                            <span class="info-value">@municipi.grup_ajuntament.fax</span>
+                        </div>
+                    }
+                </div>
+                
+                <div class="col-md-6">
+                    @if (!string.IsNullOrEmpty(municipi.grup_ajuntament.email))
+                    {
+                        <div class="info-row">
+                            <span class="info-label">Email:</span>
+                            <span class="info-value">
+                                <a href="mailto:@municipi.grup_ajuntament.email">@municipi.grup_ajuntament.email</a>
+                            </span>
+                        </div>
+                    }
+                    
+                    @if (!string.IsNullOrEmpty(municipi.grup_ajuntament.url_general))
+                    {
+                        <div class="info-row">
+                            <span class="info-label">Web:</span>
+                            <span class="info-value">
+                                <a href="@municipi.grup_ajuntament.url_general" target="_blank">@municipi.grup_ajuntament.url_general</a>
+                            </span>
+                        </div>
+                    }
+                    
+                    @if (!string.IsNullOrEmpty(municipi.grup_ajuntament.cif))
+                    {
+                        <div class="info-row">
+                            <span class="info-label">CIF:</span>
+                            <span class="info-value">@municipi.grup_ajuntament.cif</span>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Serveis Digitals -->
+    @if (entitatDigital != null)
+    {
+        <div class="info-card" id="serveis-digitals">
+            <h4><i class="fas fa-globe me-2"></i>Serveis Digitals</h4>
+            
+            <!-- Enllaços als serveis digitals -->
+            <div class="row mt-3">
+                <div class="col-12">
+                    <h5 class="text-muted mb-3">Serveis Disponibles</h5>
+                    <div class="row">
+                        @if (!string.IsNullOrEmpty(entitatDigital.URL_WEB))
+                        {
+                            <div class="col-md-6 col-lg-4 mb-2">
+                                <a href="@entitatDigital.URL_WEB" target="_blank" class="btn btn-outline-primary btn-sm w-100">
+                                    <i class="fas fa-external-link-alt me-1"></i>Web Municipal
+                                </a>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(entitatDigital.URL_TRAMITS))
+                        {
+                            <div class="col-md-6 col-lg-4 mb-2">
+                                <a href="@entitatDigital.URL_TRAMITS" target="_blank" class="btn btn-outline-primary btn-sm w-100">
+                                    <i class="fas fa-external-link-alt me-1"></i>Tràmits
+                                </a>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(entitatDigital.URL_CATALEG_SERVEIS))
+                        {
+                            <div class="col-md-6 col-lg-4 mb-2">
+                                <a href="@entitatDigital.URL_CATALEG_SERVEIS" target="_blank" class="btn btn-outline-primary btn-sm w-100">
+                                    <i class="fas fa-external-link-alt me-1"></i>Catàleg de Serveis
+                                </a>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(entitatDigital.URL_CARPETA_CIUTADA))
+                        {
+                            <div class="col-md-6 col-lg-4 mb-2">
+                                <a href="@entitatDigital.URL_CARPETA_CIUTADA" target="_blank" class="btn btn-outline-primary btn-sm w-100">
+                                    <i class="fas fa-external-link-alt me-1"></i>Carpeta Ciutadana
+                                </a>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(entitatDigital.URL_SEU_ELECTRONICA))
+                        {
+                            <div class="col-md-6 col-lg-4 mb-2">
+                                <a href="@entitatDigital.URL_SEU_ELECTRONICA" target="_blank" class="btn btn-outline-primary btn-sm w-100">
+                                    <i class="fas fa-external-link-alt me-1"></i>SEU Electrònica
+                                </a>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(entitatDigital.URL_TAULER_ELECTRONIC))
+                        {
+                            <div class="col-md-6 col-lg-4 mb-2">
+                                <a href="@entitatDigital.URL_TAULER_ELECTRONIC" target="_blank" class="btn btn-outline-primary btn-sm w-100">
+                                    <i class="fas fa-external-link-alt me-1"></i>Tauler Electrònic
+                                </a>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(entitatDigital.URL_PERFIL_CONTRACTANT))
+                        {
+                            <div class="col-md-6 col-lg-4 mb-2">
+                                <a href="@entitatDigital.URL_PERFIL_CONTRACTANT" target="_blank" class="btn btn-outline-primary btn-sm w-100">
+                                    <i class="fas fa-external-link-alt me-1"></i>Perfil del Contractant
+                                </a>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(entitatDigital.URL_VISOR_CARTOGRAFIC))
+                        {
+                            <div class="col-md-6 col-lg-4 mb-2">
+                                <a href="@entitatDigital.URL_VISOR_CARTOGRAFIC" target="_blank" class="btn btn-outline-primary btn-sm w-100">
+                                    <i class="fas fa-external-link-alt me-1"></i>Visor Cartogràfic
+                                </a>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(entitatDigital.URL_VISOR_URBANISME))
+                        {
+                            <div class="col-md-6 col-lg-4 mb-2">
+                                <a href="@entitatDigital.URL_VISOR_URBANISME" target="_blank" class="btn btn-outline-primary btn-sm w-100">
+                                    <i class="fas fa-external-link-alt me-1"></i>Visor Urbanisme
+                                </a>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(entitatDigital.URL_NOTIFICACIO_ELECTRONICA))
+                        {
+                            <div class="col-md-6 col-lg-4 mb-2">
+                                <a href="@entitatDigital.URL_NOTIFICACIO_ELECTRONICA" target="_blank" class="btn btn-outline-primary btn-sm w-100">
+                                    <i class="fas fa-external-link-alt me-1"></i>Notificació Electrònica
+                                </a>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(entitatDigital.URL_FACTURA_ELECTRONICA))
+                        {
+                            <div class="col-md-6 col-lg-4 mb-2">
+                                <a href="@entitatDigital.URL_FACTURA_ELECTRONICA" target="_blank" class="btn btn-outline-primary btn-sm w-100">
+                                    <i class="fas fa-external-link-alt me-1"></i>Factura Electrònica
+                                </a>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(entitatDigital.URL_INSTANCIA_GENERICA))
+                        {
+                            <div class="col-md-6 col-lg-4 mb-2">
+                                <a href="@entitatDigital.URL_INSTANCIA_GENERICA" target="_blank" class="btn btn-outline-primary btn-sm w-100">
+                                    <i class="fas fa-external-link-alt me-1"></i>Instància Genèrica
+                                </a>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(entitatDigital.URL_QUEIXES_SUGGERIMENTS))
+                        {
+                            <div class="col-md-6 col-lg-4 mb-2">
+                                <a href="@entitatDigital.URL_QUEIXES_SUGGERIMENTS" target="_blank" class="btn btn-outline-primary btn-sm w-100">
+                                    <i class="fas fa-external-link-alt me-1"></i>Queixes i Suggeriments
+                                </a>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(entitatDigital.URL_SAIP))
+                        {
+                            <div class="col-md-6 col-lg-4 mb-2">
+                                <a href="@entitatDigital.URL_SAIP" target="_blank" class="btn btn-outline-primary btn-sm w-100">
+                                    <i class="fas fa-external-link-alt me-1"></i>SAIP
+                                </a>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Capacitats digitals -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <h5 class="text-muted mb-3">Capacitats Digitals</h5>
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="info-row">
+                                <span class="info-label">Notificació Electrònica:</span>
+                                <span class="info-value">@(entitatDigital.TE_NOTIFICACIO_ELECTRONICA == "SÍ" ? "Disponible" : "No disponible")</span>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="info-row">
+                                <span class="info-label">Factura Electrònica:</span>
+                                <span class="info-value">@(entitatDigital.TE_FACTURA_ELECTRONICA == "SÍ" ? "Disponible" : "No disponible")</span>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="info-row">
+                                <span class="info-label">Instància Genèrica:</span>
+                                <span class="info-value">@(entitatDigital.TE_INSTANCIA_GENERICA == "SÍ" ? "Disponible" : "No disponible")</span>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="info-row">
+                                <span class="info-label">Ordenança Reguladora:</span>
+                                <span class="info-value">@(entitatDigital.TE_ORDENANCA_REGULADORA == "SÍ" ? "Disponible" : "No disponible")</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+}
+@code {
+    private ApiMunicipiElement? municipi;
+    private bool carregant = true;
+    private bool isPlaceholderImage = false;
+    private string? errorMessage = null;
+    private EntitatDigitalRecord? entitatDigital;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarDadesMunicipi();
+        await CarregarDadesEntitatDigital();
+    }
+
+    private async Task CarregarDadesMunicipi()
+    {
+        carregant = true;
+        errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var resultat = await CachedMunicipiService.ObtindreInfoMunicipiAsync("Santa Maria de Martorelles");
+            if (resultat != null)
+            {
+                municipi = resultat;
+                errorMessage = null;
+            }
+            else
+            {
+                errorMessage = "No s'ha pogut trobar la informació del municipi a l'API externa.";
+            }
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error carregant dades del municipi a pàgina principal", ex, "CarregarDadesMunicipi");
+            errorMessage = "Error de connexió amb l'API externa. Si us plau, torneu-ho a intentar més tard.";
+            // Crear un municipi buit per evitar errors de renderització
+            municipi = new();
+        }
+        finally
+        {
+            carregant = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RetryCarregarDades()
+    {
+        // Invalidar la caché abans de tornar a carregar
+        CachedMunicipiService.InvalidateCache("Santa Maria de Martorelles");
+        await CarregarDadesMunicipi();
+    }
+
+    private void OnImageLoad()
+    {
+        isPlaceholderImage = false;
+        StateHasChanged();
+    }
+
+    private void OnImageError()
+    {
+        isPlaceholderImage = true;
+        StateHasChanged();
+    }
+
+    private async Task CarregarDadesEntitatDigital()
+    {
+        try
+        {
+            entitatDigital = await EntitatDigitalApiService.GetEntitatDigitalAsync("825670005");
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogWarningAsync("Error carregant dades d'entitat digital (no crític)", "CarregarDadesEntitatDigital", $"CodiEns=825670005, Error={ex.Message}");
+            // No mostrar error per les dades digitals, només log
+        }
+    }
+}

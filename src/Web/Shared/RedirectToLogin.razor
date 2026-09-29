@@ -1,0 +1,9 @@
+@inject NavigationManager Nav
+
+@code {
+    protected override void OnInitialized()
+    {
+        // Redirect unauthenticated users to the login page without showing the main layout
+        Nav.NavigateTo("/Auth/Login", forceLoad: true);
+    }
+}

@@ -1,0 +1,348 @@
+@page "/patrimoni/editar/{Id:int}"
+@using AppAjuntament.Models
+@using AppAjuntament.Services
+@using Microsoft.Extensions.Options
+@inject IPatrimoniService PatrimoniService
+@inject ICatalogService CatalogService
+@inject GestorSubvencionsContext DbContext
+@inject NavigationManager Navigation
+@inject IOptions<AjuntamentSettings> AjuntamentOptions
+@inject ICachedMunicipiService CachedMunicipis
+@attribute [Authorize]
+
+<PageTitle>Editar Patrimoni</PageTitle>
+
+@if (carregant)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Carregant...</span>
+        </div>
+        <p class="mt-3 text-muted">Carregant patrimoni...</p>
+    </div>
+}
+else if (patrimoni == null)
+{
+    <div class="alert alert-danger">
+        No s'ha trobat el patrimoni amb id @Id.
+    </div>
+    <button class="btn btn-secondary" @onclick="Cancel">Tornar</button>
+}
+else
+{
+    <div class="card shadow-sm screen-filters-card">
+        <div class="card-header bg-warning text-dark screen-header">
+            <h5 class="mb-0 screen-title"><i class="fas fa-edit me-2"></i>Editant: @patrimoni.Nom</h5>
+            <button class="btn btn-sm btn-outline-dark" @onclick="Cancel">
+                <i class="fas fa-times"></i> Tancar
+            </button>
+        </div>
+        <div class="card-body">
+    <EditForm Model="patrimoni" OnValidSubmit="Save">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+        <div class="screen-edit-grid">
+            <div>
+        <div class="row">
+            <div class="col-md-4 mb-3">
+                <label>Codi Inventari</label>
+                <InputText @bind-Value="patrimoni.CodiInventari" class="form-control" />
+            </div>
+            <div class="col-md-4 mb-3">
+                <label>Nom</label>
+                <InputText @bind-Value="patrimoni.Nom" class="form-control" />
+            </div>
+            <div class="col-md-4 mb-3">
+                <label>Nom Alternatiu</label>
+                <InputText @bind-Value="patrimoni.NomAlternatiu" class="form-control" />
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label>Tipus Patrimoni</label>
+                <InputSelect Value="patrimoni.TipusPatrimoniId"
+                             ValueChanged="@((int id) => OnTipusChanged(id))"
+                             ValueExpression="@(() => patrimoni.TipusPatrimoniId)"
+                             class="form-control">
+                    <option value="0">Selecciona...</option>
+                    @if (tipusPatrimoni != null)
+                    {
+                        @foreach (var t in tipusPatrimoni)
+                        {
+                            <option value="@t.Id">@t.Nom</option>
+                        }
+                    }
+                </InputSelect>
+            </div>
+            <div class="col-md-6 mb-3">
+                <label>Subtipus</label>
+                <InputSelect @bind-Value="patrimoni.Subtipus" class="form-control"
+                             @attributes="GetSubtipusAttributes()">
+                    <option value="">Selecciona...</option>
+                    @foreach (var st in subtipusDisponibles)
+                    {
+                        <option value="@st">@st</option>
+                    }
+                </InputSelect>
+            </div>
+        </div>
+        <hr />
+        <h5 class="mt-2 mb-3">Estat i Localització</h5>
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label>Estat Conservació</label>
+                <InputSelect @bind-Value="patrimoni.EstatConservacioId" class="form-control">
+                    <option value="">Selecciona...</option>
+                    @if (estatsConservacio != null)
+                    {
+                        @foreach (var e in estatsConservacio)
+                        {
+                            <option value="@e.Id">@e.Nom</option>
+                        }
+                    }
+                </InputSelect>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-5 mb-3">
+                <label>Adreça</label>
+                <InputText @bind-Value="patrimoni.AdrecaCompleta" class="form-control" placeholder="Ex: Carrer Major, 5" />
+            </div>
+            <div class="col-md-1 mb-3">
+                <label>Núm.</label>
+                <InputText @bind-Value="patrimoni.NumeroPolicia" class="form-control" />
+            </div>
+            <div class="col-md-2 mb-3">
+                <label>Municipi</label>
+                <div class="form-control bg-light text-muted" style="cursor:default">@patrimoni.Municipi</div>
+            </div>
+            <div class="col-md-2 mb-3">
+                <label>Comarca</label>
+                <div class="form-control bg-light text-muted" style="cursor:default">@patrimoni.Comarca</div>
+            </div>
+            <div class="col-md-2 mb-3">
+                <label>Província</label>
+                <div class="form-control bg-light text-muted" style="cursor:default">@patrimoni.Provincia</div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-3 mb-3">
+                <label>Latitud</label>
+                <InputNumber @bind-Value="patrimoni.Latitud" class="form-control" placeholder="41.5195" />
+            </div>
+            <div class="col-md-3 mb-3">
+                <label>Longitud</label>
+                <InputNumber @bind-Value="patrimoni.Longitud" class="form-control" placeholder="2.25345" />
+            </div>
+            <div class="col-md-3 mb-3">
+                <label>UTM Est (X)</label>
+                <InputNumber @bind-Value="patrimoni.UtmX" class="form-control" placeholder="437709" />
+            </div>
+            <div class="col-md-3 mb-3">
+                <label>UTM Nord (Y)</label>
+                <InputNumber @bind-Value="patrimoni.UtmY" class="form-control" placeholder="4596698" />
+            </div>
+        </div>
+        <div class="mb-3">
+            <label>Descripció Breu</label>
+            <InputTextArea @bind-Value="patrimoni.DescripcioBreu" class="form-control" rows="2" />
+        </div>
+        <div class="mb-3">
+            <label>Descripció Detallada</label>
+            <InputTextArea @bind-Value="patrimoni.DescripcioDetallada" class="form-control" rows="4" />
+        </div>
+        <div class="form-group">
+            <label>Any Construcció</label>
+            <InputNumber @bind-Value="patrimoni.AnyConstruccio" class="form-control" />
+        </div>
+        <div class="form-group">
+            <label>Període Històric</label>
+            <InputText @bind-Value="patrimoni.PeriodeHistoric" class="form-control" />
+        </div>
+        <div class="form-group">
+            <label>Estil Arquitectònic</label>
+            <InputText @bind-Value="patrimoni.EstilArquitectonic" class="form-control" />
+        </div>
+        <div class="form-group">
+            <label>Materials Principals</label>
+            <InputText @bind-Value="patrimoni.MaterialsPrincipals" class="form-control" />
+        </div>
+        <div class="mb-3">
+            <label>Observacions Estat</label>
+            <InputTextArea @bind-Value="patrimoni.ObservacionsEstat" class="form-control" rows="2" />
+        </div>
+        <div class="form-group">
+            <label>Protecció Legal</label>
+            <InputSelect @bind-Value="patrimoni.ProteccioLegal" class="form-control">
+                <option value="Cap">Cap</option>
+                <option value="Local">Local</option>
+                <option value="Autonomica">Autonòmica</option>
+                <option value="Nacional">Nacional</option>
+                <option value="Internacional">Internacional</option>
+            </InputSelect>
+        </div>
+        <div class="form-group">
+            <label>Numero Expedient</label>
+            <InputText @bind-Value="patrimoni.NumeroExpedient" class="form-control" />
+        </div>
+        <div class="form-group">
+            <label>Organisme Protecció</label>
+            <InputText @bind-Value="patrimoni.OrganismeProteccio" class="form-control" />
+        </div>
+        <div class="form-group">
+            <label>Ús Actual</label>
+            <InputText @bind-Value="patrimoni.UsActual" class="form-control" />
+        </div>
+        <div class="form-group">
+            <label>Ús Original</label>
+            <InputText @bind-Value="patrimoni.UsOriginal" class="form-control" />
+        </div>
+        <div class="form-group">
+            <label>Propietari Actual</label>
+            <InputText @bind-Value="patrimoni.PropietariActual" class="form-control" />
+        </div>
+        <div class="form-group">
+            <label>Règim Propietat</label>
+            <InputSelect @bind-Value="patrimoni.RegimPropietat" class="form-control">
+                <option value="Public">Públic</option>
+                <option value="Privat">Privat</option>
+                <option value="Mixte">Mixte</option>
+                <option value="Desconegut">Desconegut</option>
+            </InputSelect>
+        </div>
+        <div class="row">
+            <div class="col mb-3">
+                <label>Valor Històric <small class="text-muted">(1-5)</small></label>
+                <InputNumber @bind-Value="patrimoni.ValorHistoric" class="form-control" min="1" max="5" />
+            </div>
+            <div class="col mb-3">
+                <label>Valor Artístic <small class="text-muted">(1-5)</small></label>
+                <InputNumber @bind-Value="patrimoni.ValorArtistic" class="form-control" min="1" max="5" />
+            </div>
+            <div class="col mb-3">
+                <label>Valor Arquitectònic <small class="text-muted">(1-5)</small></label>
+                <InputNumber @bind-Value="patrimoni.ValorArquitectonic" class="form-control" min="1" max="5" />
+            </div>
+            <div class="col mb-3">
+                <label>Valor Social <small class="text-muted">(1-5)</small></label>
+                <InputNumber @bind-Value="patrimoni.ValorSocial" class="form-control" min="1" max="5" />
+            </div>
+            <div class="col mb-3">
+                <label>Valor Total</label>
+                <InputNumber @bind-Value="patrimoni.ValorTotal" class="form-control bg-light" />
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Accessible al Públic</label>
+            <InputCheckbox @bind-Value="patrimoni.AccessiblePublic" class="form-check-input" />
+        </div>
+        <div class="form-group">
+            <label>Horari Visites</label>
+            <InputText @bind-Value="patrimoni.HorariVisites" class="form-control" />
+        </div>
+        <div class="form-group">
+            <label>Preu Entrada</label>
+            <InputNumber @bind-Value="patrimoni.PreuEntrada" class="form-control" />
+        </div>
+        <div class="mb-3">
+            <label>Notes Internes</label>
+            <InputTextArea @bind-Value="patrimoni.NotesInternes" class="form-control" rows="2" />
+        </div>
+        <div class="mt-4">
+            <button type="submit" class="btn btn-primary d-lg-none">Guardar Canvis</button>
+            <button type="button" @onclick="Cancel" class="btn btn-secondary ms-2 d-lg-none">Cancel·lar</button>
+        </div>
+            </div>
+
+            <div class="screen-sidebar screen-sidebar-sticky">
+                    <div class="card border-0 bg-light mb-3">
+                        <div class="card-body">
+                            <ArxiusPatrimoniPanel PatrimoniId="@patrimoni.Id" />
+                        </div>
+                    </div>
+
+                    <div class="card border-0 bg-light">
+                        <div class="card-body d-grid gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i> Guardar Canvis
+                            </button>
+                            <button type="button" @onclick="Cancel" class="btn btn-secondary">
+                                <i class="fas fa-times me-1"></i> Cancel·lar
+                            </button>
+                        </div>
+                    </div>
+            </div>
+        </div>
+    </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private Patrimoni? patrimoni;
+    private List<TipusPatrimoni>? tipusPatrimoni;
+    private List<EstatConservacio>? estatsConservacio;
+    private List<string> subtipusDisponibles = new();
+    private bool carregant = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        tipusPatrimoni = (await CatalogService.GetTipusPatrimoniAsync()).ToList();
+        estatsConservacio = (await CatalogService.GetEstatsConservacioAsync()).ToList();
+
+        patrimoni = await PatrimoniService.GetByIdAsync(Id);
+
+        if (patrimoni != null)
+        {
+            await ActualitzaSubtipusAsync();
+        }
+
+        carregant = false;
+    }
+
+    private async Task ActualitzaSubtipusAsync()
+    {
+        subtipusDisponibles = new List<string>();
+        if (patrimoni != null && patrimoni.TipusPatrimoniId > 0)
+        {
+            var result = await CatalogService.GetSubtipusPatrimoniAsync(patrimoni.TipusPatrimoniId);
+            subtipusDisponibles = result ?? new List<string>();
+        }
+        StateHasChanged();
+    }
+
+    private Dictionary<string, object> GetSubtipusAttributes()
+    {
+        var attrs = new Dictionary<string, object>();
+        if (patrimoni == null || patrimoni.TipusPatrimoniId <= 0 || subtipusDisponibles.Count == 0)
+            attrs["disabled"] = "disabled";
+        return attrs;
+    }
+
+    private async Task OnTipusChanged(int nouTipusId)
+    {
+        if (patrimoni != null)
+        {
+            patrimoni.TipusPatrimoniId = nouTipusId;
+            await ActualitzaSubtipusAsync();
+        }
+    }
+
+    private async Task Save()
+    {
+        if (patrimoni == null)
+        {
+            return;
+        }
+
+        await PatrimoniService.UpdateAsync(Id, patrimoni);
+        Navigation.NavigateTo("/patrimoni/gestio");
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/patrimoni/gestio");
+    }
+}

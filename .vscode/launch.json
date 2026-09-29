@@ -1,0 +1,37 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "C#: AppAjuntament [https]",
+            "type": "dotnet",
+            "request": "launch",
+            "projectPath": "${workspaceFolder}/src/Web/AppAjuntament.csproj",
+            "launchSettingsProfile": "https",
+            "url": "https://localhost:7261" // URL de l'aplicació local
+
+        },
+        {
+            "type": "pwa-msedge",
+            "name": "Launch Microsoft Edge",
+            "request": "launch",
+            "runtimeArgs": [
+                "--remote-debugging-port=9222",
+                "--ignore-certificate-errors"
+            ],
+            "url": "https://localhost:7261", // URL de l'aplicació local
+            "webRoot": "${workspaceFolder}/src/Web/wwwroot",
+            "presentation": {
+                "hidden": false
+            }
+        }
+    ],
+    "compounds": [
+        {
+            "name": "Launch App and Edge",
+            "configurations": [
+                "C#: AppAjuntament [https]",
+                "Launch Microsoft Edge"
+            ]
+        }
+    ]
+}

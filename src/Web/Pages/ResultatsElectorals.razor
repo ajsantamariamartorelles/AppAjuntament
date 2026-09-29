@@ -1,0 +1,302 @@
+﻿@page "/resultats-electorals"
+@using AppAjuntament.Models
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@using AppAjuntament.Services
+@using Microsoft.Extensions.Options
+@inject IElectoralApiService ElectoralService
+@inject ILogger<ResultatsElectorals> Logger
+@inject IJSRuntime JSRuntime
+@inject IOptions<AjuntamentSettings> AjuntamentOptions
+
+<PageTitle>Resultats Electorals</PageTitle>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="screen-header">
+                <h1 class="h3 mb-0">
+                    <i class="fas fa-vote-yea me-2 text-primary"></i>
+                    Resultats Electorals
+                </h1>
+                <button class="btn btn-outline-primary" @onclick="RecarregarDades" disabled="@isLoading">
+                    @if (isLoading)
+                    {
+                        <i class="fas fa-spinner fa-spin me-2"></i>
+                    }
+                    else
+                    {
+                        <i class="fas fa-sync-alt me-2"></i>
+                    }
+                    Actualitzar
+                </button>
+            </div>
+
+            @if (isLoading)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Carregant...</span>
+                    </div>
+                    <p class="mt-3">Carregant resultats electorals...</p>
+                </div>
+            }
+            else if (hasError)
+            {
+                <div class="alert alert-danger" role="alert">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Error en carregar els resultats electorals. Si us plau, proveu de nou més tard.
+                </div>
+            }
+            else if (resultats?.Any() == true)
+            {
+                <!-- Selector d'any -->
+                <div class="row mb-4">
+                    <div class="col-12 col-md-4">
+                        <label for="anySelect" class="form-label">Selecciona l'any electoral:</label>
+                        <select id="anySelect" class="form-select" @bind:get="selectedAny" @bind:set="OnSelectedAnyChanged">
+                            @foreach (var any in availableAnys.OrderByDescending(a => a))
+                            {
+                                <option value="@any">@any</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-8">
+                        <div class="d-flex align-items-center h-100">
+                            <span class="badge bg-info">
+                                @resultats.Count partits - Total vots: @totalVots.ToString("N0")
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Taula de resultats -->
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Partit</th>
+                                <th>Vots</th>
+                                <th>Percentatge</th>
+                                <th>Escons</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var partit in resultats.OrderByDescending(r => r.VOTS))
+                            {
+                                <tr>
+                                    <td>
+                                        <strong>@partit.Partit</strong>
+                                        @if (!string.IsNullOrEmpty(partit.Sigles))
+                                        {
+                                            <br /><small class="text-muted">@partit.Sigles</small>
+                                        }
+                                    </td>
+                                    <td class="text-end">@partit.VOTS.ToString("N0")</td>
+                                    <td class="text-end">
+                                        <span class="badge bg-primary">@partit.Percentatge.ToString("F2")%</span>
+                                    </td>
+                                    <td class="text-center">
+                                        @if (partit.Escons > 0)
+                                        {
+                                            <span class="badge bg-success">@partit.Escons</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Gràfic Parlamentari -->
+                <div class="mt-5">
+                    <h4 class="mb-3">
+                        <i class="fas fa-chart-pie me-2"></i>
+                        @_titolGrafic
+                    </h4>
+                    <div class="row">
+                        <div class="col-12" style="position: relative; height: 400px;">
+                            <canvas id="parliamentChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="alert alert-info" role="alert">
+                    <i class="fas fa-info-circle me-2"></i>
+                    No s'han trobat resultats electorals per a l'any seleccionat.
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<ElectoralRecord> resultats = new();
+    private List<int> availableAnys = new();
+    private int selectedAny;
+    private bool isLoading = true;
+    private bool hasError = false;
+    private int totalVots = 0;
+    private bool _chartNeedsUpdate = false;
+    private string _titolGrafic = "Distribució de vots";
+
+    private long? CodiEns
+    {
+        get
+        {
+            var codiIne6 = (AjuntamentOptions.Value.CodiINE6 ?? string.Empty).Trim();
+            if (codiIne6.Length != 6 || !codiIne6.All(char.IsDigit))
+            {
+                return null;
+            }
+
+            if (long.TryParse($"{codiIne6}0005", out var codiEns))
+            {
+                return codiEns;
+            }
+
+            return null;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Logger.LogInformation("OnInitializedAsync: Començant la càrrega de dades");
+        await RecarregarDades();
+        Logger.LogInformation("OnInitializedAsync: Dades carregades, resultats: {Count}", resultats.Count);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_chartNeedsUpdate && resultats.Any() && !isLoading)
+        {
+            _chartNeedsUpdate = false;
+            // Inicialitzar el gràfic després que el DOM s'hagi actualitzat
+            await InicialitzarGrafic();
+        }
+    }
+
+    private async Task CarregarAnysDisponibles()
+    {
+        try
+        {
+            var codiEns = CodiEns;
+            if (!codiEns.HasValue)
+            {
+                Logger.LogError("Invalid or missing Ajuntament:CodiINE6 configuration.");
+                hasError = true;
+                return;
+            }
+
+            availableAnys = await ElectoralService.ObtenirAnysElectoralsAsync(codiEns.Value);
+            if (availableAnys.Any())
+            {
+                selectedAny = availableAnys.Max(); // Any més recent per defecte
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error carregant anys electorals");
+            hasError = true;
+        }
+    }
+
+    private async Task CarregarResultats()
+    {
+        if (selectedAny == 0) return;
+
+        isLoading = true;
+        hasError = false;
+
+        try
+        {
+            var codiEns = CodiEns;
+            if (!codiEns.HasValue)
+            {
+                Logger.LogError("Invalid or missing Ajuntament:CodiINE6 configuration.");
+                hasError = true;
+                return;
+            }
+
+            resultats = await ElectoralService.ObtenirResultatsPerAnyAsync(codiEns.Value, selectedAny);
+            totalVots = resultats.Sum(r => r.VOTS);
+            _chartNeedsUpdate = true;
+
+            Logger.LogInformation("CarregarResultats: Dades carregades, {Count} resultats, forçant renderitzat", resultats.Count);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error carregant resultats electorals per l'any {Any}", selectedAny);
+            hasError = true;
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnSelectedAnyChanged(int value)
+    {
+        selectedAny = value;
+        await CarregarResultats();
+    }
+
+    private async Task RecarregarDades()
+    {
+        await CarregarAnysDisponibles();
+        await CarregarResultats();
+    }
+
+    private async Task InicialitzarGrafic()
+    {
+        if (!resultats.Any()) 
+        {
+            Logger.LogInformation("InicialitzarGrafic: No hi ha resultats, sortint");
+            return;
+        }
+
+        try
+        {
+            // Crear dades per al gràfic: escons si n'hi ha, sinó vots com a fallback
+            bool usaEscons = resultats.Any(r => r.Escons > 0);
+            _titolGrafic = usaEscons ? "Distribució d'Escons" : "Distribució de Vots";
+            var chartData = resultats
+                .Where(r => usaEscons ? r.Escons > 0 : r.VOTS > 0)
+                .OrderByDescending(r => usaEscons ? r.Escons : r.VOTS)
+                .Select(r => new
+                {
+                    partit = r.Partit ?? r.Sigles ?? "Desconegut",
+                    valor = usaEscons ? r.Escons : r.VOTS,
+                    percentatge = r.Percentatge
+                })
+                .ToList();
+
+            var titolEix = usaEscons ? "Nombre d'escons" : "Nombre de vots";
+            var titolGrafic = usaEscons ? "Distribució d'escons" : "Distribució de vots";
+
+            Logger.LogInformation("Inicialitzant gràfic amb {Count} partits ({Tipus})", chartData.Count, usaEscons ? "escons" : "vots");
+
+            if (!chartData.Any())
+            {
+                Logger.LogInformation("No hi ha dades per al gràfic");
+                return;
+            }
+
+            // Convertir les dades a arrays per passar a JavaScript
+            var labels = chartData.Select(d => d.partit).ToArray();
+            var data = chartData.Select(d => d.valor).ToArray();
+
+            await JSRuntime.InvokeVoidAsync("initParliamentChart", labels, data, titolEix, titolGrafic);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error inicialitzant el gràfic parlamentari");
+        }
+    }
+}

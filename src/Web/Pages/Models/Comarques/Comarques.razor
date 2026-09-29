@@ -1,0 +1,289 @@
+﻿@page "/comarques"
+@using AppAjuntament.Resources
+@using AppAjuntament.Services
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.Extensions.Localization
+@inject NavigationManager NavigationManager
+@inject GestorSubvencionsContext Context
+@inject IStringLocalizer<SharedResource> Localizer
+@inject IComarcaApiService ComarcaApiService
+@inject AppAjuntament.Services.DatabaseLoggerService DbLogger
+
+<style>
+    .comarca-card {
+        margin-bottom: 20px;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 15px;
+        background-color: #f8f9fa;
+    }
+    .comarca-header {
+        border-bottom: 2px solid #007bff;
+        padding-bottom: 10px;
+        margin-bottom: 15px;
+    }
+    .comarca-title {
+        color: #007bff;
+        font-size: 1.25rem;
+        font-weight: bold;
+    }
+    .info-row {
+        margin-bottom: 8px;
+    }
+    .info-label {
+        font-weight: bold;
+        color: #495057;
+        min-width: 150px;
+        display: inline-block;
+    }
+    .info-value {
+        color: #212529;
+    }
+    .cc-section {
+        background-color: #e9ecef;
+        padding: 10px;
+        border-radius: 5px;
+        margin-top: 10px;
+    }
+    .cc-title {
+        font-weight: bold;
+        color: #495057;
+        margin-bottom: 10px;
+    }
+    .coordenades {
+        font-family: monospace;
+        background-color: #e9ecef;
+        padding: 2px 4px;
+        border-radius: 3px;
+    }
+    .sync-log {
+        max-height: 300px;
+        overflow-y: auto;
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        padding: 10px;
+        border-radius: 5px;
+        font-family: monospace;
+        font-size: 0.9em;
+    }
+</style>
+
+<div class="screen-header mb-3">
+    <h3 class="screen-title">@Localizer["TitolComarques"]</h3>
+    <button class="btn btn-success" @onclick="SincronitzarComarques" disabled="@sincronitzant">
+        @if (sincronitzant)
+        {
+            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+            <text>Sincronitzant...</text>
+        }
+        else
+        {
+            <i class="fas fa-sync-alt me-2"></i>
+            <text>Sincronitzar amb API</text>
+        }
+    </button>
+</div>
+
+<div class="alert alert-info">
+    <strong>Informació:</strong> Les dades de les comarques es sincronitzen amb l'API de la Diputació de Barcelona. 
+    Utilitzeu el botó "Sincronitzar amb API" per comprovar si hi ha actualitzacions.
+</div>
+
+@if (mostrarResultatSync)
+{
+    <div class="alert alert-@(errorsSync > 0 ? "warning" : "success") alert-dismissible">
+        <div class="d-flex justify-content-between">
+            <div>
+                <strong>Resultat de la sincronització:</strong>
+                @actualitzadesSync comarques actualitzades, @errorsSync errors
+            </div>
+            <button type="button" class="btn-close" @onclick="() => mostrarResultatSync = false"></button>
+        </div>
+        @if (missatgesSync.Any())
+        {
+            <div class="sync-log mt-2">
+                @foreach (var missatge in missatgesSync)
+                {
+                    <div>@missatge</div>
+                }
+            </div>
+        }
+    </div>
+}
+
+<div class="row">
+    @foreach (var comarca in comarques)
+    {
+        <div class="col-md-6 col-lg-4">
+            <div class="comarca-card">
+                <div class="comarca-header">
+                    <div class="comarca-title">@comarca.Nom</div>
+                    <small class="text-muted">Codi: @comarca.Codi</small>
+                </div>
+                
+                @if (!string.IsNullOrEmpty(comarca.Coordenades))
+                {
+                    <div class="info-row">
+                        <span class="info-label">Coordenades:</span>
+                        <span class="info-value coordenades">@comarca.Coordenades</span>
+                    </div>
+                }
+                
+                @if (!string.IsNullOrEmpty(comarca.NomDBPedia))
+                {
+                    <div class="info-row">
+                        <span class="info-label">DBPedia:</span>
+                        <span class="info-value">@comarca.NomDBPedia</span>
+                    </div>
+                }
+
+                @if (TéDadesConsellComarcal(comarca))
+                {
+                    <div class="cc-section">
+                        <div class="cc-title">Consell Comarcal</div>
+                        
+                        @if (!string.IsNullOrEmpty(comarca.CCAdrecaCompleta))
+                        {
+                            <div class="info-row">
+                                <span class="info-label">Adreça:</span>
+                                <span class="info-value">@comarca.CCAdrecaCompleta</span>
+                            </div>
+                        }
+                        
+                        @if (!string.IsNullOrEmpty(comarca.CCCodiPostal))
+                        {
+                            <div class="info-row">
+                                <span class="info-label">Codi Postal:</span>
+                                <span class="info-value">@comarca.CCCodiPostal</span>
+                            </div>
+                        }
+                        
+                        @if (!string.IsNullOrEmpty(comarca.CCEmail) && comarca.CCEmail != "[]")
+                        {
+                            <div class="info-row">
+                                <span class="info-label">Email:</span>
+                                <span class="info-value">
+                                    @{
+                                        var emails = ParseEmails(comarca.CCEmail);
+                                        for (int i = 0; i < emails.Count; i++)
+                                        {
+                                            if (i > 0) { <text>, </text> }
+                                            <a href="mailto:@emails[i]">@emails[i]</a>
+                                        }
+                                    }
+                                </span>
+                            </div>
+                        }
+                        
+                        @if (!string.IsNullOrEmpty(comarca.CCFax))
+                        {
+                            <div class="info-row">
+                                <span class="info-label">Fax:</span>
+                                <span class="info-value">@comarca.CCFax</span>
+                            </div>
+                        }
+                        
+                        @if (!string.IsNullOrEmpty(comarca.CCWeb))
+                        {
+                            <div class="info-row">
+                                <span class="info-label">Web:</span>
+                                <span class="info-value">
+                                    <a href="@comarca.CCWeb" target="_blank">@comarca.CCWeb</a>
+                                </span>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@if (!comarques.Any())
+{
+    <div class="alert alert-warning">
+        No s'han trobat comarques a la base de dades.
+    </div>
+}
+
+@code {
+    private List<Comarca> comarques = new();
+    private bool sincronitzant = false;
+    private bool mostrarResultatSync = false;
+    private int actualitzadesSync = 0;
+    private int errorsSync = 0;
+    private List<string> missatgesSync = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarComarques();
+    }
+
+    private async Task CarregarComarques()
+    {
+        comarques = await Context.Comarques.OrderBy(c => c.Nom).ToListAsync();
+    }
+
+    private async Task SincronitzarComarques()
+    {
+        sincronitzant = true;
+        mostrarResultatSync = false;
+        StateHasChanged();
+
+        try
+        {
+            var resultat = await ComarcaApiService.SincronitzarComarquesAsync();
+            actualitzadesSync = resultat.actualitzades;
+            errorsSync = resultat.errors;
+            missatgesSync = resultat.missatges;
+            mostrarResultatSync = true;
+
+            // Recarregar les dades si hi ha hagut actualitzacions
+            if (actualitzadesSync > 0)
+            {
+                await CarregarComarques();
+            }
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error en sincronització de comarques des de la pàgina", ex, "SincronitzarComarques");
+            actualitzadesSync = 0;
+            errorsSync = 1;
+            missatgesSync = new List<string> { $"Error en la sincronització: {ex.Message}" };
+            mostrarResultatSync = true;
+        }
+        finally
+        {
+            sincronitzant = false;
+            StateHasChanged();
+        }
+    }
+
+    private bool TéDadesConsellComarcal(Comarca comarca)
+    {
+        return !string.IsNullOrEmpty(comarca.CCAdrecaCompleta) ||
+               !string.IsNullOrEmpty(comarca.CCAdreca) ||
+               !string.IsNullOrEmpty(comarca.CCCodiPostal) ||
+               (!string.IsNullOrEmpty(comarca.CCEmail) && comarca.CCEmail != "[]") ||
+               !string.IsNullOrEmpty(comarca.CCFax) ||
+               !string.IsNullOrEmpty(comarca.CCWeb);
+    }
+
+    private List<string> ParseEmails(string emailJson)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(emailJson) || emailJson == "[]")
+                return new List<string>();
+
+            // Intentar parsejar com JSON
+            var emails = System.Text.Json.JsonSerializer.Deserialize<List<string>>(emailJson);
+            return emails ?? new List<string>();
+        }
+        catch
+        {
+            // Si no és JSON vàlid, tractar com a text simple
+            return new List<string> { emailJson };
+        }
+    }
+}

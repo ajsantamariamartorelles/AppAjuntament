@@ -1,0 +1,242 @@
+﻿@page "/ordenances"
+@using AppAjuntament.Models
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@using AppAjuntament.Services
+@inject OrdenancesApiService OrdenancesService
+@inject ILogger<Ordenances> Logger
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Ordenances</PageTitle>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="screen-header">
+                <h1 class="h3 mb-0">
+                    <i class="fas fa-book-open me-2 text-primary"></i>
+                    Ordenances Municipals
+                </h1>
+                <button class="btn btn-outline-primary" @onclick="RecarregarDades" disabled="@isLoading">
+                    @if (isLoading)
+                    {
+                        <i class="fas fa-spinner fa-spin me-2"></i>
+                    }
+                    else
+                    {
+                        <i class="fas fa-sync-alt me-2"></i>
+                    }
+                    Actualitzar
+                </button>
+            </div>
+
+            @if (isLoading)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Carregant...</span>
+                    </div>
+                    <p class="mt-3">Carregant ordenances...</p>
+                </div>
+            }
+            else if (hasError)
+            {
+                <div class="alert alert-warning" role="alert">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    @errorMessage
+                </div>
+            }
+            else if (ordenances?.data?.Any() == true)
+            {
+                <div class="row mb-3">
+                    <div class="col-12 col-md-6">
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="fas fa-search"></i>
+                            </span>
+                            <input type="text" class="form-control" placeholder="Cerca per títol..." 
+                                   @bind="searchTerm" @oninput="OnSearchInput" />
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <div class="d-flex align-items-center">
+                            <span class="badge bg-info me-2">
+                                @filteredOrdenances.Count() de @(ordenances?.meta?.totalResourceCount ?? 0) ordenances
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    @foreach (var ordenanca in filteredOrdenances)
+                    {
+                        <div class="col-12 col-lg-6 mb-4">
+                            <div class="card h-100 shadow-sm">
+                                <div class="card-header bg-light">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <h5 class="card-title mb-0">
+                                            @ordenanca.attributes?.titol
+                                        </h5>
+                                        @if (ordenanca.attributes?.esVigent == true)
+                                        {
+                                            <span class="badge bg-success">Vigent</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary">No vigent</span>
+                                        }
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-2">
+                                        <small class="text-muted">
+                                            <i class="fas fa-hashtag me-1"></i>
+                                            <strong>Identificador:</strong> @ordenanca.attributes?.identificador
+                                        </small>
+                                    </div>
+                                    
+                                    @if (ordenanca.attributes?.any.HasValue == true)
+                                    {
+                                        <div class="mb-2">
+                                            <small class="text-muted">
+                                                <i class="fas fa-calendar me-1"></i>
+                                                <strong>Any:</strong> @ordenanca.attributes?.any
+                                            </small>
+                                        </div>
+                                    }
+
+                                    @if (!string.IsNullOrEmpty(ordenanca.attributes?.maxDataPublicacioDocument))
+                                    {
+                                        <div class="mb-2">
+                                            <small class="text-muted">
+                                                <i class="fas fa-calendar-alt me-1"></i>
+                                                <strong>Data publicació:</strong> @FormatDate(ordenanca.attributes?.maxDataPublicacioDocument ?? "")
+                                            </small>
+                                        </div>
+                                    }
+
+                                    @if (!string.IsNullOrEmpty(ordenanca.attributes?.observacions))
+                                    {
+                                        <div class="mb-3">
+                                            <small class="text-muted">
+                                                <i class="fas fa-info-circle me-1"></i>
+                                            <strong>Observacions:</strong> @ordenanca.attributes?.observacions
+                                            </small>
+                                        </div>
+                                    }
+                                </div>
+                                <div class="card-footer bg-white">
+                                    <div class="btn-group w-100" role="group">
+                                        @if (!string.IsNullOrEmpty(ordenanca.attributes?.urlCido))
+                                        {
+                                            <a href="@ordenanca.attributes?.urlCido" target="_blank" 
+                                               class="btn btn-outline-primary btn-sm">
+                                                <i class="fas fa-external-link-alt me-1"></i>
+                                                CIDO
+                                            </a>
+                                        }
+                                        @if (!string.IsNullOrEmpty(ordenanca.attributes?.urlWeb))
+                                        {
+                                            <a href="@ordenanca.attributes?.urlWeb" target="_blank" 
+                                               class="btn btn-outline-secondary btn-sm">
+                                                <i class="fas fa-globe me-1"></i>
+                                                Web
+                                            </a>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="text-center py-5">
+                    <i class="fas fa-book-open fa-3x text-muted mb-3"></i>
+                    <h4 class="text-muted">No s'han trobat ordenances</h4>
+                    <p class="text-muted">No hi ha ordenances disponibles en aquest moment.</p>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private OrdenancesApiResponse? ordenances;
+    private bool isLoading = true;
+    private bool hasError = false;
+    private string errorMessage = string.Empty;
+    private string searchTerm = string.Empty;
+
+    private IEnumerable<OrdenancaData> filteredOrdenances =>
+        ordenances?.data?.Where(o =>
+            string.IsNullOrEmpty(searchTerm) ||
+            (o.attributes?.titol?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (o.attributes?.identificador?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false)
+        ) ?? Enumerable.Empty<OrdenancaData>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarOrdenances();
+    }
+
+    private async Task CarregarOrdenances()
+    {
+        try
+        {
+            isLoading = true;
+            hasError = false;
+            errorMessage = string.Empty;
+            StateHasChanged();
+
+            ordenances = await OrdenancesService.GetOrdenancesAsync();
+
+            if (ordenances == null)
+            {
+                hasError = true;
+                errorMessage = "No s'han pogut carregar les ordenances.";
+            }
+        }
+        catch (TaskCanceledException)
+        {
+            hasError = true;
+            errorMessage = "El servei DIBA d'ordenances no està disponible en aquest moment.";
+        }
+        catch (HttpRequestException)
+        {
+            hasError = true;
+            errorMessage = "El servei DIBA d'ordenances no està disponible en aquest moment.";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error inesperat en carregar les ordenances");
+            hasError = true;
+            errorMessage = "No s'han pogut carregar les ordenances.";
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RecarregarDades()
+    {
+        await CarregarOrdenances();
+    }
+
+    private void OnSearchInput(ChangeEventArgs e)
+    {
+        searchTerm = e.Value?.ToString() ?? string.Empty;
+        StateHasChanged();
+    }
+
+    private string FormatDate(string dateString)
+    {
+        if (DateTime.TryParse(dateString, out var date))
+        {
+            return date.ToString("dd/MM/yyyy");
+        }
+        return dateString;
+    }
+}

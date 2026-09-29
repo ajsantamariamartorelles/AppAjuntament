@@ -1,0 +1,267 @@
+@page "/tercers"
+@using AppAjuntament.Models.Tercers
+@using AppAjuntament.Models.Base.Sexe
+@using Microsoft.EntityFrameworkCore
+@using System.Threading
+@inject GestorSubvencionsContext Context
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+@inject AppAjuntament.Services.DatabaseLoggerService DbLogger
+@implements IDisposable
+
+<style>
+    .tercers-taula {
+        table-layout: fixed;
+        width: 100%;
+    }
+    .tercers-taula th,
+    .tercers-taula td {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .col-nom      { width: 220px; }
+    .col-dni      { width: 120px; }
+    .col-telefon  { width: 120px; }
+    .col-email    { width: 200px; }
+    .col-poblacio { width: 150px; }
+    .col-accions  { width: 130px; }
+</style>
+
+<div class="screen-header">
+    <h3 class="screen-title"><i class="fas fa-address-book me-2"></i>Registre de Persones (Tercers)</h3>
+    <button @onclick="NouTercer" class="btn btn-primary">
+        <i class="fas fa-user-plus me-2"></i>Nova Persona
+    </button>
+</div>
+
+<!-- Filtres -->
+<div class="card mb-3 screen-filters-card">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-6">
+                <label class="form-label mb-1">Cerca</label>
+                <div class="input-group input-group-sm">
+                    <input type="text" class="form-control" placeholder="Nom, cognoms, DNI, email o telèfon..."
+                           @bind="textoCerca" @onkeypress="OnKeyPress" />
+                    <button class="btn btn-outline-secondary" type="button" @onclick="Cercar">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label mb-1">Mostrar</label>
+                <InputSelect class="form-select form-select-sm" @bind-Value="filtreVoluntaris">
+                    <option value="tots">Totes les persones</option>
+                    <option value="voluntaris">Amb voluntari vinculat</option>
+                    <option value="sense">Sense voluntari vinculat</option>
+                </InputSelect>
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <button class="btn btn-outline-secondary btn-sm" @onclick="NetejaCerca">
+                    <i class="fas fa-times me-1"></i>Netejar filtres
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (isLoading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Carregant...</span>
+        </div>
+    </div>
+}
+else
+{
+    <!-- Estadístiques -->
+    <div class="row g-2 mb-3">
+        <div class="col-auto">
+            <span class="badge bg-primary fs-6">@tercers.Count persones</span>
+        </div>
+        <div class="col-auto">
+            <span class="badge bg-success fs-6">@tercers.Count(t => t.Voluntaris.Any()) amb voluntari</span>
+        </div>
+    </div>
+
+    @if (!tercers.Any())
+    {
+        <div class="text-center py-5 text-muted">
+            <i class="fas fa-address-book fa-3x mb-3"></i>
+            <h5>No s'han trobat persones</h5>
+            <p>Canvia els filtres de cerca o crea una nova persona.</p>
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover tercers-taula">
+                <thead class="table-light">
+                    <tr>
+                        <th class="col-nom">Nom</th>
+                        <th class="col-dni">DNI / NIE</th>
+                        <th class="col-telefon">Telèfon</th>
+                        <th class="col-email">Email</th>
+                        <th class="col-poblacio">Població</th>
+                        <th class="col-accions">Accions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var tercer in tercers)
+                    {
+                        <tr>
+                            <td class="col-nom">
+                                <div>
+                                    <strong>@tercer.NomComplet</strong>
+                                    @if (tercer.Edat.HasValue)
+                                    {
+                                        <small class="text-muted ms-1">(@tercer.Edat anys)</small>
+                                    }
+                                    @if (tercer.Voluntaris.Any())
+                                    {
+                                        <br />
+                                        <span class="badge bg-success" title="Voluntari vinculat">
+                                            <i class="fas fa-hands-helping me-1"></i>Voluntari
+                                        </span>
+                                    }
+                                </div>
+                            </td>
+                            <td class="col-dni">@tercer.DNI</td>
+                            <td class="col-telefon">@tercer.Telefon</td>
+                            <td class="col-email" title="@tercer.Email">@tercer.Email</td>
+                            <td class="col-poblacio">@tercer.Poblacio</td>
+                            <td class="col-accions">
+                                <div class="btn-group btn-group-sm">
+                                    <button @onclick="() => EditarTercer(tercer.Id)"
+                                            class="btn btn-outline-primary" title="Editar">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button @onclick="() => EliminarTercer(tercer)"
+                                            class="btn btn-outline-danger" title="Eliminar"
+                                            disabled="@tercer.Voluntaris.Any()">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+@code {
+    private List<Tercer> tercers = new();
+    private string textoCerca = "";
+    private string filtreVoluntaris = "tots";
+    private bool isLoading = true;
+    private bool _disposedValue;
+    private CancellationTokenSource _cts = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarTercers();
+    }
+
+    private async Task CarregarTercers()
+    {
+        if (_disposedValue) return;
+        isLoading = true;
+        try
+        {
+            var query = Context.Tercers
+                .Include(t => t.Sexe)
+                .Include(t => t.Voluntaris)
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(textoCerca))
+            {
+                var cerca = textoCerca.ToLower();
+                query = query.Where(t =>
+                    (t.Nom != null && t.Nom.ToLower().Contains(cerca)) ||
+                    (t.Cognoms != null && t.Cognoms.ToLower().Contains(cerca)) ||
+                    (t.DNI != null && t.DNI.ToLower().Contains(cerca)) ||
+                    (t.Email != null && t.Email.ToLower().Contains(cerca)) ||
+                    (t.Telefon != null && t.Telefon.ToLower().Contains(cerca)));
+            }
+
+            query = filtreVoluntaris switch
+            {
+                "voluntaris" => query.Where(t => t.Voluntaris.Any()),
+                "sense"      => query.Where(t => !t.Voluntaris.Any()),
+                _            => query
+            };
+
+            tercers = await query
+                .OrderBy(t => t.Nom)
+                .ThenBy(t => t.Cognoms)
+                .ToListAsync(_cts.Token);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error carregant tercers", ex, "CarregarTercers");
+        }
+        finally
+        {
+            isLoading = false;
+            if (!_disposedValue) StateHasChanged();
+        }
+    }
+
+    private async Task Cercar() => await CarregarTercers();
+
+    private void NetejaCerca()
+    {
+        textoCerca = "";
+        filtreVoluntaris = "tots";
+        _ = CarregarTercers();
+    }
+
+    private async Task OnKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await Cercar();
+    }
+
+    private void NouTercer() =>
+        NavigationManager.NavigateTo("/tercers/nou");
+
+    private void EditarTercer(int id) =>
+        NavigationManager.NavigateTo($"/tercers/editar/{id}");
+
+    private async Task EliminarTercer(Tercer tercer)
+    {
+        if (tercer.Voluntaris.Any())
+        {
+            await JSRuntime.InvokeVoidAsync("alert",
+                $"No es pot eliminar '{tercer.NomComplet}' perquè té voluntaris vinculats.");
+            return;
+        }
+
+        var confirmat = await JSRuntime.InvokeAsync<bool>("confirm",
+            $"Estàs segur que vols eliminar '{tercer.NomComplet}'?");
+        if (!confirmat) return;
+
+        try
+        {
+            Context.Tercers.Remove(tercer);
+            await Context.SaveChangesAsync(_cts.Token);
+            await CarregarTercers();
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync($"Error eliminant tercer ID={tercer.Id}", ex, "EliminarTercer");
+            await JSRuntime.InvokeVoidAsync("alert", "Error en eliminar la persona: " + ex.Message);
+        }
+    }
+
+    public void Dispose()
+    {
+        _disposedValue = true;
+        _cts.Cancel();
+        _cts.Dispose();
+    }
+}

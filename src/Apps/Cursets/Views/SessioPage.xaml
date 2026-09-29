@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:AjuntamentSantaMariaMartorelles.ViewModels"
+             x:Class="AjuntamentSantaMariaMartorelles.Views.SessioPage"
+             x:DataType="vm:SessioViewModel"
+             BackgroundColor="{StaticResource PageBackground}"
+             Title="{Binding Titol}">
+
+    <Grid RowDefinitions="Auto,*,Auto" Padding="16,14" RowSpacing="12">
+
+        <VerticalStackLayout Grid.Row="0" Spacing="6">
+            <Label Text="{Binding Titol}" Style="{StaticResource PageTitle}" />
+            <BoxView Style="{StaticResource GoldRule}" />
+            <Label Text="{Binding Data, StringFormat='Sessió del {0:dd/MM/yyyy}'}"
+                   Style="{StaticResource Subtitle}" />
+            <Label Text="Marca qui ha vingut a classe i desa l'assistència."
+                   Style="{StaticResource Subtitle}" />
+            <Label Text="{Binding ErrorMessage}" Style="{StaticResource ErrorText}" IsVisible="{Binding HasError}" />
+        </VerticalStackLayout>
+
+        <RefreshView Grid.Row="1" IsRefreshing="{Binding IsBusy}">
+            <CollectionView ItemsSource="{Binding Alumnes}">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="vm:AlumnaAssistenciaViewModel">
+                        <Border Style="{StaticResource ListCard}" Margin="0,5">
+                            <Grid ColumnDefinitions="4,*,Auto" ColumnSpacing="14">
+                                <BoxView Grid.Column="0" CornerRadius="2"
+                                         Color="{StaticResource Primary}" />
+                                <Label Grid.Column="1"
+                                       Text="{Binding NomComplet}"
+                                       Style="{StaticResource ItemTitle}"
+                                       VerticalOptions="Center" />
+                                <CheckBox Grid.Column="2"
+                                          IsChecked="{Binding Present}"
+                                          Color="{StaticResource Primary}"
+                                          VerticalOptions="Center" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </RefreshView>
+
+        <VerticalStackLayout Grid.Row="2" Spacing="8">
+            <Label Text="Sessió desada correctament."
+                   Style="{StaticResource SuccessText}"
+                   IsVisible="{Binding Desada}" />
+            <Button Text="Desa l'assistència"
+                    Command="{Binding GuardarCommand}"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}" />
+            <ActivityIndicator IsRunning="{Binding IsBusy}" IsVisible="{Binding IsBusy}"
+                               Color="{StaticResource Primary}" HorizontalOptions="Center" />
+        </VerticalStackLayout>
+
+    </Grid>
+
+</ContentPage>

@@ -1,0 +1,582 @@
+@page "/armes/nou"
+@page "/armes/editar/{Id:int}"
+@using Microsoft.EntityFrameworkCore
+@using AppAjuntament.Models.Armes
+@using AppAjuntament.Models.Base.Ens
+@using AppAjuntament.Models.Tercers
+@using AppAjuntament.Models.Documents
+@inject GestorSubvencionsContext Context
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+
+<div class="screen-header">
+    <h3 class="screen-title"><i class="fas fa-shield-alt me-2"></i>@(Id.HasValue ? "Editar Arma" : "Nova Arma")</h3>
+    <button class="btn btn-outline-secondary" @onclick="Tornar">
+        <i class="fas fa-arrow-left me-2"></i>Tornar
+    </button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(errorMsg))
+{
+    <div class="alert alert-danger">@errorMsg</div>
+}
+
+<EditForm Model="arma" OnValidSubmit="Guardar">
+    <DataAnnotationsValidator />
+    <div class="screen-edit-grid">
+        <div>
+
+    <div class="card mb-4">
+        <div class="card-header"><h5 class="mb-0">Dades de l'arma</h5></div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Núm. Sèrie *</label>
+                    <InputText @bind-Value="arma.NumSerie" class="form-control" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Tipus *</label>
+                    <InputSelect @bind-Value="arma.TipusArmaId" class="form-select">
+                        <option value="0">Selecciona...</option>
+                        @foreach (var t in tipusArmes)
+                        {
+                            <option value="@t.Id">@t.Nom</option>
+                        }
+                    </InputSelect>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Ens propietari *</label>
+                    <InputSelect @bind-Value="arma.EnsId" class="form-select">
+                        <option value="0">Selecciona...</option>
+                        @foreach (var e in ensDisponibles)
+                        {
+                            <option value="@e.Id">@e.Nom</option>
+                        }
+                    </InputSelect>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Marca</label>
+                    <InputText @bind-Value="arma.Marca" class="form-control" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Model</label>
+                    <InputText @bind-Value="arma.Model" class="form-control" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Calibre</label>
+                    <InputText @bind-Value="arma.Calibre" class="form-control" />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Titular</label>
+                    <InputSelect @bind-Value="arma.TercerId" class="form-select">
+                        <option value="">Sense titular</option>
+                        @foreach (var t in tercersDisponibles)
+                        {
+                            <option value="@t.Id">@t.NomComplet (@t.DNI)</option>
+                        }
+                    </InputSelect>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Data alta</label>
+                    <InputDate @bind-Value="arma.DataAlta" class="form-control" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Data baixa</label>
+                    <InputDate @bind-Value="arma.DataBaixa" class="form-control" />
+                </div>
+                <div class="col-md-12">
+                    <label class="form-label">Motiu baixa</label>
+                    <InputText @bind-Value="arma.MotiuBaixa" class="form-control" />
+                </div>
+                <div class="col-md-12">
+                    <label class="form-label">Observacions</label>
+                    <InputTextArea @bind-Value="arma.Observacions" class="form-control" rows="3" />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex gap-2 d-lg-none">
+        <button type="submit" class="btn btn-primary">
+            <i class="fas fa-save me-2"></i>Guardar
+        </button>
+        <button type="button" class="btn btn-secondary" @onclick="Tornar">Cancel·lar</button>
+    </div>
+        </div>
+
+        <div class="screen-sidebar screen-sidebar-sticky">
+
+    @if (Id.HasValue && Id.Value > 0)
+    {
+        <div class="card mb-4">
+            <div class="card-header"><h6 class="mb-0"><i class="fas fa-paperclip me-2"></i>Documents</h6></div>
+            <div class="card-body p-2">
+                <DocumentsPanel EntityType="@DocumentEntityType.Arma"
+                                EntityId="@Id"
+                                TramitCodi="ARMA_INSPECCIO"
+                                AllowCustomType="true" />
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header"><h6 class="mb-0"><i class="fas fa-id-card me-2"></i>Llicències</h6></div>
+            <div class="card-body">
+                <div class="row g-2 mb-3">
+                    <div class="col-md-3">
+                        <InputSelect @bind-Value="llicenciaForm.TercerId" class="form-select form-select-sm">
+                            <option value="0">Titular...</option>
+                            @foreach (var t in tercersDisponibles)
+                            {
+                                <option value="@t.Id">@t.NomComplet (@t.DNI)</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-2">
+                        <InputSelect @bind-Value="llicenciaForm.TipusLicenciaId" class="form-select form-select-sm">
+                            <option value="0">Tipus...</option>
+                            @foreach (var t in tipusLicencies)
+                            {
+                                <option value="@t.Id">@t.Nom</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-2">
+                        <InputSelect @bind-Value="llicenciaForm.EstatLicenciaId" class="form-select form-select-sm">
+                            <option value="0">Estat...</option>
+                            @foreach (var e in estatsLicencia)
+                            {
+                                <option value="@e.Id">@e.Nom</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-2">
+                        <InputText @bind-Value="llicenciaForm.NumLicencia" class="form-control form-control-sm" placeholder="Núm. llicència" />
+                    </div>
+                    <div class="col-md-1">
+                        <InputDate @bind-Value="llicenciaForm.DataExpedicio" class="form-control form-control-sm" />
+                    </div>
+                    <div class="col-md-1">
+                        <InputDate @bind-Value="llicenciaForm.DataCaducitat" class="form-control form-control-sm" />
+                    </div>
+                    <div class="col-md-1 text-end">
+                        <button type="button" class="btn btn-sm btn-primary" @onclick="GuardarLlicencia">
+                            <i class="fas fa-save"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary ms-1" @onclick="NovaLlicencia">
+                            <i class="fas fa-eraser"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Titular</th>
+                                <th>Tipus</th>
+                                <th>Estat</th>
+                                <th>Núm.</th>
+                                <th>Caducitat</th>
+                                <th class="text-end"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (llicencies.Any())
+                            {
+                                @foreach (var l in llicencies)
+                                {
+                                    <tr>
+                                        <td>@l.Tercer?.NomComplet</td>
+                                        <td>@l.TipusLicencia?.Nom</td>
+                                        <td>@l.EstatLicencia?.Nom</td>
+                                        <td>@l.NumLicencia</td>
+                                        <td>@(l.DataCaducitat?.ToString("dd/MM/yyyy") ?? "—")</td>
+                                        <td class="text-end">
+                                            <button type="button" class="btn btn-sm btn-outline-primary me-1" @onclick="() => EditarLlicencia(l)">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => EliminarLlicencia(l.Id)">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr><td colspan="6" class="text-center text-muted">Sense llicències.</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header"><h6 class="mb-0"><i class="fas fa-clipboard-check me-2"></i>Inspeccions</h6></div>
+            <div class="card-body">
+                <div class="row g-2 mb-3">
+                    <div class="col-md-3">
+                        <InputDate @bind-Value="inspeccioForm.Data" class="form-control form-control-sm" />
+                    </div>
+                    <div class="col-md-3">
+                        <InputSelect @bind-Value="inspeccioForm.ResultatId" class="form-select form-select-sm">
+                            <option value="0">Resultat...</option>
+                            @foreach (var r in resultatsInspeccio)
+                            {
+                                <option value="@r.Id">@r.Nom</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-5">
+                        <InputText @bind-Value="inspeccioForm.Observacions" class="form-control form-control-sm" placeholder="Observacions" />
+                    </div>
+                    <div class="col-md-1 text-end">
+                        <button type="button" class="btn btn-sm btn-primary" @onclick="GuardarInspeccio">
+                            <i class="fas fa-save"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary ms-1" @onclick="NovaInspeccio">
+                            <i class="fas fa-eraser"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Data</th>
+                                <th>Resultat</th>
+                                <th>Observacions</th>
+                                <th class="text-end"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (inspeccions.Any())
+                            {
+                                @foreach (var i in inspeccions.OrderByDescending(x => x.Data))
+                                {
+                                    <tr>
+                                        <td>@i.Data.ToString("dd/MM/yyyy")</td>
+                                        <td>@i.Resultat?.Nom</td>
+                                        <td>@i.Observacions</td>
+                                        <td class="text-end">
+                                            <button type="button" class="btn btn-sm btn-outline-primary me-1" @onclick="() => EditarInspeccio(i)">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => EliminarInspeccio(i.Id)">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr><td colspan="4" class="text-center text-muted">Sense inspeccions.</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="card border-0 bg-light mb-3">
+            <div class="card-body">
+                <h6 class="mb-2"><i class="fas fa-layer-group me-2"></i>Procés</h6>
+                <ol class="small text-muted ps-3 mb-0">
+                    <li>Omple les dades principals.</li>
+                    <li>Guarda l'arma.</li>
+                    <li>Afegeix documents, llicències i inspeccions.</li>
+                </ol>
+            </div>
+        </div>
+    }
+
+    <div class="card border-0 bg-light">
+        <div class="card-body d-grid gap-2">
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save me-2"></i>Guardar
+            </button>
+            <button type="button" class="btn btn-secondary" @onclick="Tornar">Cancel·lar</button>
+        </div>
+    </div>
+        </div>
+    </div>
+</EditForm>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+
+    private Arma arma = new() { DataAlta = DateTime.Today };
+    private List<AuxTipusArma> tipusArmes = new();
+    private List<Ens> ensDisponibles = new();
+    private List<Tercer> tercersDisponibles = new();
+    private List<AuxTipusLicencia> tipusLicencies = new();
+    private List<AuxEstatLicencia> estatsLicencia = new();
+    private List<AuxResultatInspeccio> resultatsInspeccio = new();
+    private List<ArmaLlicencia> llicencies = new();
+    private List<ArmaInspeccio> inspeccions = new();
+
+    private ArmaLlicencia llicenciaForm = new();
+    private ArmaInspeccio inspeccioForm = new() { Data = DateTime.Today };
+
+    private string? errorMsg;
+
+    protected override async Task OnInitializedAsync()
+    {
+        tipusArmes = await Context.AuxTipusArmes.Where(t => t.Actiu).OrderBy(t => t.Nom).ToListAsync();
+        ensDisponibles = await Context.Ens.OrderBy(e => e.Nom).ToListAsync();
+        tercersDisponibles = await Context.Tercers.OrderBy(t => t.Nom).ThenBy(t => t.Cognoms).ToListAsync();
+        tipusLicencies = await Context.AuxTipusLicencies.Where(x => x.Actiu).OrderBy(x => x.Nom).ToListAsync();
+        estatsLicencia = await Context.AuxEstatLicencies.Where(x => x.Actiu).OrderBy(x => x.Nom).ToListAsync();
+        resultatsInspeccio = await Context.AuxResultatsInspeccio.Where(x => x.Actiu).OrderBy(x => x.Nom).ToListAsync();
+
+        if (Id.HasValue)
+        {
+            var entity = await Context.Armes.FindAsync(Id.Value);
+            if (entity != null)
+            {
+                arma = entity;
+                await CarregarRelacions();
+            }
+        }
+    }
+
+    private async Task Guardar()
+    {
+        errorMsg = null;
+
+        if (string.IsNullOrWhiteSpace(arma.NumSerie) || arma.TipusArmaId <= 0 || arma.EnsId <= 0)
+        {
+            errorMsg = "Núm. sèrie, tipus i ens són obligatoris.";
+            return;
+        }
+
+        var exists = await Context.Armes.AnyAsync(a => a.NumSerie == arma.NumSerie && a.Id != arma.Id);
+        if (exists)
+        {
+            errorMsg = "Ja existeix una arma amb aquest número de sèrie.";
+            return;
+        }
+
+        if (Id.HasValue && Id.Value > 0)
+        {
+            var entity = await Context.Armes.FindAsync(Id.Value);
+            if (entity != null)
+            {
+                entity.NumSerie = arma.NumSerie.Trim();
+                entity.Marca = arma.Marca;
+                entity.Model = arma.Model;
+                entity.Calibre = arma.Calibre;
+                entity.TipusArmaId = arma.TipusArmaId;
+                entity.TercerId = arma.TercerId;
+                entity.EnsId = arma.EnsId;
+                entity.DataAlta = arma.DataAlta;
+                entity.DataBaixa = arma.DataBaixa;
+                entity.MotiuBaixa = arma.MotiuBaixa;
+                entity.Observacions = arma.Observacions;
+                entity.UpdatedAt = DateTime.Now;
+            }
+        }
+        else
+        {
+            arma.NumSerie = arma.NumSerie.Trim();
+            arma.CreatedAt = DateTime.Now;
+            arma.UpdatedAt = DateTime.Now;
+            Context.Armes.Add(arma);
+        }
+
+        await Context.SaveChangesAsync();
+
+        if (!Id.HasValue)
+        {
+            NavigationManager.NavigateTo($"/armes/editar/{arma.Id}");
+            return;
+        }
+
+        NavigationManager.NavigateTo("/armes");
+    }
+
+    private void Tornar() => NavigationManager.NavigateTo("/armes");
+
+    private async Task CarregarRelacions()
+    {
+        if (!Id.HasValue || Id.Value <= 0)
+        {
+            llicencies = [];
+            inspeccions = [];
+            return;
+        }
+
+        llicencies = await Context.ArmesLlicencies
+            .Include(x => x.Tercer)
+            .Include(x => x.TipusLicencia)
+            .Include(x => x.EstatLicencia)
+            .Where(x => x.ArmaId == Id.Value)
+            .OrderByDescending(x => x.Id)
+            .ToListAsync();
+
+        inspeccions = await Context.ArmesInspeccions
+            .Include(x => x.Resultat)
+            .Where(x => x.ArmaId == Id.Value)
+            .OrderByDescending(x => x.Data)
+            .ToListAsync();
+    }
+
+    private void NovaLlicencia() => llicenciaForm = new ArmaLlicencia();
+
+    private void EditarLlicencia(ArmaLlicencia item)
+    {
+        llicenciaForm = new ArmaLlicencia
+        {
+            Id = item.Id,
+            ArmaId = item.ArmaId,
+            TercerId = item.TercerId,
+            TipusLicenciaId = item.TipusLicenciaId,
+            EstatLicenciaId = item.EstatLicenciaId,
+            NumLicencia = item.NumLicencia,
+            DataExpedicio = item.DataExpedicio,
+            DataCaducitat = item.DataCaducitat,
+            Observacions = item.Observacions,
+            CreatedAt = item.CreatedAt,
+            UpdatedAt = item.UpdatedAt,
+            CreatedBy = item.CreatedBy,
+            UpdatedBy = item.UpdatedBy,
+        };
+    }
+
+    private async Task GuardarLlicencia()
+    {
+        if (!Id.HasValue || Id.Value <= 0)
+        {
+            errorMsg = "Primer guarda l'arma.";
+            return;
+        }
+
+        if (llicenciaForm.TercerId <= 0 || llicenciaForm.TipusLicenciaId <= 0 || llicenciaForm.EstatLicenciaId <= 0)
+        {
+            errorMsg = "Titular, tipus i estat de llicència són obligatoris.";
+            return;
+        }
+
+        if (llicenciaForm.Id > 0)
+        {
+            var entity = await Context.ArmesLlicencies.FindAsync(llicenciaForm.Id);
+            if (entity != null)
+            {
+                entity.TercerId = llicenciaForm.TercerId;
+                entity.TipusLicenciaId = llicenciaForm.TipusLicenciaId;
+                entity.EstatLicenciaId = llicenciaForm.EstatLicenciaId;
+                entity.NumLicencia = llicenciaForm.NumLicencia;
+                entity.DataExpedicio = llicenciaForm.DataExpedicio;
+                entity.DataCaducitat = llicenciaForm.DataCaducitat;
+                entity.Observacions = llicenciaForm.Observacions;
+                entity.UpdatedAt = DateTime.Now;
+            }
+        }
+        else
+        {
+            llicenciaForm.ArmaId = Id.Value;
+            llicenciaForm.CreatedAt = DateTime.Now;
+            llicenciaForm.UpdatedAt = DateTime.Now;
+            Context.ArmesLlicencies.Add(llicenciaForm);
+        }
+
+        await Context.SaveChangesAsync();
+        NovaLlicencia();
+        await CarregarRelacions();
+    }
+
+    private async Task EliminarLlicencia(int id)
+    {
+        var confirm = await JSRuntime.InvokeAsync<bool>("confirm", "Vols eliminar aquesta llicència?");
+        if (!confirm)
+        {
+            return;
+        }
+
+        var entity = await Context.ArmesLlicencies.FindAsync(id);
+        if (entity != null)
+        {
+            Context.ArmesLlicencies.Remove(entity);
+            await Context.SaveChangesAsync();
+            await CarregarRelacions();
+        }
+    }
+
+    private void NovaInspeccio() => inspeccioForm = new ArmaInspeccio { Data = DateTime.Today };
+
+    private void EditarInspeccio(ArmaInspeccio item)
+    {
+        inspeccioForm = new ArmaInspeccio
+        {
+            Id = item.Id,
+            ArmaId = item.ArmaId,
+            Data = item.Data,
+            ResultatId = item.ResultatId,
+            Observacions = item.Observacions,
+            CreatedAt = item.CreatedAt,
+            UpdatedAt = item.UpdatedAt,
+            CreatedBy = item.CreatedBy,
+            UpdatedBy = item.UpdatedBy,
+        };
+    }
+
+    private async Task GuardarInspeccio()
+    {
+        if (!Id.HasValue || Id.Value <= 0)
+        {
+            errorMsg = "Primer guarda l'arma.";
+            return;
+        }
+
+        if (inspeccioForm.ResultatId <= 0)
+        {
+            errorMsg = "Selecciona el resultat de la inspecció.";
+            return;
+        }
+
+        if (inspeccioForm.Id > 0)
+        {
+            var entity = await Context.ArmesInspeccions.FindAsync(inspeccioForm.Id);
+            if (entity != null)
+            {
+                entity.Data = inspeccioForm.Data;
+                entity.ResultatId = inspeccioForm.ResultatId;
+                entity.Observacions = inspeccioForm.Observacions;
+                entity.UpdatedAt = DateTime.Now;
+            }
+        }
+        else
+        {
+            inspeccioForm.ArmaId = Id.Value;
+            inspeccioForm.CreatedAt = DateTime.Now;
+            inspeccioForm.UpdatedAt = DateTime.Now;
+            Context.ArmesInspeccions.Add(inspeccioForm);
+        }
+
+        await Context.SaveChangesAsync();
+        NovaInspeccio();
+        await CarregarRelacions();
+    }
+
+    private async Task EliminarInspeccio(int id)
+    {
+        var confirm = await JSRuntime.InvokeAsync<bool>("confirm", "Vols eliminar aquesta inspecció?");
+        if (!confirm)
+        {
+            return;
+        }
+
+        var entity = await Context.ArmesInspeccions.FindAsync(id);
+        if (entity != null)
+        {
+            Context.ArmesInspeccions.Remove(entity);
+            await Context.SaveChangesAsync();
+            await CarregarRelacions();
+        }
+    }
+}

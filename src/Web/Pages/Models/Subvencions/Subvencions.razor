@@ -1,0 +1,1008 @@
+﻿@page "/subvencions"
+@using AppAjuntament.Services
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Forms
+@using System.Threading
+@inject GestorSubvencionsContext Context
+@inject IDbContextFactory<GestorSubvencionsContext> ContextFactory
+@inject DatabaseLoggerService DbLogger
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+@inject IWebHostEnvironment Environment
+@implements IDisposable
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header screen-header">
+                    <h3 class="mb-0 screen-title">
+                        <i class="fas fa-euro-sign me-2"></i>Gestió de Subvencions
+                    </h3>
+                    <div class="btn-group" role="group">
+                        <button class="btn btn-primary" @onclick="NovaSubvencio">
+                            <i class="fas fa-plus me-1"></i>Nova Subvenció
+                        </button>
+                        <button class="btn btn-success ms-2" @onclick="MostrarDialegImportacio" disabled="@(anySeleccionat == 0)">
+                            <i class="fas fa-file-upload me-1"></i>Importar Excel
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Filtres -->
+                    <div class="card mb-3 screen-filters-card">
+                        <div class="card-body">
+                            <div class="row g-3 align-items-end">
+                                <div class="col-md-2">
+                                    <label class="form-label">Any:</label>
+                                    <InputSelect class="form-select" @bind-Value="anySeleccionat">
+                                        <option value="0">Tots</option>
+                                        @foreach (var any in anysDisponibles)
+                                        {
+                                            <option value="@any.Id">@any.Any</option>
+                                        }
+                                    </InputSelect>
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Estat:</label>
+                                    <InputSelect class="form-select" @bind-Value="estatSeleccionat">
+                                        <option value="0">Tots</option>
+                                        @foreach (var estat in estatsDisponibles)
+                                        {
+                                            <option value="@estat.Id">@(estat.Nom ?? "")</option>
+                                        }
+                                    </InputSelect>
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Entitat:</label>
+                                    <InputSelect class="form-select" @bind-Value="entitatSeleccionada">
+                                        <option value="0">Tots</option>
+                                        @foreach (var entitat in entitatsDisponibles)
+                                        {
+                                            <option value="@entitat.Id">@entitat.Nom</option>
+                                        }
+                                    </InputSelect>
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Àrea:</label>
+                                    <InputSelect class="form-select" @bind-Value="areaSeleccionada">
+                                        <option value="0">Tots</option>
+                                        @foreach (var area in areasDisponibles)
+                                        {
+                                            <option value="@area.Id">@area.Nom</option>
+                                        }
+                                    </InputSelect>
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Regidor:</label>
+                                    <InputSelect class="form-select" @bind-Value="regidorSeleccionat">
+                                        <option value="0">Tots</option>
+                                        @foreach (var regidor in regidorsDisponibles)
+                                        {
+                                            <option value="@regidor.Id">@regidor.Nom</option>
+                                        }
+                                    </InputSelect>
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Ens:</label>
+                                    <InputSelect class="form-select" @bind-Value="ensSeleccionat">
+                                        <option value="0">Tots</option>
+                                        @foreach (var ens in ensDisponibles)
+                                        {
+                                            <option value="@ens.Id">@ens.Nom</option>
+                                        }
+                                    </InputSelect>
+                                </div>
+                                <div class="col-12 d-flex justify-content-end">
+                                    <button class="btn btn-outline-secondary me-2" @onclick="NetejirFiltres">
+                                        <i class="fas fa-times me-1"></i>Netejar Filtres
+                                    </button>
+                                    <button class="btn btn-info me-2" @onclick="ExportarSubvencions">
+                                        <i class="fas fa-download me-1"></i>Exportar
+                                    </button>
+                                    <button class="btn btn-success" @onclick="ActualitzarTot">
+                                        <i class="fas fa-sync me-1"></i>Actualitzar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Taula de Subvencions -->
+                    @if (subvencions.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Subvenció</th>
+                                        <th>Actuació</th>
+                                        <th>Any</th>
+                                        <th>Àrea</th>
+                                        <th>Estat</th>
+                                        <th>Regidor</th>
+                                        <th>Ens</th>
+                                        <th>Import</th>
+                                        <th>Accions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var subvencio in subvencions)
+                                    {
+                                        <tr>
+                                            <td title="@subvencio.Subvencio">
+                                                <div class="text-truncate" style="max-width: 200px;">
+                                                    @subvencio.Subvencio
+                                                </div>
+                                            </td>
+                                            <td title="@subvencio.Actuacio">
+                                                <div class="text-truncate" style="max-width: 200px;">
+                                                    @subvencio.Actuacio
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-secondary">
+                                                    @subvencio.Any?.Any
+                                                </span>
+                                            </td>
+                                            <td>@(subvencio.Area?.Nom ?? "")</td>
+                                            <td>
+                                                <select value="@GetEstatValue(subvencio.Id)" 
+                                                        @onchange="@(e => OnEstatChanged(subvencio.Id, e))" 
+                                                        class="form-select form-select-sm">
+                                                    <option value="">Sense estat</option>
+                                                    @foreach (var estat in estatsDisponibles)
+                                                    {
+                                                        <option value="@estat.Id.ToString()">@(estat.Nom ?? "")</option>
+                                                    }
+                                                </select>
+                                            </td>
+                                            <td>@string.Join(", ", subvencio.RegidorsSubvencions.Select(rs => rs.Regidor?.Nom ?? "").Where(n => !string.IsNullOrEmpty(n)))</td>
+                                            <td title="@(subvencio.Ens?.Nom ?? "")">
+                                                <div class="text-truncate" style="max-width: 150px;">
+                                                    @(subvencio.Ens?.Nom ?? "")
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <span class="badge @GetImportBadgeClass(GetEstatNom(subvencio.Id))">
+                                                    @subvencio.ImportAtorgat?.ToString("C")
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <div class="btn-group btn-group-sm" role="group">
+                                                    <button @onclick="() => EditarSubvencio(subvencio.Id)" 
+                                                            class="btn btn-outline-primary" 
+                                                            title="Editar">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-info text-center">
+                            <i class="fas fa-info-circle me-2"></i>
+                            No s'han trobat subvencions amb els filtres aplicats.
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal d'importació -->
+@if (mostrarDialegImportacio)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-file-upload me-2"></i>Importar Subvencions des d'Excel
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="TancarDialegImportacio"></button>
+                </div>
+                <div class="modal-body">
+                    @if (resultatImportacio == null)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Selecciona el fitxer CSV/Excel:</label>
+                            <InputFile OnChange="HandleFileSelected" class="form-control" accept=".csv,.xlsx,.xls" />
+                        </div>
+
+                        <div class="alert alert-info">
+                            <i class="fas fa-calendar me-2"></i>
+                            Aquest procés afectarà exclusivament les subvencions de l'any <strong>@ObtenirAnySeleccionat()</strong>.
+                            @if(anySeleccionat == 0)
+                            {
+                                <div class="mt-2"><strong>Has de seleccionar un any abans d'importar.</strong></div>
+                            }
+                        </div>
+                        
+                        @if (!string.IsNullOrEmpty(fitxerSeleccionat))
+                        {
+                            <div class="alert alert-info">
+                                <i class="fas fa-file me-2"></i>
+                                Fitxer seleccionat: <strong>@fitxerSeleccionat</strong>
+                            </div>
+                        }
+                        
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>Nota:</strong> El fitxer ha de tenir les següents columnes en aquest ordre:
+                            <ol class="mb-0 mt-2">
+                                <li>REGIDOR</li>
+                                <li>ÀREA</li>
+                                <li>ORGANISME</li>
+                                <li>SUBVENCIÓ</li>
+                                <li>ACTUACIÓ</li>
+                                <li>EXPEDIENT INTERN</li>
+                                <li>EXPEDIENT EXTERN</li>
+                                <li>IMPORT ATORGAT</li>
+                                <li>PAGAMENT</li>
+                                <li>IMPORT TOTAL ACTUACIÓ</li>
+                                <li>OBLIGACIONS</li>
+                                <li>PERSONA DE CONTACTE</li>
+                                <li>TERMINIS</li>
+                                <li>JUSTIFICACIÓ</li>
+                                <li>PARTIDA</li>
+                                <li>JUSTIFICACIÓ VERIFICADA</li>
+                                <li>IMPORTS A RETORNAR</li>
+                            </ol>
+                        </div>
+                    }
+                    else
+                    {
+                        <!-- Resultats de la importació -->
+                        <div class="alert @(resultatImportacio.TéErrors ? "alert-danger" : "alert-success")">
+                            <h6><i class="fas fa-check-circle me-2"></i>Importació finalitzada</h6>
+                            <ul class="mb-0">
+                                <li><strong>Registres importats:</strong> @resultatImportacio.Importats</li>
+                                <li><strong>Registres actualitzats:</strong> @resultatImportacio.Actualitzats</li>
+                                <li><strong>Registres sense canvis:</strong> @resultatImportacio.SenseCanvis</li>
+                                @if (resultatImportacio.MestresCreats > 0)
+                                {
+                                    <li><strong>Àrees/Organismes creats:</strong> @resultatImportacio.MestresCreats</li>
+                                }
+                                <li><strong>Total processat:</strong> @resultatImportacio.Total</li>
+                                @if(!string.IsNullOrEmpty(resultatImportacio.DelimitadorDetectat))
+                                {
+                                    <li><strong>Delimitador detectat:</strong> <code>@resultatImportacio.DelimitadorDetectat</code></li>
+                                    <li><strong>Columnes capçalera:</strong> @resultatImportacio.ColumnesCapcalera</li>
+                                }
+                            </ul>
+                        </div>
+
+                        @if (resultatImportacio.TéAdvertencies)
+                        {
+                            <div class="alert alert-warning">
+                                <h6><i class="fas fa-exclamation-triangle me-2"></i>Advertències (@resultatImportacio.Advertencies.Count)</h6>
+                                <div style="max-height: 200px; overflow-y: auto;">
+                                    <ul class="mb-0">
+                                        @foreach (var advertencia in resultatImportacio.Advertencies.Take(20))
+                                        {
+                                            <li><small>@advertencia</small></li>
+                                        }
+                                        @if (resultatImportacio.Advertencies.Count > 20)
+                                        {
+                                            <li><small><em>... i @(resultatImportacio.Advertencies.Count - 20) més</em></small></li>
+                                        }
+                                    </ul>
+                                </div>
+                            </div>
+                        }
+
+                        @if (resultatImportacio.TéErrors)
+                        {
+                            <div class="alert alert-danger">
+                                <h6><i class="fas fa-times-circle me-2"></i>Errors (@resultatImportacio.Errors.Count)</h6>
+                                <div style="max-height: 200px; overflow-y: auto;">
+                                    <ul class="mb-0">
+                                        @foreach (var error in resultatImportacio.Errors.Take(20))
+                                        {
+                                            <li><small>@error</small></li>
+                                        }
+                                        @if (resultatImportacio.Errors.Count > 20)
+                                        {
+                                            <li><small><em>... i @(resultatImportacio.Errors.Count - 20) més</em></small></li>
+                                        }
+                                    </ul>
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+                <div class="modal-footer">
+                    @if (resultatImportacio == null)
+                    {
+                        <button type="button" class="btn btn-secondary" @onclick="TancarDialegImportacio">Cancel·lar</button>
+                        <button type="button" class="btn btn-primary" @onclick="ProcessarImportacio" disabled="@(string.IsNullOrEmpty(fitxerSeleccionat) || processantImportacio || anySeleccionat == 0)">
+                            @if (processantImportacio)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                                <text>Processant...</text>
+                            }
+                            else
+                            {
+                                <i class="fas fa-upload me-1"></i>
+                                <text>Importar</text>
+                            }
+                        </button>
+                    }
+                    else
+                    {
+                        <button type="button" class="btn btn-primary" @onclick="TancarDialegImportacio">Tancar</button>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Subvencio_> subvencions = new();
+    private List<Estat> estats = new();
+
+    private List<Any_> anysDisponibles = new();
+    private List<Estat> estatsDisponibles = new();
+    private List<Entitat> entitatsDisponibles = new();
+    private List<Area> areasDisponibles = new();
+    private List<Regidor> regidorsDisponibles = new();
+    private List<Ens> ensDisponibles = new();
+
+    private bool _disposedValue;
+    private CancellationTokenSource _cts = new CancellationTokenSource();
+    private bool _isLoading = false;
+
+    // Aquestes variables ja no les necessitem amb la nova implementació
+    // private int? subvencioEnEdicio = null;
+    // private int subvencioEstatEditatId;
+
+    private int anySeleccionat
+    {
+        get => _anySeleccionat;
+        set
+        {
+            if (_anySeleccionat != value)
+            {
+                _anySeleccionat = value;
+                if (_inicialitzat)
+                    _ = CarregarSubvencions();
+            }
+        }
+    }
+    private int _anySeleccionat;
+
+    private int estatSeleccionat
+    {
+        get => _estatSeleccionat;
+        set
+        {
+            if (_estatSeleccionat != value)
+            {
+                _estatSeleccionat = value;
+                if (_inicialitzat)
+                    _ = CarregarSubvencions();
+            }
+        }
+    }
+    private int _estatSeleccionat;
+
+    private int entitatSeleccionada
+    {
+        get => _entitatSeleccionada;
+        set
+        {
+            if (_entitatSeleccionada != value)
+            {
+                _entitatSeleccionada = value;
+                if (_inicialitzat)
+                    _ = CarregarSubvencions();
+            }
+        }
+    } 
+    private int _entitatSeleccionada = 0;
+
+    private int areaSeleccionada
+    {
+        get => _areaSeleccionada;
+        set
+        {
+            if (_areaSeleccionada != value)
+            {
+                _areaSeleccionada = value;
+                if (_inicialitzat)
+                    _ = CarregarSubvencions();
+            }
+        }
+    }
+    private int _areaSeleccionada = 0;
+
+    private int regidorSeleccionat
+    {
+        get => _regidorSeleccionada;
+        set
+        {
+            if (_regidorSeleccionada != value)
+            {
+                _regidorSeleccionada = value;
+                if (_inicialitzat)
+                    _ = CarregarSubvencions();
+            }
+        }
+    } 
+    private int _regidorSeleccionada = 0;
+
+    private int ensSeleccionat
+    {
+        get => _ensSeleccionada;
+        set
+        {
+            if (_ensSeleccionada != value)
+            {
+                _ensSeleccionada = value;
+                if (_inicialitzat)
+                    _ = CarregarSubvencions();
+            }
+        }
+    } 
+    private int _ensSeleccionada = 0;
+
+    private bool _inicialitzat = false;
+
+    private Dictionary<int, string> estatEditatDict = new();
+    private Dictionary<int, bool> estatCanviatDict = new();
+    private Dictionary<int, string> estatOriginalDict = new();
+
+    // Variables per a la importació
+    private bool mostrarDialegImportacio = false;
+    private bool processantImportacio = false;
+    private string? fitxerSeleccionat = null;
+    private IBrowserFile? fitxerCarregat = null;
+    private ResultatImportacio? resultatImportacio = null;
+
+    private bool IsCancellationRequested()
+    {
+        try
+        {
+            return _cts.IsCancellationRequested;
+        }
+        catch (ObjectDisposedException)
+        {
+            return true;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try 
+        {
+            using (var context = ContextFactory.CreateDbContext())
+            {
+                // solsDisponibles = await context.Sols.OrderBy(a => a.Nom).ToListAsync(_cts.Token);
+                anysDisponibles = await context.Anys.OrderByDescending(a => a.Any).ToListAsync(_cts.Token);
+                var anyActual = DateTime.Now.Year;
+                var anyActualObj = anysDisponibles.FirstOrDefault(a => a.Any == anyActual);
+                anySeleccionat = anyActualObj?.Id ?? (anysDisponibles.FirstOrDefault()?.Id ?? 0);
+
+                estatsDisponibles = await context.Estats.OrderByDescending(a => a.Nom).ToListAsync(_cts.Token);
+                estatSeleccionat = 0;
+
+                entitatsDisponibles = await context.Entitats.OrderBy(a => a.Nom).ToListAsync(_cts.Token);
+                areasDisponibles = await context.Arees.OrderBy(a => a.Nom).ToListAsync(_cts.Token);
+                regidorsDisponibles = await context.Regidors.OrderBy(a => a.Nom).ToListAsync(_cts.Token);
+                ensDisponibles = await context.Ens.OrderBy(a => a.Nom).ToListAsync(_cts.Token);
+
+                estats = await context.Estats.ToListAsync(_cts.Token);
+            }
+            await CarregarSubvencions();
+            _inicialitzat = true;
+        }
+        catch (OperationCanceledException)
+        {
+            // Operació cancel·lada, no fer res
+        }
+    }
+
+    private void InitializeEstatDictionaries()
+    {
+        if (_disposedValue) return;
+        
+        // Netejar els diccionaris existents
+        estatEditatDict.Clear();
+        estatOriginalDict.Clear();
+        estatCanviatDict.Clear();
+
+        // Inicialitzar amb les noves subvencions
+        foreach (var subvencio in subvencions)
+        {
+            var estatValue = (subvencio.EstatId ?? 0) == 0 ? "" : subvencio.EstatId!.ToString();
+            estatEditatDict[subvencio.Id] = estatValue!;
+            estatOriginalDict[subvencio.Id] = estatValue!;
+            estatCanviatDict[subvencio.Id] = false;
+        }
+    }
+
+    // Mètodes per treballar amb els estats sense utilitzar bind-Value directament al diccionari
+    private string GetEstatValue(int subvencioId)
+    {
+        if (_disposedValue) return "";
+        
+        if (estatEditatDict.TryGetValue(subvencioId, out var value))
+        {
+            return value;
+        }
+        var subvencio = subvencions.FirstOrDefault(s => s.Id == subvencioId);
+        return subvencio == null || (subvencio.EstatId ?? 0) == 0 ? "" : (subvencio.EstatId ?? 0).ToString();
+    }
+
+    private async Task UpdateEstat(int subvencioId, string newValue)
+    {
+        if (_disposedValue) return;
+
+        // Assegurar que els diccionaris contenen aquest id
+        if (!estatEditatDict.ContainsKey(subvencioId))
+        {
+            var subvencio = subvencions.FirstOrDefault(s => s.Id == subvencioId);
+            if (subvencio != null)
+            {
+                estatOriginalDict[subvencioId] = subvencio.EstatId?.ToString() ?? "";
+            }
+            else
+            {
+                estatOriginalDict[subvencioId] = "";
+            }
+        }
+
+        // Actualitzar immediatament el diccionari per que es reflecteixi el canvi visual
+        estatEditatDict[subvencioId] = newValue;
+        estatCanviatDict[subvencioId] = newValue != estatOriginalDict[subvencioId];
+        
+        // Forçar re-renderitzat immediat per mostrar el canvi de color
+        if (!_disposedValue)
+        {
+            StateHasChanged();
+        }
+        
+        // Guardar automàticament el canvi a la base de dades
+        try
+        {
+            using (var context = ContextFactory.CreateDbContext())
+            {
+                var subvencio = subvencions.FirstOrDefault(s => s.Id == subvencioId);
+                if (subvencio != null && !_disposedValue)
+                {
+                    if (string.IsNullOrEmpty(newValue))
+                    {
+                        subvencio.EstatId = null;
+                    }
+                    else if (int.TryParse(newValue, out var intValue) && intValue != 0)
+                    {
+                        subvencio.EstatId = intValue;
+                    }
+                    else
+                    {
+                        subvencio.EstatId = null;
+                    }
+                    context.Subvencions.Update(subvencio);
+                    await context.SaveChangesAsync(_cts.Token);
+                    
+                    // Actualitzar l'estat original després de guardar
+                    if (!_disposedValue)
+                    {
+                        estatOriginalDict[subvencioId] = newValue;
+                        estatCanviatDict[subvencioId] = false;
+                    }
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Operació cancel·lada, no fer res
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync($"Error guardant estat de subvenció ID={subvencioId}", ex, "GuardarCanviarEstatAsync", $"SubvencioId={subvencioId}");
+            
+            // En cas d'error, revertir el canvi només si no està disposat
+            if (!_disposedValue && estatOriginalDict.TryGetValue(subvencioId, out var originalValue))
+            {
+                estatEditatDict[subvencioId] = originalValue;
+                estatCanviatDict[subvencioId] = false;
+                try
+                {
+                    await JSRuntime.InvokeVoidAsync("alert", $"Error en guardar l'estat: {ex.Message}");
+                }
+                catch
+                {
+                    // Si fallar en mostrar l'alerta, ignorar
+                }
+            }
+        }
+        
+        // Un altre StateHasChanged al final per assegurar consistència
+        if (!_disposedValue)
+        {
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnEstatChanged(int subvencioId, ChangeEventArgs e)
+    {
+        if (_disposedValue || e.Value == null) return;
+        
+        var newValue = e.Value.ToString() ?? "";
+        await UpdateEstat(subvencioId, newValue);
+    }
+
+    private bool EstatCanviat(int subvencioId)
+    {
+        return estatCanviatDict.TryGetValue(subvencioId, out var value) && value;
+    }
+
+    private async Task CarregarSubvencions()
+    {
+        if (_disposedValue || IsCancellationRequested() || _isLoading) return;
+        
+        _isLoading = true;
+        try
+        {
+            using (var context = ContextFactory.CreateDbContext())
+            {
+                var query = context.Subvencions
+                    .Include(s => s.Any)
+                    .Include(s => s.Area)
+                    .Include(s => s.Entitat)
+                    .Include(s => s.Estat)
+                    .Include(s => s.RegidorsSubvencions)
+                        .ThenInclude(rs => rs.Regidor)
+                    .Include(s => s.Ens!)
+                        .ThenInclude(e => e.Comarca)
+                    .Include(s => s.Ens!)
+                        .ThenInclude(e => e.Provincia)
+                    .AsQueryable();
+
+                if (anySeleccionat != 0)
+                    query = query.Where(s => s.AnyId == anySeleccionat);
+                if (estatSeleccionat != 0)
+                    query = query.Where(s => s.EstatId == estatSeleccionat);
+                if (entitatSeleccionada != 0)
+                    query = query.Where(s => s.EntitatId == entitatSeleccionada);
+                if (areaSeleccionada != 0)
+                    query = query.Where(s => s.AreaId == areaSeleccionada);
+                if (regidorSeleccionat != 0)
+                    query = query.Where(s => s.RegidorsSubvencions.Any(rs => rs.RegidorId == regidorSeleccionat));
+                if (ensSeleccionat != 0)
+                    query = query.Where(s => s.EnsId == ensSeleccionat);
+
+                subvencions = await query.ToListAsync(_cts.Token);
+                
+                if (!_disposedValue)
+                {
+                    InitializeEstatDictionaries();
+                    StateHasChanged();
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Operació cancel·lada, no fer res
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task FiltrarPerAny(ChangeEventArgs e)
+    {
+        if (_disposedValue) return;
+        
+        if (int.TryParse(e.Value?.ToString(), out var nouAnyId))
+        {
+            anySeleccionat = nouAnyId;
+            await CarregarSubvencions();
+            
+            if (!_disposedValue)
+                StateHasChanged();
+        }
+    }
+
+    private async Task GuardarEstat(Subvencio_ subvencio)
+    {
+        if (_disposedValue) return;
+        
+        try
+        {
+            if (estatEditatDict.TryGetValue(subvencio.Id, out var nouEstatId))
+            {
+                if (string.IsNullOrEmpty(nouEstatId))
+                {
+                    subvencio.EstatId = null;
+                }
+                else if (int.TryParse(nouEstatId, out var intValue) && intValue != 0)
+                {
+                    subvencio.EstatId = intValue;
+                }
+                else
+                {
+                    subvencio.EstatId = null;
+                }
+                Context.Subvencions.Update(subvencio);
+                await Context.SaveChangesAsync(_cts.Token);
+                
+                if (!_disposedValue)
+                {
+                    estatOriginalDict[subvencio.Id] = estatEditatDict[subvencio.Id];
+                    estatCanviatDict[subvencio.Id] = false;
+                    StateHasChanged();
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Operació cancel·lada, no fer res
+        }
+    }
+
+    private void CancelarEdicio(Subvencio_ subvencio)
+    {
+        if (_disposedValue) return;
+        
+        if (estatOriginalDict.TryGetValue(subvencio.Id, out var originalValue))
+        {
+            estatEditatDict[subvencio.Id] = originalValue;
+            estatCanviatDict[subvencio.Id] = false;
+            if (!_disposedValue)
+            {
+                StateHasChanged();
+            }
+        }
+    }
+
+    private void EditarSubvencio(int id)
+    {
+        if (_disposedValue) return;
+        NavigationManager.NavigateTo($"/subvencions/editar/{id}");
+    }
+
+    private void NovaSubvencio()
+    {
+        if (_disposedValue) return;
+        NavigationManager.NavigateTo("/subvencions/nova");
+    }
+
+    private void NetejirFiltres()
+    {
+        if (_disposedValue) return;
+        
+        anySeleccionat = 0;
+        estatSeleccionat = 0;
+        entitatSeleccionada = 0;
+        areaSeleccionada = 0;
+        regidorSeleccionat = 0;
+        ensSeleccionat = 0;
+        _ = CarregarSubvencions();
+    }
+
+    private async Task ExportarSubvencions()
+    {
+        if (_disposedValue) return;
+        
+        try
+        {
+            // Implementar exportació CSV o Excel
+            await JSRuntime.InvokeVoidAsync("alert", "Funcionalitat d'exportació en desenvolupament");
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync("Error exportant subvencions", ex, "ExportarSubvencions");
+            
+            if (!_disposedValue)
+            {
+                try
+                {
+                    await JSRuntime.InvokeVoidAsync("alert", $"Error en l'exportació: {ex.Message}");
+                }
+                catch
+                {
+                    // Si falla el JSRuntime, ignorar
+                }
+            }
+        }
+    }
+
+    private async Task ActualitzarTot()
+    {
+        if (_disposedValue) return;
+        
+        await CarregarSubvencions();
+        if (!_disposedValue)
+        {
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "Dades actualitzades correctament");
+            }
+            catch
+            {
+                // Si falla el JSRuntime, ignorar
+            }
+        }
+    }
+
+    // ===== MÈTODES PER A LA IMPORTACIÓ =====
+
+    private void MostrarDialegImportacio()
+    {
+        if (_disposedValue) return;
+        
+        mostrarDialegImportacio = true;
+        fitxerSeleccionat = null;
+        fitxerCarregat = null;
+        resultatImportacio = null;
+        StateHasChanged();
+    }
+
+    private void TancarDialegImportacio()
+    {
+        if (_disposedValue) return;
+        
+        mostrarDialegImportacio = false;
+        fitxerSeleccionat = null;
+        fitxerCarregat = null;
+        resultatImportacio = null;
+        StateHasChanged();
+    }
+
+    private void HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        if (_disposedValue) return;
+        
+        fitxerCarregat = e.File;
+        fitxerSeleccionat = e.File.Name;
+        StateHasChanged();
+    }
+
+    private async Task ProcessarImportacio()
+    {
+        if (_disposedValue || fitxerCarregat == null) return;
+        if (anySeleccionat == 0) return; // Seguretat addicional
+        
+        processantImportacio = true;
+        StateHasChanged();
+
+        try
+        {
+            // Crear carpeta temporal si no existeix
+            var tempPath = Path.Combine(Environment.ContentRootPath, "temp");
+            if (!Directory.Exists(tempPath))
+            {
+                Directory.CreateDirectory(tempPath);
+            }
+
+            // Guardar fitxer temporalment amb l'extensió correcta
+            var extensio = Path.GetExtension(fitxerCarregat.Name);
+            var tempFilePath = Path.Combine(tempPath, $"import_{Guid.NewGuid()}{extensio}");
+            
+            using (var stream = new FileStream(tempFilePath, FileMode.Create))
+            {
+                await fitxerCarregat.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024).CopyToAsync(stream); // 10MB màxim
+            }
+
+            // Processar la importació
+            var importador = new ImportadorSubvencions(ContextFactory, DbLogger);
+            resultatImportacio = await importador.ImportarCSV(tempFilePath, anySeleccionat);
+
+            // Esborrar fitxer temporal
+            if (File.Exists(tempFilePath))
+            {
+                File.Delete(tempFilePath);
+            }
+
+            // Recarregar subvencions
+            await CarregarSubvencions();
+        }
+        catch (Exception ex)
+        {
+            await DbLogger.LogErrorAsync($"Error processant importació de subvencions: {fitxerCarregat?.Name}", ex, "ProcessarImportacio", $"FileName={fitxerCarregat?.Name}");
+            
+            if (!_disposedValue)
+            {
+                try
+                {
+                    await JSRuntime.InvokeVoidAsync("alert", $"Error en processar la importació: {ex.Message}");
+                }
+                catch
+                {
+                    // Si falla el JSRuntime, ignorar
+                }
+            }
+        }
+        finally
+        {
+            if (!_disposedValue)
+            {
+                processantImportacio = false;
+                StateHasChanged();
+            }
+        }
+    }
+
+    private string ObtenirAnySeleccionat()
+    {
+        if (anySeleccionat == 0) return "(no seleccionat)";
+        var anyObj = anysDisponibles.FirstOrDefault(a => a.Id == anySeleccionat);
+        return anyObj?.Any.ToString() ?? "(desconegut)";
+    }
+
+    private string GetImportBadgeClass(string? estatNom)
+    {
+        if (_disposedValue || string.IsNullOrEmpty(estatNom)) return "bg-danger";
+        
+        var estatLower = estatNom.ToLower();
+        
+        // Groc per estats pendents
+        if (estatLower.Contains("pendent"))
+            return "bg-warning";
+        
+        // Verd per estats aprovats/finalitzats
+        if (estatLower.Contains("justificada") || 
+            estatLower.Contains("finalitzada") || 
+            estatLower.Contains("aprovada"))
+            return "bg-success";
+        
+        // Vermell per la resta
+        return "bg-danger";
+    }
+
+    private string? GetEstatNom(int subvencioId)
+    {
+        if (_disposedValue) return null;
+        
+        if (estatEditatDict.TryGetValue(subvencioId, out var estatId) && int.TryParse(estatId, out var id))
+        {
+            return estatsDisponibles.FirstOrDefault(e => e.Id == id)?.Nom ?? "";
+        }
+        
+        var subvencio = subvencions.FirstOrDefault(s => s.Id == subvencioId);
+        return subvencio?.Estat?.Nom ?? "";
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!_disposedValue)
+        {
+            _disposedValue = true;
+
+            if (disposing)
+            {
+                // Cancel·lar totes les operacions async pendents
+                try
+                {
+                    _cts.Cancel();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Ja disposat; no cal fer res.
+                }
+                
+                // Netejar els diccionaris
+                estatEditatDict.Clear();
+                estatCanviatDict.Clear();
+                estatOriginalDict.Clear();
+            }
+        }
+    }
+}

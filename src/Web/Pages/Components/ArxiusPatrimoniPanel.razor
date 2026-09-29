@@ -1,0 +1,587 @@
+@using Microsoft.EntityFrameworkCore
+@using AppAjuntament.Services
+@inject IDbContextFactory<GestorSubvencionsContext> DbContextFactory
+@inject MinioStorageService MinioStorage
+@inject IJSRuntime JS
+
+<div class="arxius-patrimoni-panel">
+    <div class="screen-header mb-2">
+        <h6 class="screen-title mb-0"><i class="fas fa-images me-1"></i>Arxius</h6>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="text-center py-3">
+            <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
+        </div>
+    }
+    else
+    {
+        @if (!ReadOnly)
+        {
+            <div class="mb-3">
+                <!-- Tabs Upload / URL -->
+                <ul class="nav nav-tabs nav-tabs-sm mb-2">
+                    <li class="nav-item">
+                        <button class="nav-link py-1 px-2 small @(_modeUrl ? "" : "active")"
+                                type="button" @onclick="() => _modeUrl = false">
+                            <i class="fas fa-upload me-1"></i>Fitxer
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link py-1 px-2 small @(_modeUrl ? "active" : "")"
+                                type="button" @onclick="() => _modeUrl = true">
+                            <i class="fas fa-link me-1"></i>URL
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="row g-2">
+                    <!-- Tipus sempre visible -->
+                    <div class="col-12">
+                        <select class="form-select form-select-sm" @bind="_tipusSeleccionat">
+                            <option value="0">-- Tipus d'arxiu --</option>
+                            @foreach (var t in _tipusArxius)
+                            {
+                                <option value="@t.Id">@t.Nom</option>
+                            }
+                        </select>
+                    </div>
+                    <!-- Col·lecció sempre visible -->
+                    <div class="col-12">
+                        <select class="form-select form-select-sm" @bind="_colleccioSeleccionada">
+                            <option value="0">-- Col·lecció (opcional) --</option>
+                            @foreach (var c in _coleccions)
+                            {
+                                <option value="@c.Id">@c.Nom@(string.IsNullOrEmpty(c.PeriodeFormatat) ? "" : $" ({c.PeriodeFormatat})")</option>
+                            }
+                        </select>
+                    </div>
+
+                    @if (!_modeUrl)
+                    {
+                        <!-- Mode fitxer -->
+                        <div class="col-12">
+                            <InputFile OnChange="FileSeleccionat" class="form-control form-control-sm"
+                                       accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.mp4,.avi,.mov,.mp3,.wav" />
+                        </div>
+                        <div class="col-12">
+                            <input type="text" class="form-control form-control-sm" placeholder="Títol (opcional)"
+                                   @bind="_titol" maxlength="200" />
+                        </div>
+                        <div class="col-12">
+                            <button type="button" class="btn btn-sm btn-primary w-100"
+                                    @onclick="PujarArxiu"
+                                    disabled="@(_fileSeleccionat == null || _pujant || _tipusSeleccionat == 0)">
+                                @if (_pujant)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-1"></span>
+                                }
+                                else
+                                {
+                                    <i class="fas fa-upload me-1"></i>
+                                }
+                                Pujar
+                            </button>
+                        </div>
+                    }
+                    else
+                    {
+                        <!-- Mode URL -->
+                        <div class="col-12">
+                            <input type="url" class="form-control form-control-sm @(_errorUrl != null ? "is-invalid" : "")"
+                                   placeholder="https://exemple.com/imatge.jpg"
+                                   @bind="_url" @bind:event="oninput" maxlength="1000" />
+                            @if (_errorUrl != null)
+                            {
+                                <div class="invalid-feedback">@_errorUrl</div>
+                            }
+                        </div>
+                        <div class="col-12">
+                            <input type="text" class="form-control form-control-sm" placeholder="Títol *"
+                                   @bind="_titol" maxlength="200" />
+                        </div>
+                        <div class="col-12">
+                            <button type="button" class="btn btn-sm btn-success w-100"
+                                    @onclick="AfegirUrl"
+                                    disabled="@(_pujant || _tipusSeleccionat == 0 || string.IsNullOrWhiteSpace(_url))">
+                                @if (_pujant)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-1"></span>
+                                }
+                                else
+                                {
+                                    <i class="fas fa-link me-1"></i>
+                                }
+                                Afegir URL
+                            </button>
+                        </div>
+                    }
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(_error))
+                {
+                    <div class="alert alert-danger py-1 mt-2 mb-0 small">@_error</div>
+                }
+            </div>
+        }
+
+        @if (_arxius.Count == 0)
+        {
+            <p class="text-muted small fst-italic mb-0">
+                <i class="fas fa-folder-open me-1"></i>Cap arxiu adjuntat.
+            </p>
+        }
+        else
+        {
+            <table class="table table-sm table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Arxiu</th>
+                        <th>Tipus</th>
+                        <th>Font</th>
+                        <th>Mida</th>
+                        @if (!ReadOnly)
+                        {
+                            <th></th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var arxiu in _arxius.OrderBy(a => a.OrdreVisualitzacio))
+                    {
+                        <tr>
+                            <td>
+                                @if (!string.IsNullOrEmpty(arxiu.UrlMinio))
+                                {
+                                    <a href="@arxiu.UrlMinio" target="_blank" class="btn btn-link btn-sm p-0 text-start"
+                                       title="@(arxiu.Titol ?? arxiu.NomOriginal)">
+                                        <i class="@GetIcona(arxiu.MimeType) me-1"></i>
+                                        @(arxiu.Titol ?? arxiu.NomOriginal)
+                                        <i class="fas fa-external-link-alt ms-1 small"></i>
+                                    </a>
+                                }
+                                else
+                                {
+                                    <button type="button" class="btn btn-link btn-sm p-0 text-start"
+                                            @onclick="() => DescarregarArxiu(arxiu)"
+                                            title="@arxiu.NomOriginal">
+                                        <i class="@GetIcona(arxiu.MimeType) me-1"></i>
+                                        @(arxiu.Titol ?? arxiu.NomOriginal)
+                                    </button>
+                                }
+                            </td>
+                            <td class="text-muted small">@arxiu.TipusArxiu?.Nom</td>
+                            <td class="text-muted small">
+                                @if (arxiu.Colleccio != null)
+                                {
+                                    <span>@arxiu.Colleccio.Nom</span>
+                                    @if (!string.IsNullOrWhiteSpace(arxiu.Colleccio.Descripcio))
+                                    {
+                                        <i class="fas fa-info-circle ms-1 text-info"
+                                           title="@arxiu.Colleccio.Descripcio"
+                                           style="cursor:help;"
+                                           data-bs-toggle="tooltip"
+                                           data-bs-placement="top"></i>
+                                    }
+                                }
+                                else
+                                {
+                                    <span class="text-muted">—</span>
+                                }
+                            </td>
+                            <td class="text-muted small">
+                                @(arxiu.MidaBytes > 0 ? arxiu.MidaFormatada : "—")
+                            </td>
+                            @if (!ReadOnly)
+                            {
+                                <td class="text-end text-nowrap">
+                                    <button type="button" class="btn btn-sm btn-outline-primary py-0 me-1"
+                                            @onclick="() => EditarArxiu(arxiu)">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-danger py-0"
+                                            @onclick="() => EliminarArxiu(arxiu)">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                </td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+</div>
+
+<!-- Modal edició arxiu -->
+@if (_editant != null)
+{
+    <div class="modal fade show d-block" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-edit me-2"></i>Editar arxiu</h5>
+                    <button type="button" class="btn-close" @onclick="TancarModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Títol</label>
+                        <input type="text" class="form-control" @bind="_editTitol" maxlength="200" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Tipus d'arxiu *</label>
+                        <select class="form-select" @bind="_editTipus">
+                            <option value="0">-- Selecciona --</option>
+                            @foreach (var t in _tipusArxius)
+                            {
+                                <option value="@t.Id">@t.Nom</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Col·lecció</label>
+                        <select class="form-select" @bind="_editColleccio">
+                            <option value="0">-- Cap col·lecció --</option>
+                            @foreach (var c in _coleccions)
+                            {
+                                <option value="@c.Id">@c.Nom@(string.IsNullOrEmpty(c.PeriodeFormatat) ? "" : $" ({c.PeriodeFormatat})")</option>
+                            }
+                        </select>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_editant.UrlMinio))
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">URL</label>
+                            <input type="url" class="form-control @(_errorUrl != null ? "is-invalid" : "")"
+                                   @bind="_editUrl" maxlength="1000" />
+                            @if (_errorUrl != null)
+                            {
+                                <div class="invalid-feedback">@_errorUrl</div>
+                            }
+                        </div>
+                    }
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="chkVisible" @bind="_editVisible" />
+                        <label class="form-check-label" for="chkVisible">Visible al públic</label>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(_errorEdit))
+                    {
+                        <div class="alert alert-danger py-1 small">@_errorEdit</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="TancarModal">Cancel·lar</button>
+                    <button type="button" class="btn btn-primary" @onclick="GuardarEdicio"
+                            disabled="@_guardantEdit">
+                        @if (_guardantEdit)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        Guardar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+}
+
+@code {
+    [Parameter, EditorRequired] public int PatrimoniId { get; set; }
+    [Parameter] public bool ReadOnly { get; set; } = false;
+
+    private List<ArxiuPatrimoni> _arxius = [];
+    private List<TipusArxiu> _tipusArxius = [];
+    private List<PatrimoniColeccio> _coleccions = [];
+    private bool _loading = true;
+    private bool _pujant = false;
+    private bool _modeUrl = false;
+    private string? _error;
+    private string? _errorUrl;
+
+    // Edició
+    private ArxiuPatrimoni? _editant;
+    private string _editTitol = "";
+    private int _editTipus = 0;
+    private int _editColleccio = 0;
+    private string _editUrl = "";
+    private bool _editVisible = true;
+    private string? _errorEdit;
+    private bool _guardantEdit = false;
+    private IBrowserFile? _fileSeleccionat;
+    private int _tipusSeleccionat = 0;
+    private int _colleccioSeleccionada = 0;
+    private string _titol = "";
+    private string _url = "";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await CarregarArxius();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await JS.InvokeVoidAsync("initTooltips");
+    }
+
+    private async Task CarregarArxius()
+    {
+        _loading = true;
+        try
+        {
+            await using var db = await DbContextFactory.CreateDbContextAsync();
+            _tipusArxius = await db.TipusArxius.Where(t => t.Actiu).OrderBy(t => t.Nom).AsNoTracking().ToListAsync();
+            _coleccions = await db.PatrimoniColeccions.Where(c => c.Actiu).OrderBy(c => c.Nom).AsNoTracking().ToListAsync();
+            _arxius = await db.ArxiusPatrimoni
+                .Include(a => a.TipusArxiu)
+                .Include(a => a.Colleccio)
+                .Where(a => a.PatrimoniId == PatrimoniId && a.Actiu)
+                .OrderBy(a => a.OrdreVisualitzacio)
+                .AsNoTracking()
+                .ToListAsync();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void FileSeleccionat(InputFileChangeEventArgs e)
+    {
+        _fileSeleccionat = e.File;
+        _error = null;
+    }
+
+    private async Task PujarArxiu()
+    {
+        if (_fileSeleccionat == null || _tipusSeleccionat == 0) return;
+
+        _pujant = true;
+        _error = null;
+        try
+        {
+            var safeName = Path.GetFileName(_fileSeleccionat.Name);
+            var objectKey = $"patrimoni/{PatrimoniId}/{DateTime.UtcNow:yyyyMMddHHmmss}_{safeName}";
+
+            using var stream = _fileSeleccionat.OpenReadStream(maxAllowedSize: 100 * 1024 * 1024);
+            await MinioStorage.UploadFileAsync(objectKey, stream, _fileSeleccionat.ContentType);
+
+            await using var db = await DbContextFactory.CreateDbContextAsync();
+            db.ArxiusPatrimoni.Add(new ArxiuPatrimoni
+            {
+                PatrimoniId   = PatrimoniId,
+                TipusArxiuId  = _tipusSeleccionat,
+                ColleccioId   = _colleccioSeleccionada > 0 ? _colleccioSeleccionada : null,
+                NomOriginal   = safeName,
+                NomArxiu      = safeName,
+                PathMinio     = objectKey,
+                MimeType      = _fileSeleccionat.ContentType,
+                MidaBytes     = _fileSeleccionat.Size,
+                Titol         = string.IsNullOrWhiteSpace(_titol) ? null : _titol.Trim(),
+                Actiu         = true,
+                VisiblePublic = true,
+                CreatedAt     = DateTime.Now,
+                UpdatedAt     = DateTime.Now,
+            });
+            await db.SaveChangesAsync();
+
+            _fileSeleccionat = null;
+            _tipusSeleccionat = 0;
+            _colleccioSeleccionada = 0;
+            _titol = "";
+            await CarregarArxius();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Error en pujar: {ex.Message}";
+        }
+        finally
+        {
+            _pujant = false;
+        }
+    }
+
+    private async Task AfegirUrl()
+    {
+        _errorUrl = null;
+        _error = null;
+
+        if (_tipusSeleccionat == 0) { _error = "Seleccioneu un tipus d'arxiu."; return; }
+        if (string.IsNullOrWhiteSpace(_titol)) { _error = "El títol és obligatori per arxius per URL."; return; }
+
+        if (!Uri.TryCreate(_url.Trim(), UriKind.Absolute, out var uri) ||
+            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            _errorUrl = "La URL no és vàlida. Ha de començar per http:// o https://";
+            return;
+        }
+
+        _pujant = true;
+        try
+        {
+            var nomFitxer = Path.GetFileName(uri.LocalPath);
+            if (string.IsNullOrWhiteSpace(nomFitxer)) nomFitxer = "arxiu-extern";
+
+            var mimeType = InferirMimeType(uri.LocalPath);
+
+            await using var db = await DbContextFactory.CreateDbContextAsync();
+            db.ArxiusPatrimoni.Add(new ArxiuPatrimoni
+            {
+                PatrimoniId   = PatrimoniId,
+                TipusArxiuId  = _tipusSeleccionat,
+                ColleccioId   = _colleccioSeleccionada > 0 ? _colleccioSeleccionada : null,
+                NomOriginal   = nomFitxer,
+                NomArxiu      = nomFitxer,
+                PathMinio     = "",
+                UrlMinio      = _url.Trim(),
+                MimeType      = mimeType,
+                MidaBytes     = 0,
+                Titol         = _titol.Trim(),
+                Actiu         = true,
+                VisiblePublic = true,
+                CreatedAt     = DateTime.Now,
+                UpdatedAt     = DateTime.Now,
+            });
+            await db.SaveChangesAsync();
+
+            _url = "";
+            _titol = "";
+            _tipusSeleccionat = 0;
+            _colleccioSeleccionada = 0;
+            await CarregarArxius();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Error en guardar: {ex.Message}";
+        }
+        finally
+        {
+            _pujant = false;
+        }
+    }
+
+    private void EditarArxiu(ArxiuPatrimoni arxiu)
+    {
+        _editant      = arxiu;
+        _editTitol    = arxiu.Titol ?? "";
+        _editTipus    = arxiu.TipusArxiuId;
+        _editColleccio = arxiu.ColleccioId ?? 0;
+        _editUrl      = arxiu.UrlMinio ?? "";
+        _editVisible  = arxiu.VisiblePublic;
+        _errorEdit    = null;
+        _errorUrl     = null;
+    }
+
+    private void TancarModal()
+    {
+        _editant = null;
+    }
+
+    private async Task GuardarEdicio()
+    {
+        if (_editant == null) return;
+        if (_editTipus == 0) { _errorEdit = "Seleccioneu un tipus d'arxiu."; return; }
+
+        if (!string.IsNullOrEmpty(_editant.UrlMinio))
+        {
+            if (!Uri.TryCreate(_editUrl.Trim(), UriKind.Absolute, out var uri) ||
+                (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+            {
+                _errorUrl = "La URL no és vàlida.";
+                return;
+            }
+        }
+
+        _guardantEdit = true;
+        _errorEdit = null;
+        try
+        {
+            await using var db = await DbContextFactory.CreateDbContextAsync();
+            var entity = await db.ArxiusPatrimoni.FindAsync(_editant.Id);
+            if (entity != null)
+            {
+                entity.Titol        = string.IsNullOrWhiteSpace(_editTitol) ? null : _editTitol.Trim();
+                entity.TipusArxiuId = _editTipus;
+                entity.ColleccioId  = _editColleccio > 0 ? _editColleccio : null;
+                entity.VisiblePublic = _editVisible;
+                entity.UpdatedAt    = DateTime.Now;
+                if (!string.IsNullOrEmpty(_editant.UrlMinio))
+                    entity.UrlMinio = _editUrl.Trim();
+                await db.SaveChangesAsync();
+            }
+            _editant = null;
+            await CarregarArxius();
+        }
+        catch (Exception ex)
+        {
+            _errorEdit = $"Error en guardar: {ex.Message}";
+        }
+        finally
+        {
+            _guardantEdit = false;
+        }
+    }
+
+    private async Task DescarregarArxiu(ArxiuPatrimoni arxiu)
+    {
+        try
+        {
+            var stream = await MinioStorage.GetFileAsync(arxiu.PathMinio);
+            if (stream == null) return;
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            var base64 = Convert.ToBase64String(ms.ToArray());
+            await JS.InvokeVoidAsync("downloadBase64File", base64, arxiu.NomOriginal, arxiu.MimeType);
+        }
+        catch (Exception ex)
+        {
+            _error = $"Error en descarregar: {ex.Message}";
+        }
+    }
+
+    private async Task EliminarArxiu(ArxiuPatrimoni arxiu)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", $"Eliminar '{arxiu.Titol ?? arxiu.NomOriginal}'?"))
+            return;
+        try
+        {
+            if (string.IsNullOrEmpty(arxiu.UrlMinio) && !string.IsNullOrEmpty(arxiu.PathMinio))
+                await MinioStorage.DeleteFileAsync(arxiu.PathMinio);
+
+            await using var db = await DbContextFactory.CreateDbContextAsync();
+            var entity = await db.ArxiusPatrimoni.FindAsync(arxiu.Id);
+            if (entity != null) { db.ArxiusPatrimoni.Remove(entity); await db.SaveChangesAsync(); }
+            await CarregarArxius();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Error en eliminar: {ex.Message}";
+        }
+    }
+
+    private static string InferirMimeType(string path) =>
+        Path.GetExtension(path).ToLowerInvariant() switch
+        {
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".png"            => "image/png",
+            ".gif"            => "image/gif",
+            ".webp"           => "image/webp",
+            ".pdf"            => "application/pdf",
+            ".mp4"            => "video/mp4",
+            ".avi"            => "video/avi",
+            ".mov"            => "video/quicktime",
+            ".mp3"            => "audio/mpeg",
+            ".wav"            => "audio/wav",
+            _                 => "application/octet-stream",
+        };
+
+    private static string GetIcona(string? mime) => mime switch
+    {
+        "image/jpeg" or "image/png" or "image/gif" or "image/webp" => "fas fa-file-image text-info",
+        "application/pdf"                                           => "fas fa-file-pdf text-danger",
+        var m when m?.StartsWith("video/") == true                 => "fas fa-file-video text-warning",
+        var m when m?.StartsWith("audio/") == true                 => "fas fa-file-audio text-success",
+        _                                                           => "fas fa-file text-secondary",
+    };
+}

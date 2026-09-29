@@ -1,0 +1,739 @@
+﻿@page "/mapa"
+@using AppAjuntament.Models
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@using AppAjuntament.Services
+@inject IPatrimoniService PatrimoniService
+@inject ICatalogService CatalogService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Mapa del Patrimoni</PageTitle>
+
+<style>
+    .mapa-header {
+        background: linear-gradient(135deg, #2E8B57, #228B22);
+        color: white;
+        padding: 40px 0;
+        margin-bottom: 30px;
+        text-align: center;
+    }
+    
+    .mapa-title {
+        font-size: 2.5rem;
+        font-weight: bold;
+        margin-bottom: 15px;
+    }
+    
+    .mapa-subtitle {
+        font-size: 1.1rem;
+        opacity: 0.9;
+    }
+    
+    .map-container {
+        background: white;
+        border-radius: 15px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        overflow: hidden;
+        margin-bottom: 30px;
+        position: relative;
+    }
+    
+    /* IMPORTANT: Estils per al mapa Leaflet */
+    #patrimoni-map {
+        height: 500px;
+        width: 100%;
+        border-radius: 15px;
+        z-index: 1;
+    }
+    
+    .leaflet-popup-content-wrapper {
+        border-radius: 10px;
+    }
+    
+    .custom-marker {
+        border-radius: 50%;
+        border: 3px solid white;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        color: white;
+        font-weight: bold;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .map-controls {
+        background: white;
+        padding: 20px;
+        border-radius: 15px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        margin-bottom: 30px;
+    }
+    
+    .control-group {
+        margin-bottom: 15px;
+    }
+    
+    .control-label {
+        font-weight: bold;
+        margin-bottom: 5px;
+        display: block;
+    }
+    
+    .legend {
+        background: white;
+        border-radius: 15px;
+        padding: 20px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        margin-bottom: 30px;
+    }
+    
+    .legend-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+    
+    .legend-color {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        margin-right: 10px;
+    }
+    
+    .patrimoni-list {
+        background: white;
+        border-radius: 15px;
+        padding: 20px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    
+    .patrimoni-item {
+        display: flex;
+        align-items: center;
+        padding: 15px;
+        border-radius: 10px;
+        margin-bottom: 10px;
+        transition: background-color 0.3s ease;
+        cursor: pointer;
+    }
+    
+    .patrimoni-item:hover {
+        background: #f8f9fa;
+    }
+    
+    .patrimoni-marker {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: bold;
+        margin-right: 15px;
+        font-size: 0.8rem;
+    }
+    
+    .patrimoni-info {
+        flex: 1;
+    }
+    
+    .patrimoni-name {
+        font-weight: bold;
+        margin-bottom: 5px;
+    }
+    
+    .patrimoni-details {
+        color: #666;
+        font-size: 0.9rem;
+    }
+    
+    .patrimoni-status {
+        padding: 4px 8px;
+        border-radius: 10px;
+        font-size: 0.75rem;
+        font-weight: bold;
+    }
+    
+    .status-bo { background: #d4edda; color: #155724; }
+    .status-regular { background: #fff3cd; color: #856404; }
+    .status-dolent { background: #f8d7da; color: #721c24; }
+    
+    .loading-spinner {
+        text-align: center;
+        padding: 60px;
+    }
+    
+    .map-stats {
+        background: #f8f9fa;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .stat-item {
+        text-align: center;
+        margin-bottom: 15px;
+    }
+    
+    .stat-number {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #2E8B57;
+        display: block;
+    }
+    
+    .stat-label {
+        color: #666;
+        font-size: 0.9rem;
+    }
+    
+    .btn-center-map {
+        background: #2E8B57;
+        color: white;
+        border: none;
+        padding: 8px 15px;
+        border-radius: 15px;
+        margin-left: 10px;
+    }
+    
+    .btn-center-map:hover {
+        background: #228B22;
+        color: white;
+    }
+    
+    .type-colors {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 10px;
+    }
+    
+    .type-chip {
+        background: #e9ecef;
+        padding: 5px 10px;
+        border-radius: 15px;
+        font-size: 0.8rem;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+</style>
+
+<!-- Header -->
+<div class="mapa-header">
+    <div class="container">
+        <h1 class="mapa-title">Mapa del Patrimoni</h1>
+        <p class="mapa-subtitle">Descobreix la ubicació dels elements patrimonials</p>
+    </div>
+</div>
+
+<div class="container">
+    @if (carregant)
+    {
+        <div class="loading-spinner">
+            <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                <span class="visually-hidden">Carregant...</span>
+            </div>
+            <p class="mt-3 text-muted">Carregant mapa del patrimoni...</p>
+        </div>
+    }
+    else
+    {
+        <div class="row">
+            <div class="col-lg-8">
+                <!-- Mapa principal amb Leaflet -->
+                <div class="map-container">
+                    <div id="patrimoni-map"></div>
+                </div>
+
+                <!-- Controls del mapa -->
+                <div class="map-controls">
+                    <h6>Controls del Mapa</h6>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="control-group">
+                                <label class="control-label">Filtrar per tipus</label>
+                                <select class="form-select" @bind="tipusSeleccionat" @bind:after="FiltrarMapa">
+                                    <option value="">Tots els tipus</option>
+                                    @if (tipusPatrimoni != null)
+                                    {
+                                        @foreach (var tipus in tipusPatrimoni)
+                                        {
+                                            <option value="@tipus.Id">@tipus.Nom</option>
+                                        }
+                                    }
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="control-group">
+                                <label class="control-label">Filtrar per ubicació</label>
+                                <select class="form-select" @bind="ubicacioSeleccionada" @bind:after="FiltrarMapa">
+                                    <option value="">Totes les ubicacions</option>
+                                    @if (ubicacions != null)
+                                    {
+                                        @foreach (var ubicacio in ubicacions)
+                                        {
+                                            <option value="@ubicacio.Id">@ubicacio.Nom</option>
+                                        }
+                                    }
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="control-group">
+                                <label class="control-label">Accions</label>
+                                <div>
+                                    <button class="btn btn-center-map" @onclick="CentrarMapa">
+                                        <i class="bi bi-geo"></i> Centrar
+                                    </button>
+                                    <button class="btn btn-center-map" @onclick="NetejrarFiltres">
+                                        <i class="bi bi-arrow-clockwise"></i> Reset
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <!-- Estadístiques -->
+                <div class="map-stats">
+                    <h6>Estadístiques del Mapa</h6>
+                    <div class="stat-item">
+                        <span class="stat-number">@totalElementsMapa</span>
+                        <span class="stat-label">Elements al mapa</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number">@totalUbicacions</span>
+                        <span class="stat-label">Ubicacions diferents</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number">@totalTipus</span>
+                        <span class="stat-label">Tipus de patrimoni</span>
+                    </div>
+                </div>
+
+                <!-- Llegenda -->
+                <div class="legend">
+                    <h6>Llegenda</h6>
+                    @if (tipusPatrimoni != null)
+                    {
+                        @foreach (var tipus in tipusPatrimoni.Take(5))
+                        {
+                            <div class="legend-item">
+                                <div class="legend-color" style="background-color: @GetColorForType(tipus.Id);"></div>
+                                <span>@tipus.Nom</span>
+                            </div>
+                        }
+                    }
+                    <div class="type-colors">
+                        <div class="type-chip">
+                            <div class="legend-color status-bo"></div>
+                            <span>Bon estat</span>
+                        </div>
+                        <div class="type-chip">
+                            <div class="legend-color status-regular"></div>
+                            <span>Estat regular</span>
+                        </div>
+                        <div class="type-chip">
+                            <div class="legend-color status-dolent"></div>
+                            <span>Estat dolent</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Llista d'elements -->
+                <div class="patrimoni-list">
+                    <h6>Elements Patrimonials (@(patrimoniMostrat?.Count() ?? 0))</h6>
+                    @if (patrimoniMostrat != null && patrimoniMostrat.Any())
+                    {
+                        @foreach (var element in patrimoniMostrat.Take(10))
+                        {
+                            <div class="patrimoni-item" @onclick="() => MostrarDetall(element.Id)">
+                                <div class="patrimoni-marker" style="background-color: @GetColorForType(element.TipusPatrimoniId);">
+                                    @GetMarkerLetter(element.TipusPatrimoni?.Nom ?? "")
+                                </div>
+                                <div class="patrimoni-info">
+                                    <div class="patrimoni-name">@element.Nom</div>
+                                    <div class="patrimoni-details">
+                                        @if (element.Ubicacio != null)
+                                        {
+                                            <i class="bi bi-geo-alt"></i> @element.Ubicacio.Nom
+                                        }
+                                        @if (element.TipusPatrimoni != null)
+                                        {
+                                            <span> • @element.TipusPatrimoni.Nom</span>
+                                        }
+                                    </div>
+                                </div>
+                                @if (element.EstatConservacio != null)
+                                {
+                                    <span class="patrimoni-status status-@GetStatusClass(element.EstatConservacio.Nom)">
+                                        @element.EstatConservacio.Nom
+                                    </span>
+                                }
+                            </div>
+                        }
+                        @if (patrimoniMostrat.Count() > 10)
+                        {
+                            <div style="text-align: center; padding: 15px; color: #666;">
+                                I @(patrimoniMostrat.Count() - 10) elements més...
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div style="text-align: center; padding: 30px; color: #666;">
+                            <i class="bi bi-geo"></i><br/>
+                            No hi ha elements per mostrar
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool carregant = true;
+    private IEnumerable<Patrimoni>? totPatrimoni;
+    private IEnumerable<Patrimoni>? patrimoniMostrat;
+    private IEnumerable<TipusPatrimoni>? tipusPatrimoni;
+    private IEnumerable<Ubicacio>? ubicacions;
+    
+    private string tipusSeleccionat = "";
+    private string ubicacioSeleccionada = "";
+    
+    private int totalElementsMapa = 0;
+    private int totalUbicacions = 0;
+    private int totalTipus = 0;
+    
+    private readonly Dictionary<int, string> colorsPerTipus = new()
+    {
+        { 1, "#e74c3c" },   // Vermell
+        { 2, "#3498db" },   // Blau
+        { 3, "#f39c12" },   // Taronja
+        { 4, "#9b59b6" },   // Lila
+        { 5, "#1abc9c" },   // Turquesa
+        { 6, "#34495e" },   // Gris fosc
+        { 7, "#e67e22" },   // Taronja fosc
+        { 8, "#27ae60" },   // Verd
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        Console.WriteLine("OnInitializedAsync - Iniciant càrrega de dades");
+        await CarregarDades();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            Console.WriteLine($"OnAfterRenderAsync - firstRender: {firstRender}, carregant: {carregant}");
+            
+            if (!carregant)
+            {
+                // Les dades ja estan carregades, inicialitzar mapa
+                await Task.Delay(500);
+                await InicialitzarMapaAmbRetries();
+            }
+            else
+            {
+                // Esperar a que les dades es carreguin
+                Console.WriteLine("Esperant que les dades es carreguin...");
+            }
+        }
+    }
+
+    private async Task InicialitzarMapaAmbRetries()
+    {
+        const int maxRetries = 5;
+        const int delayMs = 500;
+        
+        Console.WriteLine("=== Iniciant procés d'inicialització del mapa ===");
+        
+        for (int retry = 0; retry < maxRetries; retry++)
+        {
+            try
+            {
+                Console.WriteLine($"Intent d'inicialització {retry + 1}/{maxRetries}");
+                
+                // Verificar que l'element DOM existeix
+                var elementExists = await JSRuntime.InvokeAsync<bool>("eval", 
+                    "document.getElementById('patrimoni-map') !== null");
+                Console.WriteLine($"  - Element DOM existeix: {elementExists}");
+                
+                // Verificar que Leaflet està disponible
+                var leafletAvailable = await JSRuntime.InvokeAsync<bool>("eval", "typeof L !== 'undefined'");
+                Console.WriteLine($"  - Leaflet disponible: {leafletAvailable}");
+                
+                // Verificar que les funcions estan disponibles
+                var funcionsDisponibles = await JSRuntime.InvokeAsync<bool>("eval", 
+                    "typeof window.inicialitzarMapa === 'function'");
+                Console.WriteLine($"  - Funció inicialitzarMapa disponible: {funcionsDisponibles}");
+                
+                if (elementExists && leafletAvailable && funcionsDisponibles)
+                {
+                    Console.WriteLine("  ✓ Tots els requisits complerts, inicialitzant mapa...");
+                    var success = await InicialitzarMapa();
+                    
+                    if (success)
+                    {
+                        Console.WriteLine("  ✓✓✓ Mapa inicialitzat correctament!");
+                        return; // Èxit!
+                    }
+                    else
+                    {
+                        Console.WriteLine("  ✗ InicialitzarMapa va retornar false");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"  ✗ Requisits no complerts (intent {retry + 1})");
+                }
+                
+                // Esperar abans del següent intent
+                if (retry < maxRetries - 1)
+                {
+                    Console.WriteLine($"  ⏳ Esperant {delayMs}ms abans del següent intent...");
+                    await Task.Delay(delayMs);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"  ✗✗ Error en intent {retry + 1}: {ex.Message}");
+                if (retry < maxRetries - 1)
+                {
+                    await Task.Delay(delayMs);
+                }
+            }
+        }
+        
+        Console.WriteLine("=== ERROR: No s'ha pogut inicialitzar el mapa després de tots els intents ===");
+    }
+
+    private async Task CarregarDades()
+    {
+        carregant = true;
+        StateHasChanged();
+
+        try
+        {
+            Console.WriteLine("Carregant dades del patrimoni...");
+            
+            // Carregar tots els elements
+            totPatrimoni = await PatrimoniService.GetAllAsync();
+            patrimoniMostrat = totPatrimoni?.Where(p => p.Actiu);
+            Console.WriteLine($"  - Elements carregats: {totPatrimoni?.Count() ?? 0}");
+            Console.WriteLine($"  - Elements actius: {patrimoniMostrat?.Count() ?? 0}");
+            
+            // Carregar dades per als filtres
+            tipusPatrimoni = await CatalogService.GetTipusPatrimoniAsync();
+            Console.WriteLine($"  - Tipus de patrimoni carregats: {tipusPatrimoni?.Count() ?? 0}");
+            
+            ubicacions = await CatalogService.GetUbicacionsAsync();
+            Console.WriteLine($"  - Ubicacions carregades: {ubicacions?.Count() ?? 0}");
+
+            // Calcular estadístiques
+            totalElementsMapa = patrimoniMostrat?.Count() ?? 0;
+            totalUbicacions = patrimoniMostrat?.Where(p => p.UbicacioId.HasValue).Select(p => p.UbicacioId).Distinct().Count() ?? 0;
+            totalTipus = patrimoniMostrat?.Select(p => p.TipusPatrimoniId).Distinct().Count() ?? 0;
+            
+            Console.WriteLine("✓ Dades carregades correctament");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"✗ Error carregant dades: {ex.Message}");
+        }
+        finally
+        {
+            carregant = false;
+            StateHasChanged();
+            
+            // Després de carregar les dades, intentar inicialitzar el mapa
+            Console.WriteLine("Dades carregades, preparant inicialització del mapa...");
+            await Task.Delay(500);
+            await InicialitzarMapaAmbRetries();
+        }
+    }
+
+    private async Task<bool> InicialitzarMapa()
+    {
+        try
+        {
+            // Coordenades per defecte (Catalunya central)
+            double latitud = 41.6851;
+            double longitud = 2.4886;
+            
+            Console.WriteLine($"Cridant inicialitzarMapa amb coordenades: {latitud}, {longitud}");
+            var mapaInicialitzat = await JSRuntime.InvokeAsync<bool>("inicialitzarMapa", latitud, longitud);
+            Console.WriteLine($"inicialitzarMapa retornat: {mapaInicialitzat}");
+            
+            if (!mapaInicialitzat)
+            {
+                Console.WriteLine("✗ No s'ha pogut inicialitzar el mapa");
+                return false;
+            }
+            
+            Console.WriteLine("Actualitzant markers...");
+            await ActualitzarMarkers();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"✗✗ Error inicialitzant mapa: {ex.Message}");
+            Console.WriteLine($"Stack trace: {ex.StackTrace}");
+            return false;
+        }
+    }
+
+    private async Task ActualitzarMarkers()
+    {
+        Console.WriteLine("=== ActualitzarMarkers - Inici ===");
+        
+        if (patrimoniMostrat == null)
+        {
+            Console.WriteLine("✗ patrimoniMostrat és null");
+            return;
+        }
+        
+        Console.WriteLine($"Total elements a patrimoniMostrat: {patrimoniMostrat.Count()}");
+        
+        var markersData = patrimoniMostrat
+            .Where(p => p.Latitud.HasValue && p.Longitud.HasValue)
+            .Select(p => new
+            {
+                id = p.Id,
+                nom = p.Nom,
+                lat = p.Latitud!.Value,
+                lng = p.Longitud!.Value,
+                color = GetColorForType(p.TipusPatrimoniId),
+                tipus = p.TipusPatrimoni?.Nom ?? "Desconegut",
+                ubicacio = p.Ubicacio?.Nom ?? "",
+                estat = p.EstatConservacio?.Nom ?? "",
+                descripcio = p.DescripcioBreu ?? ""
+            })
+            .ToArray();
+
+        Console.WriteLine($"Markers amb coordenades reals: {markersData.Length}");
+
+        // Si no hi ha coordenades reals, generar simulades per demostració
+        if (markersData.Length == 0)
+        {
+            Console.WriteLine("⚠ No hi ha coordenades reals, generant coordenades simulades...");
+            var patrimoniArray = patrimoniMostrat.Take(20).ToArray();
+            Console.WriteLine($"Elements per generar coordenades simulades: {patrimoniArray.Length}");
+            
+            markersData = patrimoniArray
+                .Select((p, index) => new
+                {
+                    id = p.Id,
+                    nom = p.Nom,
+                    lat = 41.6851 + (index % 10 - 5) * 0.01,
+                    lng = 2.4886 + (index % 10 - 5) * 0.01,
+                    color = GetColorForType(p.TipusPatrimoniId),
+                    tipus = p.TipusPatrimoni?.Nom ?? "Desconegut",
+                    ubicacio = p.Ubicacio?.Nom ?? "",
+                    estat = p.EstatConservacio?.Nom ?? "",
+                    descripcio = p.DescripcioBreu ?? ""
+                })
+                .ToArray();
+            Console.WriteLine($"✓ Markers simulats generats: {markersData.Length}");
+            
+            // Mostrar les primeres 3 coordenades generades
+            for (int i = 0; i < Math.Min(3, markersData.Length); i++)
+            {
+                Console.WriteLine($"  Marker {i + 1}: {markersData[i].nom} - Lat: {markersData[i].lat}, Lng: {markersData[i].lng}");
+            }
+        }
+        else
+        {
+            Console.WriteLine("✓ Usant coordenades reals del patrimoni");
+            // Mostrar les primeres 3 coordenades reals
+            for (int i = 0; i < Math.Min(3, markersData.Length); i++)
+            {
+                Console.WriteLine($"  Marker {i + 1}: {markersData[i].nom} - Lat: {markersData[i].lat}, Lng: {markersData[i].lng}");
+            }
+        }
+
+        try
+        {
+            Console.WriteLine($"Cridant actualitzarMarkers de JavaScript amb {markersData.Length} markers");
+            await JSRuntime.InvokeVoidAsync("actualitzarMarkers", (object)markersData);
+            Console.WriteLine("✓ actualitzarMarkers cridat correctament");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"✗✗ Error cridant actualitzarMarkers: {ex.Message}");
+            Console.WriteLine($"Stack trace: {ex.StackTrace}");
+        }
+        
+        Console.WriteLine("=== ActualitzarMarkers - Fi ===");
+    }
+
+    private async Task FiltrarMapa()
+    {
+        if (totPatrimoni == null) return;
+
+        patrimoniMostrat = totPatrimoni.Where(p => p.Actiu);
+
+        if (!string.IsNullOrEmpty(tipusSeleccionat) && int.TryParse(tipusSeleccionat, out int tipusId))
+        {
+            patrimoniMostrat = patrimoniMostrat.Where(p => p.TipusPatrimoniId == tipusId);
+        }
+
+        if (!string.IsNullOrEmpty(ubicacioSeleccionada) && int.TryParse(ubicacioSeleccionada, out int ubicacioId))
+        {
+            patrimoniMostrat = patrimoniMostrat.Where(p => p.UbicacioId == ubicacioId);
+        }
+
+        totalElementsMapa = patrimoniMostrat.Count();
+        totalUbicacions = patrimoniMostrat.Where(p => p.UbicacioId.HasValue).Select(p => p.UbicacioId).Distinct().Count();
+        totalTipus = patrimoniMostrat.Select(p => p.TipusPatrimoniId).Distinct().Count();
+
+        await ActualitzarMarkers();
+    }
+
+    private async Task NetejrarFiltres()
+    {
+        tipusSeleccionat = "";
+        ubicacioSeleccionada = "";
+        await FiltrarMapa();
+    }
+
+    private async Task CentrarMapa()
+    {
+        await JSRuntime.InvokeVoidAsync("centrarMapa");
+    }
+
+    private void MostrarDetall(int id)
+    {
+        Navigation.NavigateTo($"/detall/{id}?from=mapa");
+    }
+
+    private string GetColorForType(int tipusId)
+    {
+        return colorsPerTipus.ContainsKey(tipusId) ? colorsPerTipus[tipusId] : "#95a5a6";
+    }
+
+    private string GetMarkerLetter(string tipusNom)
+    {
+        return string.IsNullOrEmpty(tipusNom) ? "?" : tipusNom[0].ToString().ToUpper();
+    }
+
+    private string GetStatusClass(string? estat)
+    {
+        return estat?.ToLower() switch
+        {
+            "bo" or "molt bo" or "excel·lent" => "bo",
+            "regular" or "acceptable" => "regular",
+            "dolent" or "molt dolent" or "ruïnós" => "dolent",
+            _ => "regular"
+        };
+    }
+}
