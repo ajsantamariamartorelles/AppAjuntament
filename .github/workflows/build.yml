@@ -11,7 +11,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Clona el repositori
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Instal·la .NET 10
         uses: actions/setup-dotnet@v4
