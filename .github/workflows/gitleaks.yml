@@ -15,7 +15,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      # L'acció oficial gitleaks/gitleaks-action exigeix una llicència de
+      # pagament per a repositoris d'organitzacions (només és gratuïta per
+      # a comptes personals). Gitleaks en si és de codi obert i gratuït:
+      # l'executem directament, sense l'acció embolcall.
+      - name: Instal·la gitleaks
+        run: |
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz \
+            | tar -xz -C /usr/local/bin gitleaks
+
       - name: Escaneja secrets
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gitleaks detect --source . --verbose --redact
