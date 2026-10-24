@@ -20,6 +20,23 @@ public class CursetsCatalogServiceAutoritzacioTests : IDisposable
     public void Dispose() => _bd.Dispose();
 
     [Fact]
+    public async Task Despres_de_crear_un_alumne_la_llista_el_mostra()
+    {
+        await Servei().CrearAlumneAsync(new CrearAlumneRequest
+        {
+            Nom = "Anna",
+            Cognoms = "Puig",
+            Dni = "11111111H",
+            AutoritzacioTractamentSignada = true
+        });
+
+        var llista = await Servei().GetAlumnesAsync();
+
+        var alumne = Assert.Single(llista);
+        Assert.Equal("Anna Puig", alumne.NomComplet);
+    }
+
+    [Fact]
     public async Task Crear_alumne_amb_dni_nou_sense_autoritzacio_falla()
     {
         var servei = Servei();
