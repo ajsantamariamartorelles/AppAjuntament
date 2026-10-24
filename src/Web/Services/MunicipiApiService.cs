@@ -14,12 +14,15 @@ public class MunicipiApiService : IMunicipiApiService
     private readonly HttpClient _httpClient;
     private readonly ILogger<MunicipiApiService> _logger;
     private const string API_URL = "https://do.diba.cat/api/dataset/municipis";
-    private const int MAX_RETRY_ATTEMPTS = 3;
+    private const int MAX_RETRY_ATTEMPTS = 2;
+    // La pàgina inicial depèn d'aquesta crida: si la Diputació no respon, millor fallar aviat i mostrar "Tornar a intentar".
+    private static readonly TimeSpan TIMEOUT_PETICIO = TimeSpan.FromSeconds(15);
     private const int RETRY_DELAY_MS = 2000;
 
     public MunicipiApiService(HttpClient httpClient, ILogger<MunicipiApiService> logger)
     {
         _httpClient = httpClient;
+        _httpClient.Timeout = TIMEOUT_PETICIO;
         _logger = logger;
     }
 

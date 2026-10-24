@@ -38,5 +38,13 @@ public sealed class BdProves : IDisposable
         return new GestorSubvencionsContext(opcions);
     }
 
+    /// <summary>Una factoria de contextos sobre la mateixa BD (per als serveis que en creen un a cada crida).</summary>
+    public IDbContextFactory<GestorSubvencionsContext> NovaFactoria() => new Factoria(this);
+
     public void Dispose() => _connexio.Dispose();
+
+    private sealed class Factoria(BdProves bd) : IDbContextFactory<GestorSubvencionsContext>
+    {
+        public GestorSubvencionsContext CreateDbContext() => bd.NouContext();
+    }
 }

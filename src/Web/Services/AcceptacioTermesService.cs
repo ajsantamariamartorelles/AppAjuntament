@@ -26,11 +26,14 @@ namespace AppAjuntament.Services
 
     public class AcceptacioTermesService : IAcceptacioTermesService
     {
-        private readonly GestorSubvencionsContext _context;
+        // Un context propi a cada crida (no el del circuit de Blazor): MainLayout comprova
+        // l'acceptació alhora que la pàgina carrega les seves dades, i EF no admet dues
+        // operacions simultànies sobre el mateix context.
+        private readonly IDbContextFactory<GestorSubvencionsContext> _contextFactory;
 
-        public AcceptacioTermesService(GestorSubvencionsContext context)
+        public AcceptacioTermesService(IDbContextFactory<GestorSubvencionsContext> contextFactory)
         {
-            _context = context;
+            _contextFactory = contextFactory;
         }
 
         private static string Normalitza(string email) => email.Trim().ToLowerInvariant();
@@ -40,7 +43,8 @@ namespace AppAjuntament.Services
             if (string.IsNullOrWhiteSpace(email)) return false;
 
             var correu = Normalitza(email);
-            return await _context.AcceptacionsTermes.AsNoTracking()
+            await using var context = await _contextFactory.CreateDbContextAsync();
+            return await context.AcceptacionsTermes.AsNoTracking()
                 .AnyAsync(a => a.Email == correu && a.VersioAcceptada >= IAcceptacioTermesService.VersioActual);
         }
 
@@ -50,10 +54,11 @@ namespace AppAjuntament.Services
                 throw new ArgumentException("Cal un correu per registrar l'acceptació.", nameof(email));
 
             var correu = Normalitza(email);
-            var existent = await _context.AcceptacionsTermes.FirstOrDefaultAsync(a => a.Email == correu);
+            await using var context = await _contextFactory.CreateDbContextAsync();
+            var existent = await context.AcceptacionsTermes.FirstOrDefaultAsync(a => a.Email == correu);
             if (existent is null)
             {
-                _context.AcceptacionsTermes.Add(new AcceptacioTermes
+                context.AcceptacionsTermes.Add(new AcceptacioTermes
                 {
                     Email = correu,
                     VersioAcceptada = IAcceptacioTermesService.VersioActual,
@@ -65,7 +70,7 @@ namespace AppAjuntament.Services
                 existent.VersioAcceptada = IAcceptacioTermesService.VersioActual;
                 existent.DataAcceptacio = DateTime.Now;
             }
-            await _context.SaveChangesAsync();
+            await context.SaveChangesAsync();
         }
     }
 }

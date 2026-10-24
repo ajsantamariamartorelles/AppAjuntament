@@ -45,6 +45,13 @@ namespace AppAjuntament.Models.Municipi
         public string? nombre_habitants { get; set; }
         public string? extensio { get; set; }
         public string? altitud { get; set; }
+
+        /// <summary>
+        /// Cert quan les dades no són de la Diputació sinó un perfil mínim construït amb la configuració
+        /// (l'API no respon i no hi ha cap còpia). No es desa ni ve de l'API.
+        /// </summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        public bool Provisional { get; set; }
     }
 
     public class EntitatDigitalRecord

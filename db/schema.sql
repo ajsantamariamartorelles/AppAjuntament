@@ -248,6 +248,8 @@ CREATE TABLE IF NOT EXISTS `comarques` (
 CREATE TABLE IF NOT EXISTS `conv_convenis_auxiliars` (
   `Id` int(11) NOT NULL AUTO_INCREMENT,
   `ConveniId` int(11) NOT NULL,
+  `Nom` varchar(255) DEFAULT NULL,
+  `Tipus` varchar(100) DEFAULT NULL,
   `Notes` varchar(2000) DEFAULT NULL,
   `Attachments` varchar(500) DEFAULT NULL,
   `CreatedAt` datetime DEFAULT CURRENT_TIMESTAMP,
@@ -383,6 +385,24 @@ CREATE TABLE IF NOT EXISTS `curs_cursets` (
 
 -- Data exporting was unselected.
 
+-- Dumping structure for table curs_email_absencies_config
+CREATE TABLE IF NOT EXISTS `curs_email_absencies_config` (
+  `Id` int(11) NOT NULL,
+  `SmtpHost` varchar(200) DEFAULT NULL,
+  `SmtpPort` int(11) NOT NULL DEFAULT '587',
+  `SmtpSsl` tinyint(1) NOT NULL DEFAULT '1',
+  `SmtpUser` varchar(200) DEFAULT NULL,
+  `SmtpPassword` varchar(200) DEFAULT NULL,
+  `RemitentEmail` varchar(200) DEFAULT NULL,
+  `RemitentNom` varchar(200) DEFAULT NULL,
+  `Assumpte` varchar(300) DEFAULT NULL,
+  `CosHtml` text,
+  `UpdatedAt` datetime DEFAULT NULL,
+  PRIMARY KEY (`Id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Configuració del correu de baixa per absències consecutives (una sola fila, Id = 1)';
+
+-- Data exporting was unselected.
+
 -- Dumping structure for table gestorsubvencions.curs_liquidacions
 CREATE TABLE IF NOT EXISTS `curs_liquidacions` (
   `Id` int(11) NOT NULL AUTO_INCREMENT,
@@ -514,8 +534,10 @@ CREATE TABLE IF NOT EXISTS `dades_geografiques` (
   `NombreHabitants` int(11) DEFAULT NULL COMMENT 'Nombre d''habitants',
   `Extensio` decimal(10,2) DEFAULT NULL COMMENT 'Extensió en km²',
   `Altitud` int(11) DEFAULT NULL COMMENT 'Altitud en metres',
-  `Localitzacio` point DEFAULT NULL COMMENT 'Coordenades geogràfiques (latitud i longitud)',
-  `CentreMunicipal` point DEFAULT NULL COMMENT 'Coordenades del centre municipal (latitud i longitud)',
+  `LocalitzacioLatitud` double NOT NULL DEFAULT '0' COMMENT 'Latitud de la localització',
+  `LocalitzacioLongitud` double NOT NULL DEFAULT '0' COMMENT 'Longitud de la localització',
+  `CentreMunicipalLatitud` double NOT NULL DEFAULT '0' COMMENT 'Latitud del centre municipal',
+  `CentreMunicipalLongitud` double NOT NULL DEFAULT '0' COMMENT 'Longitud del centre municipal',
   PRIMARY KEY (`Id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COMMENT='Taula que conté les dades geogràfiques';
 
@@ -1540,7 +1562,7 @@ CREATE TABLE IF NOT EXISTS `volu_voluntaris_ambits` (
 -- i Services/AcceptacioTermesService.cs.
 CREATE TABLE IF NOT EXISTS `acceptacions_termes` (
   `Id` int(11) NOT NULL AUTO_INCREMENT,
-  `Email` varchar(255) NOT NULL,
+  `Email` varchar(191) NOT NULL,
   `VersioAcceptada` int(11) NOT NULL,
   `DataAcceptacio` datetime NOT NULL,
   PRIMARY KEY (`Id`),

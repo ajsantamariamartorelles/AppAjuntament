@@ -65,9 +65,13 @@ public partial class SessioViewModel : BaseViewModel
 			if (Alumnes.Count == 0)
 				ErrorMessage = "Aquest curset no té alumnes actives.";
 		}
+		catch (HttpRequestException)
+		{
+			ErrorMessage = "No s'ha pogut iniciar la classe: no hi ha connexió amb el servidor. Comprova la cobertura o el wifi i torna-ho a provar.";
+		}
 		catch (Exception ex)
 		{
-			ErrorMessage = $"No s'ha pogut iniciar la classe: {ex.Message}";
+			ErrorMessage = $"No s'ha pogut iniciar la classe. {ex.Message}";
 		}
 		finally
 		{

@@ -154,6 +154,20 @@ else if (municipi == null)
 }
 else
 {
+    @if (municipi.Provisional)
+    {
+        <div class="alert alert-info d-flex align-items-center justify-content-between" role="status">
+            <span>
+                <i class="fas fa-info-circle me-2"></i>
+                Les dades detallades del municipi (habitants, contacte…) no estan disponibles ara mateix perquè el servei de la
+                Diputació de Barcelona no respon. Es tornaran a mostrar quan es recuperi.
+            </span>
+            <button class="btn btn-outline-primary btn-sm ms-3 text-nowrap" @onclick="RetryCarregarDades" disabled="@carregant">
+                <i class="fas fa-redo me-1"></i>Tornar a intentar
+            </button>
+        </div>
+    }
+
     <!-- Imatge principal del municipi -->
     @if (!string.IsNullOrEmpty(municipi.municipi_vista))
     {
@@ -169,7 +183,7 @@ else
         else
         {
             <div class="hero-section">
-                <img src="/api/proxy/image?url=@Uri.EscapeDataString(municipi.municipi_vista)" 
+                <img src="@UrlImatge(municipi.municipi_vista)" 
                      alt="Vista de @municipi.municipi_nom" 
                      class="hero-image"
                      @onerror="OnImageError"
@@ -194,11 +208,11 @@ else
     <div class="escut-bandera">
         @if (!string.IsNullOrEmpty(municipi.municipi_escut))
         {
-            <img src="/api/proxy/image?url=@Uri.EscapeDataString(municipi.municipi_escut)" alt="Escut de @municipi.municipi_nom" title="Escut" />
+            <img src="@UrlImatge(municipi.municipi_escut)" alt="Escut de @municipi.municipi_nom" title="Escut" />
         }
         @if (!string.IsNullOrEmpty(municipi.municipi_bandera))
         {
-            <img src="/api/proxy/image?url=@Uri.EscapeDataString(municipi.municipi_bandera)" alt="Bandera de @municipi.municipi_nom" title="Bandera" />
+            <img src="@UrlImatge(municipi.municipi_bandera)" alt="Bandera de @municipi.municipi_nom" title="Bandera" />
         }
     </div>
 
@@ -553,6 +567,15 @@ else
             StateHasChanged();
         }
     }
+
+    /// <summary>
+    /// Les imatges de media.diba.cat passen pel proxy (el seu servidor no les serveix a tercers);
+    /// les pròpies de l'app (p. ex. /img/municipi/portada.jpg) es carreguen directament.
+    /// </summary>
+    private static string UrlImatge(string? url) =>
+        !string.IsNullOrEmpty(url) && url.StartsWith("https://media.diba.cat/", StringComparison.OrdinalIgnoreCase)
+            ? "/api/proxy/image?url=" + Uri.EscapeDataString(url)
+            : url ?? string.Empty;
 
     private async Task RetryCarregarDades()
     {

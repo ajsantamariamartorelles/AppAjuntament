@@ -2,17 +2,3 @@ title = "gitleaks config — AppAjuntament"
 
 [extend]
 useDefault = true
-
-# Falsos positius coneguts i revisats un per un (no secrets, mai afegir-hi
-# res sense estar-ne segur):
-#
-# - GroupAccess1 / GroupAccess2 (src/Web/appsettings.json): identificadors
-#   de grup d'Azure AD (GUID), no credencials. La regla genèrica
-#   "generic-api-key" es dispara pel nom del camp ("Access") i l'entropia
-#   del GUID, no perquè sigui un secret de veritat.
-[allowlist]
-description = "Identificadors (no secrets) coneguts"
-regexes = [
-  '''00000000-0000-0000-0000-000000000000''',
-  '''00000000-0000-0000-0000-000000000000''',
-]

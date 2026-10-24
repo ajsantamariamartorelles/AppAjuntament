@@ -366,11 +366,8 @@ FodyWeavers.xsd
 *.Local.sln
 *.Local.slnx
 
-# Fitxers de configuració amb secrets
-appsettings.Production.json
-
-# Secrets reals (AGENTS.md, regla 3): appsettings.Development.json i
-# appsettings.json es queden versionats, però sense cap valor real
+# Secrets reals (AGENTS.md, regla 3): appsettings.json, appsettings.Development.json
+# i appsettings.Production.json es queden versionats, però sense cap valor sensible
 # (només l'estructura). El valor real va aquí, mai al git.
 appsettings.*.secrets.json
 
@@ -391,3 +388,12 @@ docs/Armes/Targeta Armes.pdf
 # Codi font que la regla genèrica [Ll]og/ ignorava per error (models d'auditoria)
 !Models/Base/Log/
 !Models/Base/Log/**
+
+# Claus de DataProtection generades en execució
+App_Data/
+
+# Cap appsettings solt a l'arrel: la configuració viu a src/Web (el de l'arrel podria portar valors reals)
+/appsettings*.json
+
+# Paquets de publicació manual (porten secrets)
+/publicar/

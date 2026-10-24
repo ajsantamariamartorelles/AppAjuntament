@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace AppAjuntament.Models.Base.AcceptacioTermes
@@ -16,6 +17,7 @@ namespace AppAjuntament.Models.Base.AcceptacioTermes
         public int Id { get; set; }
 
         /// <summary>Correu normalitzat (minúscules, sense espais).</summary>
+        [MaxLength(191)] // límit de clau única a MySQL 5.6 amb utf8mb4 (767 bytes)
         public string Email { get; set; } = string.Empty;
 
         /// <summary>Versió del text (Termes + Privacitat) que es va acceptar.

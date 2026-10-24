@@ -9,6 +9,7 @@
 @inject IJSRuntime JS
 @inject AuthenticationStateProvider AuthStateProvider
 @inject IAcceptacioTermesService AcceptacioTermesService
+@inject ILogger<MainLayout> Logger
 
 <div class="page">
     @if (collapseNavMenu && isMobile)
@@ -75,7 +76,19 @@
         if (string.IsNullOrWhiteSpace(email))
             return;
 
-        if (!await AcceptacioTermesService.HaAcceptatVersioActualAsync(email))
+        bool haAcceptat;
+        try
+        {
+            haAcceptat = await AcceptacioTermesService.HaAcceptatVersioActualAsync(email);
+        }
+        catch (Exception ex)
+        {
+            // Una fallada aquí (p. ex. taula inexistent a la BD) no ha de tombar tot el circuit.
+            Logger.LogError(ex, "No s'ha pogut comprovar l'acceptació de termes");
+            return;
+        }
+
+        if (!haAcceptat)
         {
             var returnUrl = Uri.EscapeDataString(NavigationManager.ToBaseRelativePath(NavigationManager.Uri) is { Length: > 0 } relatiu
                 ? "/" + relatiu

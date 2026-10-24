@@ -33,6 +33,14 @@
         {
             <div class="p-4 text-center text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Carregant...</div>
         }
+        else if (errorCarrega is not null)
+        {
+            <div class="alert alert-danger m-3 mb-0" role="alert">
+                <strong>No s'han pogut carregar els alumnes.</strong>
+                <div class="small mt-1">@errorCarrega</div>
+                <button class="btn btn-outline-danger btn-sm mt-2" @onclick="Carregar">Tornar a intentar</button>
+            </div>
+        }
         else if (!Filtrats.Any())
         {
             <div class="p-4 text-center text-muted">
@@ -100,6 +108,7 @@
 @code {
     private List<AlumneAdminDto> alumnes = new();
     private bool carregant = true;
+    private string? errorCarrega;
     private bool mostrarInactius = true;
     private string cerca = string.Empty;
 
@@ -114,12 +123,15 @@
     private async Task Carregar()
     {
         carregant = true;
+        errorCarrega = null;
         try
         {
             alumnes = await CatalogService.GetAlumnesAsync(mostrarInactius);
         }
         catch (Exception ex)
         {
+            // Abans només es desava al log i la pàgina mostrava una llista buida, com si no hi hagués alumnes.
+            errorCarrega = ex.GetBaseException().Message;
             await DbLogger.LogErrorAsync("Error carregant alumnes", ex, "Alumnes.Carregar");
         }
         finally

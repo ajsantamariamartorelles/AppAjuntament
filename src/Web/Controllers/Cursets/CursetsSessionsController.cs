@@ -16,9 +16,17 @@ namespace AppAjuntament.Controllers.Cursets
     {
         private readonly ICursetsSessionsService _sessionsService;
 
-        public CursetsSessionsController(ICursetsSessionsService sessionsService)
+        /// <summary>Missatge per a la professora quan falla alguna cosa inesperada del servidor.</summary>
+        public const string MissatgeErrorInesperat =
+            "Hi ha hagut un problema al servidor i no s'ha pogut fer l'operació. " +
+            "Torna-ho a provar d'aquí una estona i, si continua passant, avisa l'Ajuntament.";
+
+        private readonly ILogger<CursetsSessionsController> _logger;
+
+        public CursetsSessionsController(ICursetsSessionsService sessionsService, ILogger<CursetsSessionsController> logger)
         {
             _sessionsService = sessionsService;
+            _logger = logger;
         }
 
         /// <summary>"Iniciar classe": crea (o recupera) la sessió d'avui per al curset, amb tothom present per defecte.</summary>
@@ -38,6 +46,11 @@ namespace AppAjuntament.Controllers.Cursets
             {
                 return BadRequest(new { message = ex.Message });
             }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error en obrir la sessió del curset {CursetId}", cursetId);
+                return StatusCode(StatusCodes.Status500InternalServerError, new { message = MissatgeErrorInesperat });
+            }
         }
 
         /// <summary>Desa l'assistència final (alumnes desmarcats com a absents) i tanca la sessió.</summary>
@@ -53,6 +66,11 @@ namespace AppAjuntament.Controllers.Cursets
             catch (ArgumentException ex)
             {
                 return BadRequest(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error en tancar la sessió {SessioId}", sessioId);
+                return StatusCode(StatusCodes.Status500InternalServerError, new { message = MissatgeErrorInesperat });
             }
         }
 

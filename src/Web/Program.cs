@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.DataProtection;
 ﻿using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.EntityFrameworkCore;
@@ -43,12 +44,38 @@ builder.Configuration.AddJsonFile(
     $"appsettings.{builder.Environment.EnvironmentName}.secrets.json",
     optional: true, reloadOnChange: true);
 
+// Si falta algun valor imprescindible (típicament perquè no hi ha el fitxer de
+// secrets de l'entorn), s'avisa amb el nom exacte en lloc d'un error críptic.
+var clausObligatories = new[]
+{
+    "ConnectionStrings:DefaultConnection", "AppBaseUrl",
+    "AzureAd:Domain", "AzureAd:TenantId", "AzureAd:ClientId",
+    "Authorization:Groups:GroupAccess1", "Authorization:Groups:GroupAccess2",
+};
+var clausBuides = clausObligatories.Where(c => string.IsNullOrWhiteSpace(builder.Configuration[c])).ToList();
+if (clausBuides.Count > 0)
+    throw new InvalidOperationException(
+        $"Falta configuració: {string.Join(", ", clausBuides)}. Cal omplir-la a appsettings.{builder.Environment.EnvironmentName}.secrets.json " +
+        "(vegeu appsettings.secrets.sample.json).");
+
 // Add services to the container.
 builder.Services.AddRazorPages(options =>
 {
     options.Conventions.AllowAnonymousToPage("/_Host");
 });
 builder.Services.AddServerSideBlazor();
+
+// Claus de protecció de dades (cookies de login, antiforgery, circuits de Blazor).
+// Sense això, en hostings sense perfil d'usuari les claus viuen en memòria i es
+// perden a cada reinici, i els logins en curs fallen. La ruta es pot canviar amb
+// DataProtection:KeysPath; per defecte, App_Data/DataProtection-Keys (ignorada pel git).
+var rutaClausDp = builder.Configuration["DataProtection:KeysPath"];
+if (string.IsNullOrWhiteSpace(rutaClausDp))
+    rutaClausDp = Path.Combine(builder.Environment.ContentRootPath, "App_Data", "DataProtection-Keys");
+Directory.CreateDirectory(rutaClausDp);
+builder.Services.AddDataProtection()
+    .SetApplicationName("AppAjuntament")
+    .PersistKeysToFileSystem(new DirectoryInfo(rutaClausDp));
 
 builder.Services.AddLocalization(options => options.ResourcesPath = "Resources"); // Configura la carpeta de recursos
 
@@ -185,8 +212,21 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 builder.Services.Configure<AjuntamentSettings>(
     builder.Configuration.GetSection(AjuntamentSettings.SectionName));
 
+// ServerVersion.AutoDetect obre una connexió al MySQL: es fa una sola vegada (i es
+// recorda) en lloc de a cada contexte, que doblava les connexions i les fallades.
+ServerVersion? versioMySql = null;
+var bloqueigVersio = new object();
+ServerVersion ObtenirVersioMySql()
+{
+    lock (bloqueigVersio)
+        return versioMySql ??= ServerVersion.AutoDetect(connectionString);
+}
+
+// EnableRetryOnFailure: el MySQL de l'hosting talla connexions de tant en tant
+// ("Unable to connect to any of the specified MySQL hosts"); es reintenta sol.
 builder.Services.AddDbContextFactory<GestorSubvencionsContext>(options =>
-    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
+    options.UseMySql(connectionString, ObtenirVersioMySql(),
+        mysql => mysql.EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(5), errorNumbersToAdd: null)));
 
 // Afegir HttpClient per a les crides a l'API amb configuració de timeout i retry policies
 builder.Services.AddHttpClient<ComarcaApiService>(client =>
@@ -368,12 +408,7 @@ var app = builder.Build();
 
 // (La programació del job es fa ara via HostedService: HangfireJobsInitializer)
 
-// Ensure database is created
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<GestorSubvencionsContext>();
-    db.Database.EnsureCreated();
-}
+// L'estructura de la BD no es crea des de l'app: s'aplica db/<motor>/schema.sql (vegeu AGENTS.md).
 
 // NOMÉS EN DESENVOLUPAMENT: professora de prova per poder provar el login de
 // l'app MAUI i la gestió de professores sense dependre d'Azure AD.
