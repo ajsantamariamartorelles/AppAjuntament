@@ -1540,7 +1540,7 @@ CREATE TABLE IF NOT EXISTS `volu_voluntaris_ambits` (
 -- i Services/AcceptacioTermesService.cs.
 CREATE TABLE IF NOT EXISTS `acceptacions_termes` (
   `Id` int(11) NOT NULL AUTO_INCREMENT,
-  `Email` varchar(255) NOT NULL,
+  `Email` varchar(191) NOT NULL,
   `VersioAcceptada` int(11) NOT NULL,
   `DataAcceptacio` datetime NOT NULL,
   PRIMARY KEY (`Id`),
