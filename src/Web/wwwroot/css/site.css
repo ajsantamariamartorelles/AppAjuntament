@@ -3,7 +3,16 @@
 html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
     max-width: 100%;
+}
+
+/* No es posa overflow-x:hidden a html i body alhora: això converteix el body en el contenidor de
+   desplaçament i trenca el position:sticky del menú lateral (es movia amb la pàgina). */
+html {
     overflow-x: hidden;
+}
+
+body {
+    overflow-x: clip;
 }
 
 @media (max-width: 640.98px) {
