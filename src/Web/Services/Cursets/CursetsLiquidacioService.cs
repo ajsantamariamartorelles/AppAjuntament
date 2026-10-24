@@ -346,7 +346,15 @@ namespace AppAjuntament.Services.Cursets
 
         // ==================== Emissió de la remesa ====================
 
-        public async Task<EmetreRemesaResultDto> EmetreRemesaAsync(EmetreRemesaRequest req, int? userId)
+        public Task<EmetreRemesaResultDto> EmetreRemesaAsync(EmetreRemesaRequest req, int? userId)
+        {
+            // Amb els reintents de connexió activats (Program.cs) EF exigeix que una
+            // transacció manual s'executi dins l'estratègia d'execució.
+            var estrategia = _context.Database.CreateExecutionStrategy();
+            return estrategia.ExecuteAsync(() => EmetreRemesaInternAsync(req, userId));
+        }
+
+        private async Task<EmetreRemesaResultDto> EmetreRemesaInternAsync(EmetreRemesaRequest req, int? userId)
         {
             var p = ResoldrePeriode(req);
             var referTot = string.Equals(req.Mode, "ReferTot", StringComparison.OrdinalIgnoreCase);
