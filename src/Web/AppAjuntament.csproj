@@ -2,6 +2,9 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <VersionPrefix>1.0</VersionPrefix>
+    <!-- Versió automàtica a cada compilació/publicació: 1.0.<any><mes><dia>.<hora><minut>. Es mostra al desplegable de l'usuari. -->
+    <InformationalVersion>$(VersionPrefix).$([System.DateTime]::Now.ToString("yyyyMMdd")).$([System.DateTime]::Now.ToString("HHmm"))</InformationalVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
