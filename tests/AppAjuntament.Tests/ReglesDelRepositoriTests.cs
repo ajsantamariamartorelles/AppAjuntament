@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using AppAjuntament.Tests.Infraestructura;
 using Xunit;
@@ -45,6 +46,50 @@ public class ReglesDelRepositoriTests
 
         Assert.True(infraccions.Count == 0,
             "SQL cru detectat (regla 2 d'AGENTS.md):\n" + string.Join("\n", infraccions));
+    }
+
+    // Regla 3: els appsettings versionats no porten cap valor sensible; aquests van
+    // a appsettings.<Entorn>.secrets.json (ignorat pel git).
+    private static readonly string[] ClausSensibles =
+    {
+        "ConnectionStrings:DefaultConnection", "AppBaseUrl",
+        "AzureAd:Domain", "AzureAd:TenantId", "AzureAd:ClientId", "AzureAd:ClientSecret",
+        "Authorization:Groups:GroupAccess1", "Authorization:Groups:GroupAccess2",
+        "MinIO:AccessKey", "MinIO:SecretKey", "CursetsJwt:SigningKey",
+    };
+
+    [Theory]
+    [InlineData("appsettings.json")]
+    [InlineData("appsettings.Development.json")]
+    [InlineData("appsettings.Production.json")]
+    [InlineData("appsettings.secrets.sample.json")]
+    public void Els_appsettings_versionats_no_porten_valors_sensibles(string fitxer)
+    {
+        var cami = Path.Combine(ArrelDelRepositori.Trobar(), "src", "Web", fitxer);
+        Assert.True(File.Exists(cami), $"Falta {fitxer}");
+
+        using var doc = JsonDocument.Parse(File.ReadAllText(cami),
+            new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
+
+        var infraccions = new List<string>();
+        foreach (var clau in ClausSensibles)
+        {
+            var node = doc.RootElement;
+            var trobat = true;
+            foreach (var part in clau.Split(':'))
+            {
+                if (node.ValueKind != JsonValueKind.Object || !node.TryGetProperty(part, out node))
+                {
+                    trobat = false;
+                    break;
+                }
+            }
+            if (trobat && node.ValueKind == JsonValueKind.String && !string.IsNullOrEmpty(node.GetString()))
+                infraccions.Add(clau);
+        }
+
+        Assert.True(infraccions.Count == 0,
+            $"{fitxer} porta valors sensibles (regla 3 d'AGENTS.md): {string.Join(", ", infraccions)}");
     }
 
     private static IEnumerable<string> FitxersDeCodi(string arrel) =>
