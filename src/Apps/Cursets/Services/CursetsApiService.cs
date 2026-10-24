@@ -27,7 +27,7 @@ public class CursetsApiService
 	public async Task<SessioObertaDto> ObrirSessioAsync(int cursetId)
 	{
 		var response = await _httpClient.PostAsync($"api/cursets/sessions/obrir?cursetId={cursetId}", content: null);
-		response.EnsureSuccessStatusCode();
+		await ComprovarRespostaAsync(response);
 
 		var sessio = await response.Content.ReadFromJsonAsync<SessioObertaDto>();
 		return sessio ?? throw new InvalidOperationException("Resposta buida en obrir la sessió.");
@@ -37,7 +37,34 @@ public class CursetsApiService
 	public async Task TancarSessioAsync(int sessioId, GuardarAssistenciaRequest request)
 	{
 		var response = await _httpClient.PostAsJsonAsync($"api/cursets/sessions/{sessioId}/tancar", request);
-		response.EnsureSuccessStatusCode();
+		await ComprovarRespostaAsync(response);
+	}
+
+	/// <summary>
+	/// Si la resposta no és correcta, llança una excepció amb el missatge en català que
+	/// envia el servidor (camp "message"), o un de genèric entenedor si no n'hi ha.
+	/// </summary>
+	private static async Task ComprovarRespostaAsync(HttpResponseMessage response)
+	{
+		if (response.IsSuccessStatusCode) return;
+
+		string? missatge = null;
+		try
+		{
+			var cos = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+			if (cos.ValueKind == System.Text.Json.JsonValueKind.Object
+				&& cos.TryGetProperty("message", out var camp)
+				&& camp.ValueKind == System.Text.Json.JsonValueKind.String)
+				missatge = camp.GetString();
+		}
+		catch (Exception)
+		{
+			// El cos no és JSON: es fa servir el missatge genèric.
+		}
+
+		throw new InvalidOperationException(string.IsNullOrWhiteSpace(missatge)
+			? "No s'ha pogut fer l'operació. Torna-ho a provar d'aquí una estona i, si continua passant, avisa l'Ajuntament."
+			: missatge);
 	}
 
 	/// <summary>Històric de sessions d'un curset (data desc.) amb el detall d'assistència. Només lectura.</summary>
